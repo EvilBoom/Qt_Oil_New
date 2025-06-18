@@ -1,0 +1,11 @@
+module Qt_Oil_New
+singleton Constants 1.0 Constants.qml
+EventListSimulator 1.0 EventListSimulator.qml
+EventListModel 1.0 EventListModel.qml
+MainWindow 1.0 MainWindow.qml
+DashboardPage 1.0 DashboardPage.qml
+NavigationItem 1.0 NavigationItem.qml
+QuickActionButton 1.0 QuickActionButton.qml
+FunctionCard 1.0 FunctionCard.qml
+StatCard 1.0 StatCard.qml
+ProductionParamsDialog 1.0 ProductionParamsDialog.qml

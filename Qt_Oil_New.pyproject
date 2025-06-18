@@ -1,0 +1,16 @@
+{
+    "files": [
+        "Controller/LoginController.py",
+        "Controller/ReadMe.md",
+        "Qt_Oil_NewContent/DashboardPage.qml",
+        "Qt_Oil_NewContent/FunctionCard.qml",
+        "Qt_Oil_NewContent/MainWindow.qml",
+        "Qt_Oil_NewContent/NavigationItem.qml",
+        "Qt_Oil_NewContent/ProductionParamsDialog.qml",
+        "Qt_Oil_NewContent/QuickActionButton.qml",
+        "Qt_Oil_NewContent/StartWindow.qml",
+        "Qt_Oil_NewContent/StatCard.qml",
+        "main.py",
+        "main.qml"
+    ]
+}

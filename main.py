@@ -1,0 +1,108 @@
+# This Python file uses the following encoding: utf-8
+import sys
+from pathlib import Path
+from PySide6.QtGui import QGuiApplication
+from PySide6.QtQml import QQmlApplicationEngine
+from PySide6.QtCore import QObject, Signal, Slot, QUrl
+
+# 导入登录控制器
+from Controller.LoginController import LoginController
+
+# 主应用类 - 管理应用程序生命周期
+class Application(QObject):
+    def __init__(self):
+        super().__init__()
+        self.app = QGuiApplication(sys.argv)
+        self.engine = QQmlApplicationEngine()
+
+        # 设置应用程序信息
+        self.app.setOrganizationName("OilTech")
+        self.app.setOrganizationDomain("oiltech.com")
+        self.app.setApplicationName("油井设备智能管理系统")
+
+        # 初始化控制器
+        self.login_controller = LoginController()
+
+        # 存储用户信息
+        self.current_user = ""
+        self.current_project = ""
+
+        # 连接登录信号
+        self.login_controller.loginSuccess.connect(self.on_login_success)
+        self.login_controller.loginFailed.connect(self.on_login_failed)
+
+        # 将控制器注册到QML引擎
+        self.engine.rootContext().setContextProperty("loginController", self.login_controller)
+
+        # 加载登录QML文件
+        qml_file = Path(__file__).resolve().parent / "QT_Oil_NewContent/StartWindow.qml"
+        self.engine.load(QUrl.fromLocalFile(str(qml_file)))
+
+        if not self.engine.rootObjects():
+            print("Failed to load StartWindow.qml")
+            sys.exit(-1)
+
+    def run(self):
+        """运行应用程序主循环"""
+        return self.app.exec()
+
+    @Slot(str, str)
+    def on_login_success(self, project_name, user_name):
+        """登录成功处理函数"""
+        print(f"登录成功! 项目: {project_name}, 用户: {user_name}")
+
+        # 保存用户信息
+        self.current_user = user_name
+        self.current_project = project_name
+
+        # 切换到主窗口
+        self.open_main_window(project_name, user_name)
+
+    @Slot(str)
+    def on_login_failed(self, error_message):
+        """登录失败处理函数"""
+        print(f"登录失败: {error_message}")
+        # 错误提示已在QML中处理
+
+    def open_main_window(self, project_name, user_name):
+        """打开主窗口"""
+        try:
+            # 先加载主窗口
+            main_qml = Path(__file__).resolve().parent / "QT_Oil_NewContent/MainWindow.qml"
+
+            # 确保文件存在
+            if not main_qml.exists():
+                print(f"MainWindow.qml not found at: {main_qml}")
+                return
+
+            # 关闭登录窗口
+            if self.engine.rootObjects():
+                login_window = self.engine.rootObjects()[0]
+                login_window.close()
+
+            # 清理引擎
+            self.engine.clearComponentCache()
+
+            # 重新注册控制器，确保主窗口也能访问
+            self.engine.rootContext().setContextProperty("loginController", self.login_controller)
+
+            # 加载主窗口
+            self.engine.load(QUrl.fromLocalFile(str(main_qml)))
+
+            # 设置主窗口的用户信息和语言
+            if self.engine.rootObjects():
+                # 找到新加载的主窗口（最后一个）
+                main_window = self.engine.rootObjects()[-1]
+                main_window.setProperty("currentUserName", user_name)
+                main_window.setProperty("currentProjectName", project_name)
+                main_window.setProperty("isChinese", self.login_controller.language)
+                print(f"主窗口已加载，用户: {user_name}, 项目: {project_name}, 语言: {'中文' if self.login_controller.language else '英文'}")
+            else:
+                print("Failed to load MainWindow.qml")
+
+        except Exception as e:
+            print(f"打开主窗口时出错: {e}")
+
+if __name__ == "__main__":
+    app = Application()
+    sys.exit(app.run())
