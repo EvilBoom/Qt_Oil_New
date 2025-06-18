@@ -2,6 +2,8 @@
     "files": [
         "Controller/LoginController.py",
         "Controller/ReadMe.md",
+        "DataManage/DataManage.py",
+        "DataManage/DatabaseConfig.py",
         "Qt_Oil_NewContent/DashboardPage.qml",
         "Qt_Oil_NewContent/FunctionCard.qml",
         "Qt_Oil_NewContent/MainWindow.qml",
