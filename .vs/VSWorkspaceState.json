@@ -1,0 +1,23 @@
+{
+  "OutputFoldersPerTargetSystem": {
+    "Local Machine": [
+      "out\\build\\x64-Debug",
+      "out\\install\\x64-Debug"
+    ]
+  },
+  "ExpandedNodes": [
+    "",
+    "\\Controller",
+    "\\DataManage",
+    "\\DataManage\\services",
+    "\\Qt_Oil_NewContent",
+    "\\Qt_Oil_NewContent\\DeviceRecommendation",
+    "\\Qt_Oil_NewContent\\DeviceRecommendation\\Components",
+    "\\Qt_Oil_NewContent\\DeviceRecommendation\\Steps",
+    "\\Qt_Oil_NewContent\\OilWellManagement",
+    "\\Qt_Oil_NewContent\\WellStructure",
+    "\\Qt_Oil_NewContent\\WellStructure\\components"
+  ],
+  "SelectedNode": "\\main.py",
+  "PreviewInSolutionExplorer": false
+}

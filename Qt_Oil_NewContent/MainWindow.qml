@@ -1,4 +1,4 @@
-import QtQuick
+﻿import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 import QtQuick.Controls.Material
@@ -13,12 +13,21 @@ Window {
     minimumHeight: 600
     title: qsTr("油井设备智能管理系统")
 
+    // 设置宋体作为主要字体
+    // Material.fontFamily: "SimSun"  // 宋体
+
     // 属性定义
     property string currentUserName: ""
     property string currentProjectName: ""
     property int currentPageIndex: 0
     property bool sidebarCollapsed: false
     property bool isChinese: true  // 语言设置
+    // 在 MainWindow 的属性定义部分添加
+    property int currentWellId: -1
+    property var currentSelectionData: ({})
+
+    // 在MainWindow.qml的属性定义部分添加：
+    property int currentProjectId: -1
 
     // 连接LoginController的语言变化信号
     Connections {
@@ -26,6 +35,11 @@ Window {
         function onLanguageChanged(chinese) {
             mainWindow.isChinese = chinese
         }
+    }
+    onCurrentProjectIdChanged: {
+        console.log("MainWindow - currentProjectId 变更为:", currentProjectId)
+        // 更新所有已加载的页面的 projectId
+        updateAllProjectIds()
     }
 
     Rectangle {
@@ -130,7 +144,6 @@ Window {
                                     handleNavigation(action)
                                 }
                             }
-
                             // 设备选型推荐
                             NavigationItem {
                                 width: parent.width
@@ -138,14 +151,13 @@ Window {
                                 title: isChinese ? "设备选型推荐" : "Equipment Selection"
                                 collapsed: sidebarCollapsed
                                 subItemsList: [
-                                    {"title": isChinese ? "生产参数录入" : "Production Parameters", "action": "production-params"},
-                                    {"title": isChinese ? "设备推荐" : "Equipment Recommendation", "action": "device-recommend"},
-                                    {"title": isChinese ? "选型报告生成" : "Selection Report", "action": "report-generate"}
-                                ]
+                                 {"title": isChinese ? "设备选型推荐" : "Equipment Selection", "action": "device-recommend"}, // Added new selection item
+                                ] 
                                 onSubItemClicked: function(action) {
                                     handleNavigation(action)
                                 }
                             }
+
 
                             // 设备数据库管理
                             NavigationItem {
@@ -154,9 +166,8 @@ Window {
                                 title: isChinese ? "设备数据库管理" : "Equipment Database"
                                 collapsed: sidebarCollapsed
                                 subItemsList: [
-                                    {"title": isChinese ? "设备列表" : "Equipment List", "action": "device-list"},
-                                    {"title": isChinese ? "添加设备" : "Add Equipment", "action": "add-device"},
-                                    {"title": isChinese ? "设备分类管理" : "Category Management", "action": "device-category"}
+                                {"title": isChinese ? "设备数据管理" : "Equipment Selection", "action": "equipment-manage"}, // Added new selection item
+                                
                                 ]
                                 onSubItemClicked: function(action) {
                                     handleNavigation(action)
@@ -333,25 +344,70 @@ Window {
                         }
                     }
 
-                    // 其他页面占位
-                    Rectangle {
-                        color: "#f5f7fa"
-                        Text {
-                            anchors.centerIn: parent
-                            text: isChinese ? "油井信息页面" : "Well Information Page"
-                            font.pixelSize: 24
-                            color: "#666"
+                    // 油井信息的页面
+                    Loader {
+                        source: "OilWellManagement/OilWellManagementPage.qml"
+
+                        property int projectId: mainWindow.currentProjectId
+                        property bool isChineseMode: mainWindow.isChinese
+                    }
+                    // 井身结构信息页面
+                    Loader {
+                        source: "WellStructure/WellStructurePage.qml"
+
+                        property int projectId: mainWindow.currentProjectId
+                        property bool isChineseMode: mainWindow.isChinese
+                        onLoaded: {
+                            console.log("传递给 WellStructure 的 projectId:", projectId)
+                            console.log("mainWindow.currentProjectId:", mainWindow.currentProjectId)
+                         
                         }
                     }
 
-                    Rectangle {
-                        color: "#f5f7fa"
-                        Text {
-                            anchors.centerIn: parent
-                            text: isChinese ? "设备推荐页面" : "Equipment Recommendation Page"
-                            font.pixelSize: 24
-                            color: "#666"
+                    // 设备选型推荐页面
+                    Loader {
+                        source: "DeviceRecommendation/DeviceRecommendationPage.qml"
+        
+                        property int projectId: mainWindow.currentProjectId
+                        property bool isChineseMode: mainWindow.isChinese
+
+                        onLoaded: {
+                            console.log("传递给 DeviceRecommendationPage 的 projectId:", projectId)
+                            console.log("mainWindow.currentProjectId:", mainWindow.currentProjectId)
+                            if (item) {
+                                console.log("DeviceRecommendationPage 接收到的 projectId:", item.projectId)
+                            }
                         }
+
+                        onStatusChanged: {
+                            console.log("DeviceRecommendation Loader status:", status)
+                            if (status === Loader.Error) {
+                                console.log("Error loading DeviceRecommendation page")
+                            } else if (status === Loader.Ready) {
+                                console.log("DeviceRecommendation page loaded successfully")
+                            }
+                        }
+                        onSourceChanged: console.log("Source changed to:", source)
+                    }
+
+
+                    // 设备数据库管理页面
+                    Loader {
+                        source: "DeviceManagement/DeviceManagementPage.qml"
+
+                        property bool isChineseMode: mainWindow.isChinese
+                    }
+
+
+                    // 添加设备分类管理页面（占位）
+                    Rectangle {
+                            color: "#f5f7fa"
+                            Text {
+                                anchors.centerIn: parent
+                                text: isChinese ? "设备分类管理" : "Device Category Management"
+                                font.pixelSize: 24
+                                color: "#666"
+                            }
                     }
                 }
             }
@@ -385,25 +441,36 @@ Window {
         }
     }
 
-    // 导航处理函数
+    // 2. 更新handleNavigation函数，添加设备管理相关的导航处理：
     function handleNavigation(action) {
         console.log("Navigation to:", action)
 
         switch(action) {
-            case "production-params":
-                showDialog("ProductionParamsDialog.qml")
-                break
-            case "add-device":
-                showDialog("AddDeviceDialog.qml")
-                break
             case "select-task":
                 showDialog("SelectTaskDialog.qml")
                 break
             case "well-info":
                 currentPageIndex = 1
                 break
-            case "device-recommend":
+            case "well-structure":
                 currentPageIndex = 2
+                break
+            case "device-recommend":
+                currentPageIndex = 3
+                console.log("Switching to device list page, index:", currentPageIndex)
+                // 确保在页面加载后设置 projectId
+                var loader = contentStack.children[3]
+                if (loader && loader.item) {
+                    console.log("直接设置 DeviceRecommendationPage 的 projectId:", currentProjectId)
+                    loader.item.projectId = currentProjectId
+                }
+                break
+            case "equipment-manage":
+                currentPageIndex = 4  // 设备列表页面
+                console.log("Switching to device list page, index:", currentPageIndex)
+                break
+            case "device-category":
+                currentPageIndex = 5  // 设备分类管理页面
                 break
             default:
                 console.log("Unknown action:", action)
@@ -415,14 +482,28 @@ Window {
         dialogLoader.source = dialogFile
         dialogLoader.active = true
     }
+    function updateAllProjectIds() {
+        // 检查所有已加载的页面，更新其 projectId
+        for (var i = 0; i < contentStack.children.length; i++) {
+            var loader = contentStack.children[i]
+            if (loader && loader.item && loader.item.hasOwnProperty("projectId")) {
+                console.log(`更新页面 ${i} 的 projectId:`, currentProjectId)
+                loader.item.projectId = currentProjectId
+            }
+        }
+    }
 
-    // 获取面包屑导航文字
+    // 3. 修改 getBreadcrumb 函数
     function getBreadcrumb() {
         var home = isChinese ? "首页" : "Home"
         switch(currentPageIndex) {
             case 0: return home + (isChinese ? " / 系统概览" : " / Dashboard")
-            case 1: return home + (isChinese ? " / 油井信息管理" : " / Well Information")
-            case 2: return home + (isChinese ? " / 设备选型推荐" : " / Equipment Selection")
+            case 1: return home + (isChinese ? " / 油井信息管理 / 油井基本信息" : " / Well Information / Basic Well Info")
+            case 2: return home + (isChinese ? " / 油井信息管理 / 井身结构信息" : " / Well Information / Well Structure")
+            case 3: return home + (isChinese ? " / 设备选型推荐 / 设备选型推荐" : " / Equipment Selection / Equipment Recommendation")
+            case 4: return home + (isChinese ? " / 设备数据库管理 / 设备列表" : " / Equipment Database / Equipment List")
+            case 5: return home + (isChinese ? " / 设备数据库管理 / 设备分类管理" : " / Equipment Database / Category Management")
+
             default: return home
         }
     }

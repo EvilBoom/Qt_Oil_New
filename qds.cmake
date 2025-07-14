@@ -6,6 +6,18 @@ add_subdirectory(Qt_Oil_New)
 add_subdirectory(App)
 add_subdirectory(Dependencies)
 
+qt6_add_resources(${CMAKE_PROJECT_NAME} MainResource
+    PREFIX "/qt/qml"
+    VERSION 1.0
+    FILES 
+        ".vs/VSWorkspaceState.json"
+        ".vs/PythonSettings.json"
+        ".vs/ProjectSettings.json"
+        ".vs/Qt_Oil_New/v17/DocumentLayout.backup.json"
+        ".vs/Qt_Oil_New/v17/DocumentLayout.json"
+        "drafts/report_draft_20250712_144151.json"
+)
+
 target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE
     Qt_Oil_NewContentplugin
     Qt_Oil_Newplugin)

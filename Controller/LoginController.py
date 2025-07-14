@@ -1,8 +1,15 @@
-import sys
-# import os
-from PySide6.QtCore import QObject, Signal, Slot, Property, QUrl
-from PySide6.QtGui import QGuiApplication
-from PySide6.QtQml import QQmlApplicationEngine
+# Controller/LoginController.py
+
+from PySide6.QtCore import QObject, Signal, Slot, Property
+from typing import List, Dict, Any
+import logging
+
+# 导入项目控制器
+from .ProjectController import ProjectController
+
+# 配置日志
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 class LoginController(QObject):
     """登录控制器 - 处理用户登录和项目管理"""
@@ -13,47 +20,85 @@ class LoginController(QObject):
     projectListChanged = Signal()  # 项目列表变更信号
     languageChanged = Signal(bool)  # 语言变更信号 (True=中文, False=英文)
 
-    def __init__(self, db_manager=None, parent=None):
+    def __init__(self, parent=None):
         super().__init__(parent)
-        self._db_manager = db_manager
+
+        # 获取项目控制器实例
+        self._project_controller = ProjectController()
+
+        # 项目列表
         self._project_list = []
-        self._current_language = True  # True=中文, False=英文
+
+        # 当前语言设置 (True=中文, False=英文)
+        self._current_language = True
+
+        # 连接项目控制器信号
+        self._connect_signals()
 
         # 加载项目列表
         self._load_projects()
 
+        logger.info("登录控制器初始化完成")
+
+    def _connect_signals(self):
+        """连接项目控制器信号"""
+        # 连接项目列表加载信号
+        self._project_controller.projectsLoaded.connect(self._on_projects_loaded)
+
+        # 连接项目创建信号
+        self._project_controller.projectCreated.connect(self._on_project_created)
+
+        # 连接错误信号
+        self._project_controller.error.connect(self._on_project_error)
+
+    def _on_projects_loaded(self, projects):
+        """处理项目列表加载完成信号"""
+        self._project_list = projects
+        self.projectListChanged.emit()
+        logger.info(f"项目列表已更新，共 {len(projects)} 个项目")
+
+    def _on_project_created(self, project_id, project_name):
+        """处理项目创建成功信号"""
+        logger.info(f"项目创建成功: {project_name} (ID: {project_id})")
+        # 重新加载项目列表
+        self._load_projects()
+
+    def _on_project_error(self, error_message):
+        """处理项目控制器错误信号"""
+        error_msg = "项目操作错误: " + error_message if self._current_language else "Project operation error: " + error_message
+        logger.error(error_msg)
+        self.loginFailed.emit(error_msg)
+
     def _load_projects(self):
         """从数据库加载项目列表"""
-        # 在实际应用中，从数据库获取项目列表
-        # 这里为示例，使用模拟数据
-        if self._db_manager:
-            # 使用数据库管理器获取项目列表
-            # self._project_list = self._db_manager.get_projects()
-            pass
-        else:
-            # 模拟数据
-            self._project_list = [
-                {"id": 1, "name": "渤海A站台改造项目", "date": "2023-10-15"},
-                {"id": 2, "name": "海洋平台举升系统新建", "date": "2024-02-20"},
-                {"id": 3, "name": "渤海湾B2站台系统升级", "date": "2023-12-15"}
-            ]
-
-        # 通知QML项目列表已更新
-        self.projectListChanged.emit()
+        try:
+            # 调用项目控制器加载项目列表
+            self._project_controller.loadProjects()
+        except Exception as e:
+            error_msg = f"加载项目列表失败: {str(e)}"
+            logger.error(error_msg)
+            self.loginFailed.emit(error_msg)
 
     # 项目列表属性
-    def get_project_list(self):
-        """获取项目列表"""
-        return [project["name"] for project in self._project_list]
+    def get_project_list(self) -> List[str]:
+        """获取项目列表名称"""
+        return [project.get("project_name", "") for project in self._project_list]
 
+    # 完整项目列表属性
+    def get_full_project_list(self) -> List[Dict[str, Any]]:
+        """获取完整项目列表数据"""
+        return self._project_list
+
+    # 属性定义
     projectList = Property(list, get_project_list, notify=projectListChanged)
+    fullProjectList = Property(list, get_full_project_list, notify=projectListChanged)
 
     # 语言属性
-    def get_language(self):
+    def get_language(self) -> bool:
         """获取当前语言设置"""
         return self._current_language
 
-    def set_language(self, is_chinese):
+    def set_language(self, is_chinese: bool):
         """设置当前语言"""
         if self._current_language != is_chinese:
             self._current_language = is_chinese
@@ -62,75 +107,80 @@ class LoginController(QObject):
     language = Property(bool, get_language, set_language, notify=languageChanged)
 
     @Slot(str, str, result=bool)
-    def createProject(self, project_name, user_name):
+    def createProject(self, project_name: str, user_name: str) -> bool:
         """创建新项目"""
-        if not project_name or not user_name:
-            self.loginFailed.emit("项目名称和用户名不能为空" if self._current_language else
-                                 "Project name and user name cannot be empty")
+        try:
+            # 验证输入
+            if not project_name or not user_name:
+                error_msg = "项目名称和用户名不能为空" if self._current_language else "Project name and user name cannot be empty"
+                self.loginFailed.emit(error_msg)
+                return False
+
+            # 检查项目名是否已存在
+            for project in self._project_list:
+                if project.get("project_name", "") == project_name:
+                    error_msg = "项目名称已存在" if self._current_language else "Project name already exists"
+                    self.loginFailed.emit(error_msg)
+                    return False
+
+            # 调用项目控制器创建项目
+            project_id = self._project_controller.createProject(
+                project_name=project_name,
+                user_name=user_name,
+                company_name="",
+                well_name="",
+                oil_name="",
+                location="",
+                ps=""
+            )
+
+            if project_id <= 0:
+                error_msg = "创建项目失败" if self._current_language else "Failed to create project"
+                self.loginFailed.emit(error_msg)
+                return False
+
+            # 通知QML登录成功
+            self.loginSuccess.emit(project_name, user_name)
+            return True
+
+        except Exception as e:
+            error_msg = f"创建项目异常: {str(e)}"
+            logger.error(error_msg)
+            self.loginFailed.emit(error_msg)
             return False
-
-        # 检查项目名是否已存在
-        if project_name in [p["name"] for p in self._project_list]:
-            self.loginFailed.emit("项目名称已存在" if self._current_language else
-                                 "Project name already exists")
-            return False
-
-        # 在实际应用中，将新项目保存到数据库
-        if self._db_manager:
-            # success = self._db_manager.create_project(project_name, user_name)
-            pass
-        else:
-            # 模拟创建项目
-            new_id = max([p["id"] for p in self._project_list], default=0) + 1
-            self._project_list.append({
-                "id": new_id,
-                "name": project_name,
-                "date": "2025-06-15"  # 使用当前日期
-            })
-
-        # 通知QML登录成功，传递项目名称和用户名
-        self.loginSuccess.emit(project_name, user_name)
-        return True
 
     @Slot(int, str, result=bool)
-    def openProject(self, project_index, user_name):
+    def openProject(self, project_index: int, user_name: str) -> bool:
         """打开已有项目"""
-        if project_index < 0 or project_index >= len(self._project_list):
-            self.loginFailed.emit("无效的项目选择" if self._current_language else
-                                 "Invalid project selection")
+        try:
+            # 验证输入
+            if project_index < 0 or project_index >= len(self._project_list):
+                error_msg = "无效的项目选择" if self._current_language else "Invalid project selection"
+                self.loginFailed.emit(error_msg)
+                return False
+
+            if not user_name:
+                error_msg = "用户名不能为空" if self._current_language else "User name cannot be empty"
+                self.loginFailed.emit(error_msg)
+                return False
+
+            # 获取项目信息
+            project = self._project_list[project_index]
+            project_name = project.get("project_name", "")
+            project_id = project.get("id", -1)  # 获取项目ID
+
+            # 更新项目的用户名（可选）
+            if user_name != project.get("user_name", ""):
+                # 如果新用户打开项目，可以选择更新项目的用户名
+                # self._project_controller.updateProject(project["id"], user_name=user_name)
+                pass
+
+            # 通知QML登录成功
+            self.loginSuccess.emit(project_name, user_name)
+            return True
+
+        except Exception as e:
+            error_msg = f"打开项目异常: {str(e)}"
+            logger.error(error_msg)
+            self.loginFailed.emit(error_msg)
             return False
-
-        if not user_name:
-            self.loginFailed.emit("用户名不能为空" if self._current_language else
-                                 "User name cannot be empty")
-            return False
-
-        project_name = self._project_list[project_index]["name"]
-
-        # 在实际应用中，验证项目是否可以打开
-        if self._db_manager:
-            # success = self._db_manager.open_project(project_id)
-            pass
-
-        # 通知QML登录成功
-        self.loginSuccess.emit(project_name, user_name)
-        return True
-
-# 主函数，仅用于测试登录控制器
-if __name__ == "__main__":
-    app = QGuiApplication(sys.argv)
-
-    # 创建QML引擎
-    engine = QQmlApplicationEngine()
-
-    # 创建并注册登录控制器
-    login_controller = LoginController()
-    engine.rootContext().setContextProperty("loginController", login_controller)
-
-    # 加载QML文件
-    engine.load(QUrl.fromLocalFile("login.qml"))
-
-    if not engine.rootObjects():
-        sys.exit(-1)
-
-    sys.exit(app.exec())

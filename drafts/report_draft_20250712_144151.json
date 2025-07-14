@@ -1,0 +1,238 @@
+{
+  "generatedTime": "PySide6.QtCore.QDateTime(2025, 7, 12, 14, 41, 51, 13, 0)",
+  "reportHtml": "\n<!DOCTYPE html>\n<html>\n<head>\n    <meta charset=\"UTF-8\">\n    <title>测试项目 设备选型报告</title>\n    <style>\n        body {\n            font-family: 'Times New Roman', '宋体', serif;\n            line-height: 1.6;\n            color: #333;\n            max-width: 210mm;\n            margin: 0 auto;\n            padding: 20px;\n            background: #fff;\n        }\n\n        .header {\n            text-align: center;\n            border-bottom: 3px solid #1e3a5f;\n            padding-bottom: 20px;\n            margin-bottom: 30px;\n            position: relative;\n        }\n\n        .header-logo {\n            position: absolute;\n            left: 0;\n            top: 0;\n        }\n\n        .header-date {\n            position: absolute;\n            right: 0;\n            top: 0;\n            font-size: 12px;\n        }\n\n        .header-company {\n            font-size: 18px;\n            font-weight: bold;\n            margin: 10px 0;\n        }\n\n        h1 {\n            color: #1e3a5f;\n            font-size: 28px;\n            margin: 10px 0;\n        }\n\n        h2 {\n            color: #1e3a5f;\n            font-size: 20px;\n            margin-top: 30px;\n            margin-bottom: 15px;\n            padding-bottom: 8px;\n            border-bottom: 2px solid #e0e0e0;\n        }\n\n        h3 {\n            color: #4a90e2;\n            font-size: 16px;\n            margin-top: 20px;\n            margin-bottom: 10px;\n        }\n\n        table {\n            width: 100%;\n            border-collapse: collapse;\n            margin: 20px 0;\n        }\n\n        th {\n            background-color: #f5f7fa;\n            color: #1e3a5f;\n            font-weight: 600;\n            text-align: left;\n            padding: 12px;\n            border: 1px solid #e0e0e0;\n        }\n\n        td {\n            padding: 10px 12px;\n            border: 1px solid #e0e0e0;\n        }\n\n        tr:nth-child(even) {\n            background-color: #fafafa;\n        }\n\n        .equipment-summary-table th:first-child {\n            background-color: #ffcc00;\n        }\n\n        .chart-placeholder {\n            background: #f8f9fa;\n            border: 2px dashed #dee2e6;\n            height: 300px;\n            display: flex;\n            align-items: center;\n            justify-content: center;\n            margin: 20px 0;\n            color: #6c757d;\n            font-style: italic;\n        }\n\n        .page-break {\n            page-break-before: always;\n        }\n\n        .footer {\n            margin-top: 50px;\n            padding-top: 20px;\n            border-top: 2px solid #e0e0e0;\n            text-align: center;\n            color: #666;\n            font-size: 12px;\n        }\n\n        @media print {\n            body {\n                margin: 0;\n                padding: 10mm;\n            }\n            .no-print {\n                display: none;\n            }\n        }\n    </style>\n</head>\n<body>\n    \n        <div class=\"header\">\n            <div class=\"header-logo\">\n                <span style=\"font-size: 12px;\">🏢</span>\n            </div>\n            <div class=\"header-company\">中国石油技术开发有限公司</div>\n            <div class=\"header-date\">2025-07-12</div>\n            <h1>测试项目 设备选型报告（测试）</h1>\n        </div>\n        \n        <section id=\"project-info\">\n            <h2>1. 项目基本信息</h2>\n            <p><strong>项目名称：</strong>测试项目</p>\n            \n        <table>\n            <tr><td>公司</td><td>中国石油技术开发有限公司</td></tr>\n            <tr><td>井号</td><td>WELL-001</td></tr>\n            <tr><td>项目名称</td><td>测试项目</td></tr>\n            <tr><td>油田</td><td>测试油田</td></tr>\n            <tr><td>地点</td><td>测试地点</td></tr>\n            <tr><td>井型</td><td>生产井</td></tr>\n            <tr><td>井状态</td><td>生产中</td></tr>\n            <tr><td>备注</td><td>ESP设备选型项目</td></tr>\n        </table>\n        \n        </section>\n        \n        <section id=\"well-structure\">\n            <h2>2. 生产套管井身结构信息</h2>\n            \n        <table>\n            <tr><td>井号</td><td>WELL-001</td></tr>\n            <tr><td>井深 (MD)</td><td>待计算</td></tr>\n            <tr><td>垂深 (TVD)</td><td>待计算</td></tr>\n            <tr><td>井型</td><td>直井</td></tr>\n            <tr><td>井状态</td><td>生产中</td></tr>\n            <tr><td>生产套管外径</td><td>177.8 mm (7.00 inch)</td></tr>\n            <tr><td>生产套管内径</td><td>152.4 mm (6.00 inch)</td></tr>\n            <tr><td>套管钢级</td><td>P-110</td></tr>\n            <tr><td>粗糙度</td><td>0.0018 inch</td></tr>\n            <tr><td>射孔垂深 (TVD)</td><td>待计算</td></tr>\n            <tr><td>泵挂垂深 (TVD)</td><td>待计算</td></tr>\n            <tr><td>最大井斜</td><td>0.0°</td></tr>\n            <tr><td>最大造斜率</td><td>0.00°/100ft</td></tr>\n        </table>\n        \n        </section>\n        \n        <section id=\"well-trajectory\">\n            <h2>3. 井轨迹图</h2>\n            <div class=\"chart-placeholder\">\n                井轨迹图将在此显示（需要实际数据绘制）\n            </div>\n        </section>\n        \n        <section id=\"production-parameters\">\n            <h2>4. 生产参数及模型预测</h2>\n            \n        <table>\n            <tr><td>地层压力</td><td>3350.0 psi</td></tr>\n            <tr><td>期望产量</td><td>1000.0 bbl/d</td></tr>\n            <tr><td>饱和压力</td><td>649.0 psi</td></tr>\n            <tr><td>生产指数</td><td>0.6 bbl/d/psi</td></tr>\n            <tr><td>井底温度</td><td>210.0 °F</td></tr>\n            <tr><td>含水率</td><td>0.4 %</td></tr>\n            <tr><td>API重度</td><td>19.0 °API</td></tr>\n            <tr><td>油气比</td><td>200.0 scf/bbl</td></tr>\n            <tr><td>井口压力</td><td>350.0 psi</td></tr>\n            <tr style=\"background-color: #f0f8ff;\"><td colspan=\"2\"><strong>预测结果</strong></td></tr>\n            <tr><td>预测吸入口汽液比</td><td>5.6</td></tr>\n            <tr><td>预测所需扬程</td><td>2160.0 ft</td></tr>\n            <tr><td>预测产量</td><td>1000.0 bbl/d</td></tr>\n        </table>\n        \n        </section>\n        \n        <section id=\"equipment-selection\">\n            <h2>5. 设备选型推荐</h2>\n            \n        <h3>5.1 泵选型</h3>\n        <table>\n            <tr><td>制造商</td><td>Baker Hughes</td></tr>\n            <tr><td>泵型</td><td>FLEXPump™ 400</td></tr>\n            <tr><td>选型代码</td><td>FLEXPump_400</td></tr>\n            <tr><td>级数</td><td>87</td></tr>\n            <tr><td>需要扬程</td><td>2175.0 ft</td></tr>\n            <tr><td>泵功率</td><td>217.5 HP</td></tr>\n            <tr><td>效率</td><td>68.0 %</td></tr>\n            <tr><td>排量范围</td><td>0 - 0 bbl/d</td></tr>\n        </table>\n        \n        <h3>5.2 保护器选型</h3>\n        <table>\n            <tr><td>制造商</td><td>Schlumberger</td></tr>\n            <tr><td>保护器型号</td><td>REDA HT Protector</td></tr>\n            <tr><td>数量</td><td>1</td></tr>\n            <tr><td>总推力容量</td><td>10000.00 lbs</td></tr>\n            <tr><td>规格说明</td><td>REDA HT Protector × 1 - 10000 lbs 总推力</td></tr>\n        </table>\n        \n        <h3>5.3 分离器选型</h3>\n        \n            <table>\n                <tr><td>制造商</td><td>Baker Hughes</td></tr>\n                <tr><td>分离器型号</td><td>CENesis PHASE</td></tr>\n                <tr><td>分离效率</td><td>95.0 %</td></tr>\n                <tr><td>规格说明</td><td>CENesis PHASE - 95% 分离效率</td></tr>\n            </table>\n            \n        <h3>5.4 电机选型</h3>\n        <table>\n            <tr><td>制造商</td><td>Weatherford</td></tr>\n            <tr><td>电机型号</td><td>Ultra HD</td></tr>\n            <tr><td>功率</td><td>350.00 HP</td></tr>\n            <tr><td>电压</td><td>3300.00 V</td></tr>\n            <tr><td>频率</td><td>60.00 Hz</td></tr>\n            <tr><td>效率</td><td>0.0 %</td></tr>\n            <tr><td>规格说明</td><td>Ultra HD - 350 HP @ 3300V/60Hz, 0% 效率</td></tr>\n        </table>\n        \n        <h3>5.5 传感器</h3>\n        <p>根据实际需要配置下置式压力传感器和温度传感器</p>\n        \n        </section>\n        \n        <div class=\"page-break\"></div>\n        <section id=\"performance-curves\">\n            <h2>6. 设备性能曲线</h2>\n\n            <h3>6.1 单级性能曲线</h3>\n            <div class=\"chart-placeholder\">\n                单级泵性能曲线图（包含扬程、功率、效率曲线）\n            </div>\n\n            <div class=\"page-break\"></div>\n            <h3>6.2 多级性能曲线</h3>\n            <div class=\"chart-placeholder\">\n                多级泵性能曲线图（不同频率下的性能对比）\n            </div>\n        </section>\n        \n        <section id=\"notes\">\n            <p><strong>备注:</strong></p>\n            <p>公司将提供地面设备，如SDT/GENSET、SUT、接线盒、地面电力电缆、井口和井口电源连接器。</p>\n            <p>供应商将提供安装附件，如VSD、O形圈、连接螺栓、垫圈、带帽螺钉、电机油、电缆带、电缆拼接器材料、渡线器、扶正器、止回阀、排放头和备件。</p>\n        </section>\n        \n        <div class=\"page-break\"></div>\n        <section id=\"summary\">\n            <h2>7. 总结</h2>\n            \n        <table class=\"equipment-summary-table\">\n            <tr>\n                <th>EQUIPMENT</th>\n                <th>DESCRIPTION</th>\n                <th>OD[IN]</th>\n                <th>LENGTH[FT]</th>\n            </tr>\n            <tr><td>Step Down Transformer / GENSET</td><td>Provided by company</td><td>-</td><td>-</td></tr>\n            <tr><td>VSD</td><td>Variable Speed Drive</td><td>-</td><td>-</td></tr>\n            <tr><td>Step Up Transformer</td><td>Provided by company</td><td>-</td><td>-</td></tr>\n            <tr><td>Power Cable</td><td>ESP Power Cable</td><td>-</td><td>-</td></tr>\n            <tr><td>Motor Lead Extension</td><td>MLE</td><td>-</td><td>-</td></tr>\n            <tr><td>Sensor</td><td>Downhole Sensor</td><td>-</td><td>-</td></tr>\n            <tr><td>Pump Discharge Head</td><td>Check Valve</td><td>-</td><td>-</td></tr>\n            <tr><td>Upper Pump</td><td>FLEXPump™ 400</td><td>-</td><td>-</td></tr>\n            <tr><td>Lower Pump</td><td>FLEXPump™ 400</td><td>-</td><td>-</td></tr>\n            <tr><td>Separator</td><td>CENesis PHASE</td><td>-</td><td>-</td></tr>\n            <tr><td>Upper Protector</td><td>REDA HT Protector</td><td>-</td><td>-</td></tr>\n            <tr><td>Lower Protector</td><td>REDA HT Protector</td><td>-</td><td>-</td></tr>\n            <tr><td>Motor</td><td>Ultra HD</td><td>-</td><td>-</td></tr>\n            <tr><td>Sensor</td><td>Pressure & Temperature</td><td>-</td><td>-</td></tr>\n            <tr><td>Centralizer</td><td>Pump Centralizer</td><td>-</td><td>-</td></tr>\n            <tr><td colspan=\"2\"><strong>Total System</strong></td><td><strong>-</strong></td><td><strong>-</strong></td></tr>\n        </table>\n        \n        </section>\n        \n        <div class=\"footer\">\n            <p>本报告由油井设备智能管理系统自动生成</p>\n            <p>技术支持：中国石油技术开发有限公司</p>\n        </div>\n        \n</body>\n</html>\n        ",
+  "stepData": {
+    "lift_method": {
+      "matchScore": 85,
+      "methodName": "潜油离心泵",
+      "methodShortName": "ESP",
+      "selectedMethod": "esp"
+    },
+    "motor": {
+      "efficiency": 0,
+      "frequency": 60,
+      "manufacturer": "Weatherford",
+      "model": "Ultra HD",
+      "power": 350.0,
+      "selectedMotor": 37,
+      "specifications": "Ultra HD - 350 HP @ 3300V/60Hz, 0% 效率",
+      "voltage": 3300
+    },
+    "parameters": {
+      "parameters": {
+        "api": 19.0,
+        "bht": 210.0,
+        "bsw": 0.4,
+        "description": "2",
+        "expectedProduction": 1000.0,
+        "gasOilRatio": 200.0,
+        "geoPressure": 3350.0,
+        "parameterName": "1",
+        "produceIndex": 0.62,
+        "saturationPressure": 649.0,
+        "wellHeadPressure": 350.0
+      },
+      "parametersId": 3
+    },
+    "prediction": {
+      "empiricalResults": {
+        "gas_rate": 74.71154083635552,
+        "method": "corrected_empirical_formulas",
+        "production": 920.0,
+        "total_head": 0
+      },
+      "finalValues": {
+        "gasRate": 5.58,
+        "production": 999.9956832248736,
+        "totalHead": 2160.0
+      },
+      "iprCurve": [
+        {
+          "pressure": 3350.0,
+          "production": 0.0
+        },
+        {
+          "pressure": 3254.285714285714,
+          "production": 32.56942880066054
+        },
+        {
+          "pressure": 3158.5714285714284,
+          "production": 65.13885760132108
+        },
+        {
+          "pressure": 3062.8571428571427,
+          "production": 97.70828640198162
+        },
+        {
+          "pressure": 2967.142857142857,
+          "production": 130.27771520264216
+        },
+        {
+          "pressure": 2871.4285714285716,
+          "production": 162.84714400330256
+        },
+        {
+          "pressure": 2775.7142857142853,
+          "production": 195.41657280396325
+        },
+        {
+          "pressure": 2680.0,
+          "production": 227.98600160462362
+        },
+        {
+          "pressure": 2584.285714285714,
+          "production": 260.5554304052842
+        },
+        {
+          "pressure": 2488.5714285714284,
+          "production": 293.12485920594474
+        },
+        {
+          "pressure": 2392.857142857143,
+          "production": 325.6942880066051
+        },
+        {
+          "pressure": 2297.1428571428573,
+          "production": 358.26371680726567
+        },
+        {
+          "pressure": 2201.4285714285716,
+          "production": 390.8331456079262
+        },
+        {
+          "pressure": 2105.714285714286,
+          "production": 423.40257440858676
+        },
+        {
+          "pressure": 2010.0,
+          "production": 455.97200320924725
+        },
+        {
+          "pressure": 1914.2857142857142,
+          "production": 488.5414320099078
+        },
+        {
+          "pressure": 1818.571428571429,
+          "production": 521.1108608105682
+        },
+        {
+          "pressure": 1722.8571428571427,
+          "production": 553.6802896112289
+        },
+        {
+          "pressure": 1627.1428571428573,
+          "production": 586.2497184118893
+        },
+        {
+          "pressure": 1531.4285714285716,
+          "production": 618.8191472125499
+        },
+        {
+          "pressure": 1435.7142857142858,
+          "production": 651.3885760132104
+        },
+        {
+          "pressure": 1340.0,
+          "production": 683.958004813871
+        },
+        {
+          "pressure": 1244.2857142857142,
+          "production": 716.5274336145314
+        },
+        {
+          "pressure": 1148.5714285714287,
+          "production": 749.096862415192
+        },
+        {
+          "pressure": 1052.857142857143,
+          "production": 781.6662912158524
+        },
+        {
+          "pressure": 957.1428571428571,
+          "production": 814.235720016513
+        },
+        {
+          "pressure": 861.4285714285713,
+          "production": 846.8051488171735
+        },
+        {
+          "pressure": 765.7142857142856,
+          "production": 879.3745776178341
+        },
+        {
+          "pressure": 669.9999999999999,
+          "production": 911.9440064184945
+        },
+        {
+          "pressure": 574.2857142857141,
+          "production": 943.2126264315698
+        },
+        {
+          "pressure": 478.5714285714287,
+          "production": 970.3143867975753
+        },
+        {
+          "pressure": 382.857142857143,
+          "production": 993.1465226283609
+        },
+        {
+          "pressure": 287.1428571428572,
+          "production": 1011.7090339239267
+        },
+        {
+          "pressure": 191.4285714285715,
+          "production": 1026.0019206842721
+        },
+        {
+          "pressure": 95.71428571428575,
+          "production": 1036.025182909398
+        },
+        {
+          "pressure": 0.0,
+          "production": 1041.7788205993036
+        }
+      ],
+      "mlResults": {
+        "confidence": 0.85,
+        "gas_rate": 5.581696033477783,
+        "method": "MLPredictionService",
+        "production": 999.9956832248736,
+        "total_head": 2160.0
+      }
+    },
+    "protector": {
+      "manufacturer": "Schlumberger",
+      "model": "REDA HT Protector",
+      "quantity": 1,
+      "selectedProtector": 2,
+      "specifications": "REDA HT Protector × 1 - 10000 lbs 总推力",
+      "totalThrustCapacity": 10000
+    },
+    "pump": {
+      "efficiency": 68,
+      "manufacturer": "Baker Hughes",
+      "model": "FLEXPump™ 400",
+      "selectedPump": "FLEXPump_400",
+      "stages": 87,
+      "totalHead": 2175,
+      "totalPower": 217.5
+    },
+    "report": {
+      "completed": true,
+      "generatedTime": "PySide6.QtCore.QDateTime(2025, 7, 12, 14, 41, 49, 984, 0)",
+      "reportHtml": "\n<!DOCTYPE html>\n<html>\n<head>\n    <meta charset=\"UTF-8\">\n    <title>测试项目 设备选型报告</title>\n    <style>\n        body {\n            font-family: 'Times New Roman', '宋体', serif;\n            line-height: 1.6;\n            color: #333;\n            max-width: 210mm;\n            margin: 0 auto;\n            padding: 20px;\n            background: #fff;\n        }\n\n        .header {\n            text-align: center;\n            border-bottom: 3px solid #1e3a5f;\n            padding-bottom: 20px;\n            margin-bottom: 30px;\n            position: relative;\n        }\n\n        .header-logo {\n            position: absolute;\n            left: 0;\n            top: 0;\n        }\n\n        .header-date {\n            position: absolute;\n            right: 0;\n            top: 0;\n            font-size: 12px;\n        }\n\n        .header-company {\n            font-size: 18px;\n            font-weight: bold;\n            margin: 10px 0;\n        }\n\n        h1 {\n            color: #1e3a5f;\n            font-size: 28px;\n            margin: 10px 0;\n        }\n\n        h2 {\n            color: #1e3a5f;\n            font-size: 20px;\n            margin-top: 30px;\n            margin-bottom: 15px;\n            padding-bottom: 8px;\n            border-bottom: 2px solid #e0e0e0;\n        }\n\n        h3 {\n            color: #4a90e2;\n            font-size: 16px;\n            margin-top: 20px;\n            margin-bottom: 10px;\n        }\n\n        table {\n            width: 100%;\n            border-collapse: collapse;\n            margin: 20px 0;\n        }\n\n        th {\n            background-color: #f5f7fa;\n            color: #1e3a5f;\n            font-weight: 600;\n            text-align: left;\n            padding: 12px;\n            border: 1px solid #e0e0e0;\n        }\n\n        td {\n            padding: 10px 12px;\n            border: 1px solid #e0e0e0;\n        }\n\n        tr:nth-child(even) {\n            background-color: #fafafa;\n        }\n\n        .equipment-summary-table th:first-child {\n            background-color: #ffcc00;\n        }\n\n        .chart-placeholder {\n            background: #f8f9fa;\n            border: 2px dashed #dee2e6;\n            height: 300px;\n            display: flex;\n            align-items: center;\n            justify-content: center;\n            margin: 20px 0;\n            color: #6c757d;\n            font-style: italic;\n        }\n\n        .page-break {\n            page-break-before: always;\n        }\n\n        .footer {\n            margin-top: 50px;\n            padding-top: 20px;\n            border-top: 2px solid #e0e0e0;\n            text-align: center;\n            color: #666;\n            font-size: 12px;\n        }\n\n        @media print {\n            body {\n                margin: 0;\n                padding: 10mm;\n            }\n            .no-print {\n                display: none;\n            }\n        }\n    </style>\n</head>\n<body>\n    \n        <div class=\"header\">\n            <div class=\"header-logo\">\n                <span style=\"font-size: 12px;\">🏢</span>\n            </div>\n            <div class=\"header-company\">中国石油技术开发有限公司</div>\n            <div class=\"header-date\">2025-07-12</div>\n            <h1>测试项目 设备选型报告（测试）</h1>\n        </div>\n        \n        <section id=\"project-info\">\n            <h2>1. 项目基本信息</h2>\n            <p><strong>项目名称：</strong>测试项目</p>\n            \n        <table>\n            <tr><td>公司</td><td>中国石油技术开发有限公司</td></tr>\n            <tr><td>井号</td><td>WELL-001</td></tr>\n            <tr><td>项目名称</td><td>测试项目</td></tr>\n            <tr><td>油田</td><td>测试油田</td></tr>\n            <tr><td>地点</td><td>测试地点</td></tr>\n            <tr><td>井型</td><td>生产井</td></tr>\n            <tr><td>井状态</td><td>生产中</td></tr>\n            <tr><td>备注</td><td>ESP设备选型项目</td></tr>\n        </table>\n        \n        </section>\n        \n        <section id=\"well-structure\">\n            <h2>2. 生产套管井身结构信息</h2>\n            \n        <table>\n            <tr><td>井号</td><td>WELL-001</td></tr>\n            <tr><td>井深 (MD)</td><td>待计算</td></tr>\n            <tr><td>垂深 (TVD)</td><td>待计算</td></tr>\n            <tr><td>井型</td><td>直井</td></tr>\n            <tr><td>井状态</td><td>生产中</td></tr>\n            <tr><td>生产套管外径</td><td>177.8 mm (7.00 inch)</td></tr>\n            <tr><td>生产套管内径</td><td>152.4 mm (6.00 inch)</td></tr>\n            <tr><td>套管钢级</td><td>P-110</td></tr>\n            <tr><td>粗糙度</td><td>0.0018 inch</td></tr>\n            <tr><td>射孔垂深 (TVD)</td><td>待计算</td></tr>\n            <tr><td>泵挂垂深 (TVD)</td><td>待计算</td></tr>\n            <tr><td>最大井斜</td><td>0.0°</td></tr>\n            <tr><td>最大造斜率</td><td>0.00°/100ft</td></tr>\n        </table>\n        \n        </section>\n        \n        <section id=\"well-trajectory\">\n            <h2>3. 井轨迹图</h2>\n            <div class=\"chart-placeholder\">\n                井轨迹图将在此显示（需要实际数据绘制）\n            </div>\n        </section>\n        \n        <section id=\"production-parameters\">\n            <h2>4. 生产参数及模型预测</h2>\n            \n        <table>\n            <tr><td>地层压力</td><td>3350.0 psi</td></tr>\n            <tr><td>期望产量</td><td>1000.0 bbl/d</td></tr>\n            <tr><td>饱和压力</td><td>649.0 psi</td></tr>\n            <tr><td>生产指数</td><td>0.6 bbl/d/psi</td></tr>\n            <tr><td>井底温度</td><td>210.0 °F</td></tr>\n            <tr><td>含水率</td><td>0.4 %</td></tr>\n            <tr><td>API重度</td><td>19.0 °API</td></tr>\n            <tr><td>油气比</td><td>200.0 scf/bbl</td></tr>\n            <tr><td>井口压力</td><td>350.0 psi</td></tr>\n            <tr style=\"background-color: #f0f8ff;\"><td colspan=\"2\"><strong>预测结果</strong></td></tr>\n            <tr><td>预测吸入口汽液比</td><td>5.6</td></tr>\n            <tr><td>预测所需扬程</td><td>2160.0 ft</td></tr>\n            <tr><td>预测产量</td><td>1000.0 bbl/d</td></tr>\n        </table>\n        \n        </section>\n        \n        <section id=\"equipment-selection\">\n            <h2>5. 设备选型推荐</h2>\n            \n        <h3>5.1 泵选型</h3>\n        <table>\n            <tr><td>制造商</td><td>Baker Hughes</td></tr>\n            <tr><td>泵型</td><td>FLEXPump™ 400</td></tr>\n            <tr><td>选型代码</td><td>FLEXPump_400</td></tr>\n            <tr><td>级数</td><td>87</td></tr>\n            <tr><td>需要扬程</td><td>2175.0 ft</td></tr>\n            <tr><td>泵功率</td><td>217.5 HP</td></tr>\n            <tr><td>效率</td><td>68.0 %</td></tr>\n            <tr><td>排量范围</td><td>0 - 0 bbl/d</td></tr>\n        </table>\n        \n        <h3>5.2 保护器选型</h3>\n        <table>\n            <tr><td>制造商</td><td>Schlumberger</td></tr>\n            <tr><td>保护器型号</td><td>REDA HT Protector</td></tr>\n            <tr><td>数量</td><td>1</td></tr>\n            <tr><td>总推力容量</td><td>10000.00 lbs</td></tr>\n            <tr><td>规格说明</td><td>REDA HT Protector × 1 - 10000 lbs 总推力</td></tr>\n        </table>\n        \n        <h3>5.3 分离器选型</h3>\n        \n            <table>\n                <tr><td>制造商</td><td>Baker Hughes</td></tr>\n                <tr><td>分离器型号</td><td>CENesis PHASE</td></tr>\n                <tr><td>分离效率</td><td>95.0 %</td></tr>\n                <tr><td>规格说明</td><td>CENesis PHASE - 95% 分离效率</td></tr>\n            </table>\n            \n        <h3>5.4 电机选型</h3>\n        <table>\n            <tr><td>制造商</td><td>Weatherford</td></tr>\n            <tr><td>电机型号</td><td>Ultra HD</td></tr>\n            <tr><td>功率</td><td>350.00 HP</td></tr>\n            <tr><td>电压</td><td>3300.00 V</td></tr>\n            <tr><td>频率</td><td>60.00 Hz</td></tr>\n            <tr><td>效率</td><td>0.0 %</td></tr>\n            <tr><td>规格说明</td><td>Ultra HD - 350 HP @ 3300V/60Hz, 0% 效率</td></tr>\n        </table>\n        \n        <h3>5.5 传感器</h3>\n        <p>根据实际需要配置下置式压力传感器和温度传感器</p>\n        \n        </section>\n        \n        <div class=\"page-break\"></div>\n        <section id=\"performance-curves\">\n            <h2>6. 设备性能曲线</h2>\n\n            <h3>6.1 单级性能曲线</h3>\n            <div class=\"chart-placeholder\">\n                单级泵性能曲线图（包含扬程、功率、效率曲线）\n            </div>\n\n            <div class=\"page-break\"></div>\n            <h3>6.2 多级性能曲线</h3>\n            <div class=\"chart-placeholder\">\n                多级泵性能曲线图（不同频率下的性能对比）\n            </div>\n        </section>\n        \n        <section id=\"notes\">\n            <p><strong>备注:</strong></p>\n            <p>公司将提供地面设备，如SDT/GENSET、SUT、接线盒、地面电力电缆、井口和井口电源连接器。</p>\n            <p>供应商将提供安装附件，如VSD、O形圈、连接螺栓、垫圈、带帽螺钉、电机油、电缆带、电缆拼接器材料、渡线器、扶正器、止回阀、排放头和备件。</p>\n        </section>\n        \n        <div class=\"page-break\"></div>\n        <section id=\"summary\">\n            <h2>7. 总结</h2>\n            \n        <table class=\"equipment-summary-table\">\n            <tr>\n                <th>EQUIPMENT</th>\n                <th>DESCRIPTION</th>\n                <th>OD[IN]</th>\n                <th>LENGTH[FT]</th>\n            </tr>\n            <tr><td>Step Down Transformer / GENSET</td><td>Provided by company</td><td>-</td><td>-</td></tr>\n            <tr><td>VSD</td><td>Variable Speed Drive</td><td>-</td><td>-</td></tr>\n            <tr><td>Step Up Transformer</td><td>Provided by company</td><td>-</td><td>-</td></tr>\n            <tr><td>Power Cable</td><td>ESP Power Cable</td><td>-</td><td>-</td></tr>\n            <tr><td>Motor Lead Extension</td><td>MLE</td><td>-</td><td>-</td></tr>\n            <tr><td>Sensor</td><td>Downhole Sensor</td><td>-</td><td>-</td></tr>\n            <tr><td>Pump Discharge Head</td><td>Check Valve</td><td>-</td><td>-</td></tr>\n            <tr><td>Upper Pump</td><td>FLEXPump™ 400</td><td>-</td><td>-</td></tr>\n            <tr><td>Lower Pump</td><td>FLEXPump™ 400</td><td>-</td><td>-</td></tr>\n            <tr><td>Separator</td><td>CENesis PHASE</td><td>-</td><td>-</td></tr>\n            <tr><td>Upper Protector</td><td>REDA HT Protector</td><td>-</td><td>-</td></tr>\n            <tr><td>Lower Protector</td><td>REDA HT Protector</td><td>-</td><td>-</td></tr>\n            <tr><td>Motor</td><td>Ultra HD</td><td>-</td><td>-</td></tr>\n            <tr><td>Sensor</td><td>Pressure & Temperature</td><td>-</td><td>-</td></tr>\n            <tr><td>Centralizer</td><td>Pump Centralizer</td><td>-</td><td>-</td></tr>\n            <tr><td colspan=\"2\"><strong>Total System</strong></td><td><strong>-</strong></td><td><strong>-</strong></td></tr>\n        </table>\n        \n        </section>\n        \n        <div class=\"footer\">\n            <p>本报告由油井设备智能管理系统自动生成</p>\n            <p>技术支持：中国石油技术开发有限公司</p>\n        </div>\n        \n</body>\n</html>\n        ",
+      "reportNumber": "ESP-20250712-780",
+      "stepData": {},
+      "template": "standard"
+    },
+    "separator": {
+      "manufacturer": "Baker Hughes",
+      "model": "CENesis PHASE",
+      "selectedSeparator": 1,
+      "separationEfficiency": 95,
+      "skipped": false,
+      "specifications": "CENesis PHASE - 95% 分离效率"
+    }
+  },
+  "template": "standard"
+}
