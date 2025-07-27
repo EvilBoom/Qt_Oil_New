@@ -15,8 +15,8 @@ qt6_add_qml_module(Qt_Oil_New
     RESOURCE_PREFIX "/qt/qml"
     QML_FILES
         "EventListSimulator.qml"
-        "EventListModel.qml"
         "Constants.qml"
+        "EventListModel.qml"
 )
 
 

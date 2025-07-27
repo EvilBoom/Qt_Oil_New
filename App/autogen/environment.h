@@ -9,6 +9,7 @@
 #include "qqmlextensionplugin.h"
 
 Q_IMPORT_QML_PLUGIN(Qt_Oil_NewContentPlugin)
+Q_IMPORT_QML_PLUGIN(ContinuousLearning_componentsPlugin)
 Q_IMPORT_QML_PLUGIN(Qt_Oil_NewPlugin)
 
 const char mainQmlFile[] = "qrc:/qt/qml/Qt_Oil_NewContent/App.qml";

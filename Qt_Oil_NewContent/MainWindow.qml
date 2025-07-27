@@ -26,8 +26,23 @@ Window {
     property int currentWellId: -1
     property var currentSelectionData: ({})
 
+    // 监听页面索引变化
+    onCurrentPageIndexChanged: {
+        console.log("=== currentPageIndex changed ===")
+        console.log("New index:", currentPageIndex)
+        console.log("Previous index:", contentStack.currentIndex)
+        console.log("Call stack:", new Error().stack)
+    }
+
     // 在MainWindow.qml的属性定义部分添加：
     property int currentProjectId: -1
+
+    // 添加信号
+    signal continuousLearningPageLoaded()
+    
+    // 防抖控制
+    property bool navigationInProgress: false
+    property var lastNavigationTime: 0
 
     // 连接LoginController的语言变化信号
     Connections {
@@ -35,6 +50,12 @@ Window {
         function onLanguageChanged(chinese) {
             mainWindow.isChinese = chinese
         }
+    }
+    
+    Component.onCompleted: {
+        console.log("MainWindow.qml - Component.onCompleted")
+        console.log("MainWindow.qml - continuousLearningController:", typeof continuousLearningController !== 'undefined' ? continuousLearningController : "UNDEFINED")
+        console.log("MainWindow.qml - loginController:", typeof loginController !== 'undefined' ? loginController : "UNDEFINED")
     }
     onCurrentProjectIdChanged: {
         console.log("MainWindow - currentProjectId 变更为:", currentProjectId)
@@ -181,10 +202,9 @@ Window {
                                 title: isChinese ? "模型持续学习" : "Model Training"
                                 collapsed: sidebarCollapsed
                                 subItemsList: [
-                                    {"title": isChinese ? "选择预测任务" : "Select Task", "action": "select-task"},
-                                    {"title": isChinese ? "训练数据管理" : "Training Data", "action": "training-data"},
-                                    {"title": isChinese ? "特征工程" : "Feature Engineering", "action": "feature-engineering"},
-                                    {"title": isChinese ? "训练监控" : "Training Monitor", "action": "training-monitor"}
+                                    {"title": isChinese ? "数据管理" : "Data Management", "action": "data-management"},
+                                    {"title": isChinese ? "模型训练" : "Model Training", "action": "model-training"},
+                                    {"title": isChinese ? "模型测试" : "Model Testing", "action": "model-testing"}
                                 ]
                                 onSubItemClicked: function(action) {
                                     handleNavigation(action)
@@ -331,6 +351,15 @@ Window {
                     Layout.fillWidth: true
                     Layout.fillHeight: true
                     currentIndex: currentPageIndex
+                    
+                    onCurrentIndexChanged: {
+                        console.log("StackLayout currentIndex changed to:", currentIndex)
+                        console.log("Total children:", children.length)
+                        for (var i = 0; i < children.length; i++) {
+                            var child = children[i]
+                            console.log("Child", i, "visible:", child.visible, "type:", child.toString())
+                        }
+                    }
 
                     // 首页仪表盘
                     Loader {
@@ -394,8 +423,35 @@ Window {
                     // 设备数据库管理页面
                     Loader {
                         source: "DeviceManagement/DeviceManagementPage.qml"
-
                         property bool isChineseMode: mainWindow.isChinese
+                        
+                        onLoaded: {
+                            console.log("Minimal DeviceManagement page loaded successfully")
+                            console.log("DeviceManagement visible:", visible)
+                            console.log("DeviceManagement active:", active)
+                            if (item) {
+                                console.log("DeviceManagement item created:", typeof item)
+                                console.log("Setting isChineseMode to:", mainWindow.isChinese)
+                            } else {
+                                console.log("DeviceManagement item is null")
+                            }
+                        }
+                        
+                        onStatusChanged: {
+                            console.log("DeviceManagement Loader status:", status)
+                            if (status === Loader.Error) {
+                                console.log("Error loading DeviceManagement page")
+                                console.log("Source:", source)
+                            } else if (status === Loader.Ready) {
+                                console.log("DeviceManagement page ready")
+                            } else if (status === Loader.Loading) {
+                                console.log("DeviceManagement page loading...")
+                            }
+                        }
+                        
+                        Component.onCompleted: {
+                            console.log("DeviceManagement Loader completed, source:", source)
+                        }
                     }
 
 
@@ -408,6 +464,46 @@ Window {
                                 font.pixelSize: 24
                                 color: "#666"
                             }
+                    }
+
+                    // 持续学习页面
+                    Loader {
+                        id: continuousLearningLoader
+                        source: "ContinuousLearning/ContinuousLearningPage.qml"
+                        
+                        property int projectId: mainWindow.currentProjectId
+                        property bool isChineseMode: mainWindow.isChinese
+                        property string pendingModule: ""  // 待设置的模块
+                        
+                        onLoaded: {
+                            console.log("MainWindow: Loading ContinuousLearningPage")
+                            console.log("MainWindow: continuousLearningController available:", typeof continuousLearningController !== 'undefined')
+                            console.log("传递给 ContinuousLearningPage 的 projectId:", projectId)
+                            if (item) {
+                                item.isChinese = mainWindow.isChinese
+                                item.currentProjectId = mainWindow.currentProjectId
+                                item.continuousLearningController = continuousLearningController
+                                console.log("MainWindow: Set continuousLearningController to:", item.continuousLearningController)
+                                
+                                // 如果有待设置的模块，现在设置
+                                if (pendingModule !== "") {
+                                    console.log("MainWindow: Setting pending module:", pendingModule)
+                                    item.currentModule = pendingModule
+                                    pendingModule = ""
+                                }
+                            }
+                            
+                            // 发出页面加载完成信号
+                            continuousLearningPageLoaded()
+                        }
+                        
+                        onStatusChanged: {
+                            if (status === Loader.Error) {
+                                console.log("Error loading ContinuousLearning page")
+                            } else if (status === Loader.Ready) {
+                                console.log("ContinuousLearning page loaded successfully")
+                            }
+                        }
                     }
                 }
             }
@@ -423,8 +519,13 @@ Window {
         z: 1000
 
         onLoaded: {
-            if (item && typeof item.open === 'function') {
-                item.open()
+            if (item) {
+                // 尝试调用 open 方法（如果存在）
+                if (typeof item.open === 'function') {
+                    item.open()
+                } else if (item.hasOwnProperty("visible")) {
+                    item.visible = true
+                }
             }
         }
 
@@ -443,11 +544,43 @@ Window {
 
     // 2. 更新handleNavigation函数，添加设备管理相关的导航处理：
     function handleNavigation(action) {
+        console.log("=== handleNavigation called ===")
         console.log("Navigation to:", action)
+        console.log("Current page index:", currentPageIndex)
+        console.log("Call stack:", new Error().stack)
+
+        // 防抖检查
+        var currentTime = Date.now()
+        if (navigationInProgress || (currentTime - lastNavigationTime < 500)) {
+            console.log("Navigation ignored due to debounce. InProgress:", navigationInProgress, "TimeDiff:", currentTime - lastNavigationTime)
+            return
+        }
+        
+        navigationInProgress = true
+        lastNavigationTime = currentTime
 
         switch(action) {
-            case "select-task":
-                showDialog("SelectTaskDialog.qml")
+            case "data-management":
+                currentPageIndex = 6  // 持续学习页面
+                console.log("Switching to continuous learning page - data management, index:", currentPageIndex)
+                // 延迟一小段时间确保页面切换完成
+                Qt.callLater(function() {
+                    setContinuousLearningModule("data_management")
+                })
+                break
+            case "model-training":
+                currentPageIndex = 6  // 跳转到持续学习页面
+                console.log("Switching to continuous learning page - model training")
+                Qt.callLater(function() {
+                    setContinuousLearningModule("model_training")
+                })
+                break
+            case "model-testing":
+                currentPageIndex = 6
+                console.log("Switching to continuous learning page - model testing")
+                Qt.callLater(function() {
+                    setContinuousLearningModule("model_testing")
+                })
                 break
             case "well-info":
                 currentPageIndex = 1
@@ -457,7 +590,7 @@ Window {
                 break
             case "device-recommend":
                 currentPageIndex = 3
-                console.log("Switching to device list page, index:", currentPageIndex)
+                console.log("Switching to device recommendation page, index:", currentPageIndex)
                 // 确保在页面加载后设置 projectId
                 var loader = contentStack.children[3]
                 if (loader && loader.item) {
@@ -475,6 +608,12 @@ Window {
             default:
                 console.log("Unknown action:", action)
         }
+        console.log("=== handleNavigation end ===")
+        
+        // 重置防抖状态
+        Qt.callLater(function() {
+            navigationInProgress = false
+        })
     }
 
     // 显示对话框
@@ -486,9 +625,21 @@ Window {
         // 检查所有已加载的页面，更新其 projectId
         for (var i = 0; i < contentStack.children.length; i++) {
             var loader = contentStack.children[i]
-            if (loader && loader.item && loader.item.hasOwnProperty("projectId")) {
-                console.log(`更新页面 ${i} 的 projectId:`, currentProjectId)
-                loader.item.projectId = currentProjectId
+            if (loader && loader.item) {
+                // 处理标准的 projectId 属性
+                if (loader.item.hasOwnProperty("projectId")) {
+                    console.log(`更新页面 ${i} 的 projectId:`, currentProjectId)
+                    loader.item.projectId = currentProjectId
+                }
+                // 处理持续学习页面的 currentProjectId 属性
+                if (loader.item.hasOwnProperty("currentProjectId")) {
+                    console.log(`更新页面 ${i} 的 currentProjectId:`, currentProjectId)
+                    loader.item.currentProjectId = currentProjectId
+                }
+                // 确保语言设置也同步更新
+                if (loader.item.hasOwnProperty("isChinese")) {
+                    loader.item.isChinese = isChinese
+                }
             }
         }
     }
@@ -503,8 +654,48 @@ Window {
             case 3: return home + (isChinese ? " / 设备选型推荐 / 设备选型推荐" : " / Equipment Selection / Equipment Recommendation")
             case 4: return home + (isChinese ? " / 设备数据库管理 / 设备列表" : " / Equipment Database / Equipment List")
             case 5: return home + (isChinese ? " / 设备数据库管理 / 设备分类管理" : " / Equipment Database / Category Management")
-
+            case 6: 
+                var clLoader = contentStack.children[6]
+                if (clLoader && clLoader.item) {
+                    var currentModule = clLoader.item.currentModule
+                    switch(currentModule) {
+                        case "data_management":
+                            return home + (isChinese ? " / 模型持续学习 / 数据管理" : " / Model Training / Data Management")
+                        case "model_training":
+                            return home + (isChinese ? " / 模型持续学习 / 模型训练" : " / Model Training / Model Training")
+                        case "model_testing":
+                            return home + (isChinese ? " / 模型持续学习 / 模型测试" : " / Model Training / Model Testing")
+                        default:
+                            return home + (isChinese ? " / 模型持续学习" : " / Model Training")
+                    }
+                }
+                return home + (isChinese ? " / 模型持续学习" : " / Model Training")
             default: return home
         }
+    }
+    
+    // 设置持续学习页面模块的函数
+    function setContinuousLearningModule(module) {
+        console.log("setContinuousLearningModule called with module:", module)
+        
+        // 首先尝试直接访问
+        var clLoader = contentStack.children[6]
+        if (clLoader && clLoader.item) {
+            console.log("直接设置 ContinuousLearningPage 的属性")
+            clLoader.item.currentProjectId = currentProjectId
+            clLoader.item.isChinese = isChinese
+            clLoader.item.currentModule = module
+            console.log("设置 currentModule 为:", module)
+            return
+        }
+        
+        // 如果页面还没加载完成，将模块存储为待设置状态
+        if (clLoader) {
+            console.log("页面还在加载中，设置待处理模块:", module)
+            clLoader.pendingModule = module
+            return
+        }
+        
+        console.log("警告: 无法找到 ContinuousLearning Loader")
     }
 }

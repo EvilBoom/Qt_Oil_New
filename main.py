@@ -16,6 +16,7 @@ from Controller.ReservoirDataController import ReservoirDataController
 from Controller.WellStructureController import WellStructureController
 from Controller.ExcelImportController import ExcelImportController
 from Controller.PumpCurvesController import PumpCurvesController
+from Controller.ContinuousLearningController import ContinuousLearningController
 
 # 导入数据库服务
 from DataManage.services.database_service import DatabaseService
@@ -77,6 +78,7 @@ class Application(QObject):
         self.device_recommendation_controller = DeviceRecommendationController()
         self.pump_curves_controller = PumpCurvesController()
         self.pump_curves_controller.set_database_service(self.db_service)
+        self.continuous_learning_controller = ContinuousLearningController()
 
 
         # 存储用户信息
@@ -117,6 +119,7 @@ class Application(QObject):
         self.engine.rootContext().setContextProperty("deviceController", self.device_controller)
         self.engine.rootContext().setContextProperty("deviceRecommendationController", self.device_recommendation_controller)
         self.engine.rootContext().setContextProperty("pumpCurvesController", self.pump_curves_controller)
+        self.engine.rootContext().setContextProperty("continuousLearningController", self.continuous_learning_controller)
 
 
         # 加载登录QML文件
@@ -237,6 +240,7 @@ class Application(QObject):
             self.engine.rootContext().setContextProperty("excelImportController", self.excel_import_controller)
             self.engine.rootContext().setContextProperty("deviceController", self.device_controller)
             self.engine.rootContext().setContextProperty("deviceRecommendationController", self.device_recommendation_controller)
+            self.engine.rootContext().setContextProperty("continuousLearningController", self.continuous_learning_controller)
             # 加载主窗口
             self.engine.load(QUrl.fromLocalFile(str(main_qml)))
 
