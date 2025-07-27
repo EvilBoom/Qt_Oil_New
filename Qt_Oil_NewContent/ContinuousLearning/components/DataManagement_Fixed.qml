@@ -54,10 +54,10 @@ Rectangle {
                     
                     Item { Layout.fillWidth: true }
                     
-                    Button {
-                        text: root.isChinese ? "返回" : "Back"
-                        onClicked: root.backRequested()
-                    }
+                    //Button {
+                    //    text: root.isChinese ? "返回" : "Back"
+                    //    onClicked: root.backRequested()
+                    //}
                 }
             }
             

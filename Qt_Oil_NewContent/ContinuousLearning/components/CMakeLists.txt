@@ -9,19 +9,18 @@ qt6_add_qml_module(ContinuousLearning_components
     VERSION 1.0
     RESOURCE_PREFIX "/qt/qml"
     QML_FILES
+        "DataManagement_Simple.qml"
+        "DataManagement.qml"
         "ModelTestingConfig.qml"
         "DataManagement_Fixed.qml"
-        "ModelTraining.qml"
-        "ModelTesting.qml"
-        "DataManagement_backup.qml"
-        "DataManagement_Simple.qml"
-        "ModelTraining_backup.qml"
-        "StepIndicator.qml"
         "ModelTraining.bak.qml"
-        "TaskSelector.qml"
-        "DataManagement.qml"
-        "ModelTestingExecution.qml"
+        "ModelTesting.qml"
+        "StepIndicator.qml"
+        "ModelTraining.qml"
         "ModelTraining_Simple.qml"
+        "DataManagement_backup.qml"
+        "TaskSelector.qml"
+        "ModelTestingExecution.qml"
 )
 
 

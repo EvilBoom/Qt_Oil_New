@@ -365,7 +365,7 @@ Rectangle {
                             let residualRange = Math.max(Math.abs(minResidual), Math.abs(maxResidual)) * 2 || 1
                             let residualCenter = height / 2
                             
-                            // 计算15%误差限制线的位置
+                            // 计算15%误差限制线的位置（基于实际值的平均值）
                             let meanActual = actualValues.reduce((sum, val) => sum + val, 0) / actualValues.length
                             let upperLimit15 = 0.15 * meanActual
                             let lowerLimit15 = -0.15 * meanActual
@@ -392,29 +392,25 @@ Rectangle {
                             ctx.lineTo(width - margin, zeroY)
                             ctx.stroke()
                             
-                            // 绘制+15%误差线
+                            // 绘制+15%误差线（固定水平线）
                             ctx.strokeStyle = "#dc3545"
                             ctx.lineWidth = 1
                             ctx.setLineDash([3, 3])
                             let upper15Y = height - margin - (upperLimit15 + residualRange/2) / residualRange * plotHeight
-                            if (upper15Y >= margin && upper15Y <= height - margin) {
-                                ctx.beginPath()
-                                ctx.moveTo(margin, upper15Y)
-                                ctx.lineTo(width - margin, upper15Y)
-                                ctx.stroke()
-                            }
+                            ctx.beginPath()
+                            ctx.moveTo(margin, upper15Y)
+                            ctx.lineTo(width - margin, upper15Y)
+                            ctx.stroke()
                             
-                            // 绘制-15%误差线
+                            // 绘制-15%误差线（固定水平线）
                             ctx.strokeStyle = "#007bff"
                             ctx.lineWidth = 1
                             ctx.setLineDash([3, 3])
                             let lower15Y = height - margin - (lowerLimit15 + residualRange/2) / residualRange * plotHeight
-                            if (lower15Y >= margin && lower15Y <= height - margin) {
-                                ctx.beginPath()
-                                ctx.moveTo(margin, lower15Y)
-                                ctx.lineTo(width - margin, lower15Y)
-                                ctx.stroke()
-                            }
+                            ctx.beginPath()
+                            ctx.moveTo(margin, lower15Y)
+                            ctx.lineTo(width - margin, lower15Y)
+                            ctx.stroke()
                             ctx.setLineDash([])
                             
                             // 绘制残差散点

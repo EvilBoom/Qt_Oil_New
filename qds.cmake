@@ -11,8 +11,8 @@ qt6_add_resources(${CMAKE_PROJECT_NAME} MainResource
     VERSION 1.0
     FILES 
         ".vs/PythonSettings.json"
-        ".vs/ProjectSettings.json"
         ".vs/VSWorkspaceState.json"
+        ".vs/ProjectSettings.json"
         "drafts/report_draft_20250712_144151.json"
 )
 

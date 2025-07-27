@@ -14,6 +14,7 @@ Rectangle {
 
     // 信号定义
     signal subItemClicked(string action)
+    signal mainItemClicked()
 
     width: parent ? parent.width : 240
     height: expanded ? 48 + (subItemsList.length * 40) : 48
@@ -83,7 +84,15 @@ Rectangle {
                 onClicked: {
                     if (subItemsList.length > 0) {
                         expanded = !expanded
+                    } else {
+                        // 如果没有子项，发出主项点击信号
+                        mainItemClicked()
                     }
+                }
+                
+                onDoubleClicked: {
+                    // 双击主项时发出主项点击信号
+                    mainItemClicked()
                 }
             }
         }

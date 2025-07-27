@@ -768,50 +768,50 @@ Rectangle {
                                         width: parent.width
                                         spacing: 8
                                     
-                                    Text {
-                                        text: root.isChinese ? 
-                                            `• 训练任务: ${root.selectedTask || '未选择'}` :
-                                            `• Training Task: ${root.selectedTask || 'Not selected'}`
-                                        font.pixelSize: 12
-                                        color: "#495057"
-                                    }
-                                    
-                                    Text {
-                                        text: root.isChinese ? 
-                                            `• 训练表: ${root.selectedDataTables.length} 个` :
-                                            `• Training Tables: ${root.selectedDataTables.length}`
-                                        font.pixelSize: 12
-                                        color: "#495057"
-                                    }
-                                    
-                                    Text {
-                                        text: root.isChinese ? 
-                                            `• 测试表: ${root.selectedTestTables.length} 个` :
-                                            `• Test Tables: ${root.selectedTestTables.length}`
-                                        font.pixelSize: 12
-                                        color: "#495057"
-                                    }
-                                    
-                                    Text {
-                                        text: {
-                                            let finalFeatures = getMappedFeatures()
-                                            return root.isChinese ? 
-                                                `• 输入特征: ${finalFeatures.length} 个` :
-                                                `• Input Features: ${finalFeatures.length}`
+                                        Text {
+                                            text: root.isChinese ?
+                                                `• 训练任务: ${root.selectedTask || '未选择'}` :
+                                                `• Training Task: ${root.selectedTask || 'Not selected'}`
+                                            font.pixelSize: 12
+                                            color: "#495057"
                                         }
-                                        font.pixelSize: 12
-                                        color: "#495057"
-                                    }
-                                    
-                                    Text {
-                                        text: root.isChinese ? 
-                                            `• 预测目标: ${root.targetLabel || '未选择'}` :
-                                            `• Target: ${root.targetLabel || 'Not selected'}`
-                                        font.pixelSize: 12
-                                        color: "#495057"
-                                    }
-                                    
-                                    Text {
+
+                                        Text {
+                                            text: root.isChinese ?
+                                                `• 训练表: ${root.selectedDataTables.length} 个` :
+                                                `• Training Tables: ${root.selectedDataTables.length}`
+                                            font.pixelSize: 12
+                                            color: "#495057"
+                                        }
+
+                                        Text {
+                                            text: root.isChinese ?
+                                                `• 测试表: ${root.selectedTestTables.length} 个` :
+                                                `• Test Tables: ${root.selectedTestTables.length}`
+                                            font.pixelSize: 12
+                                            color: "#495057"
+                                        }
+
+                                        Text {
+                                            text: {
+                                                let finalFeatures = getMappedFeatures()
+                                                return root.isChinese ?
+                                                    `• 输入特征: ${finalFeatures.length} 个` :
+                                                    `• Input Features: ${finalFeatures.length}`
+                                            }
+                                            font.pixelSize: 12
+                                            color: "#495057"
+                                        }
+
+                                        Text {
+                                            text: root.isChinese ?
+                                                `• 预测目标: ${root.targetLabel || '未选择'}` :
+                                                `• Target: ${root.targetLabel || 'Not selected'}`
+                                            font.pixelSize: 12
+                                            color: "#495057"
+                                        }
+
+                                        Text {
                                         text: {
                                             let mappedCount = 0
                                             for (let key in root.featureMapping) {
@@ -826,6 +826,7 @@ Rectangle {
                                         font.pixelSize: 12
                                         color: "#495057"
                                         visible: root.modelExpectedFeatures.length > 0
+                                    }
                                     }
                                 }
                             }
@@ -915,7 +916,6 @@ Rectangle {
                 }
             }
         }
-        
         // 训练页面
         Component {
             id: trainingPage
@@ -1067,120 +1067,120 @@ Rectangle {
                             }
                         }
                         
-                        // 模型信息
-                        Rectangle {
-                            Layout.fillWidth: true
-                            Layout.minimumHeight: 150
-                            Layout.preferredHeight: Math.max(150, modelInfoColumn.implicitHeight + 32)
-                            Layout.maximumHeight: 400
-                            color: "white"
-                            radius: 8
-                            border.width: 1
-                            border.color: "#dee2e6"
-                            
-                            ColumnLayout {
-                                id: modelInfoColumn
-                                anchors.fill: parent
-                                anchors.margins: 16
-                                spacing: 8
-                                
-                                Text {
-                                    text: root.isChinese ? "模型信息" : "Model Information"
-                                    font.pixelSize: 16
-                                    font.bold: true
-                                    color: "#495057"
-                                }
-                                
-                                Text {
-                                    text: root.isChinese ? 
-                                        `任务: ${root.selectedTask}` :
-                                        `Task: ${root.selectedTask}`
-                                    font.pixelSize: 12
-                                    color: "#6c757d"
-                                }
-                                
-                                Text {
-                                    text: {
-                                        if (root.selectedTask === "glr") {
-                                            return root.isChinese ? "类型: 深度学习 (支持实时损失显示)" : "Type: Deep Learning (Real-time loss display)"
-                                        } else {
-                                            return root.isChinese ? "类型: 机器学习 (训练完成后显示结果)" : "Type: Machine Learning (Results after completion)"
-                                        }
-                                    }
-                                    font.pixelSize: 11
-                                    color: root.selectedTask === "glr" ? "#007bff" : "#28a745"
-                                    font.italic: true
-                                }
-                                
-                                Text {
-                                    text: root.isChinese ? 
-                                        `特征数: ${root.selectedFeatures.length}` :
-                                        `Features: ${root.selectedFeatures.length}`
-                                    font.pixelSize: 12
-                                    color: "#6c757d"
-                                }
-                                
-                                Text {
-                                    text: root.isChinese ? 
-                                        `目标: ${root.targetLabel}` :
-                                        `Target: ${root.targetLabel}`
-                                    font.pixelSize: 12
-                                    color: "#6c757d"
-                                }
-                                
-                                // 调试信息
-                                // Text {
-                                //     text: `Debug - Current Model: ${root.currentModel || "null"}`
-                                //     font.pixelSize: 10
-                                //     color: "#dc3545"
-                                // }
-                                
-                                // Text {
-                                //     text: `Debug - Is Training: ${root.isTraining}`
-                                //     font.pixelSize: 10
-                                //     color: "#dc3545"
-                                // }
-                                
-                                RowLayout {
-                                    visible: root.currentModel.length > 0 && !root.isTraining
-                                    
+                            // 模型信息
+                            Rectangle {
+                                Layout.fillWidth: true
+                                Layout.minimumHeight: 150
+                                Layout.preferredHeight: Math.max(150, modelInfoColumn.implicitHeight + 32)
+                                Layout.maximumHeight: 400
+                                color: "white"
+                                radius: 8
+                                border.width: 1
+                                border.color: "#dee2e6"
+
+                                ColumnLayout {
+                                    id: modelInfoColumn
+                                    anchors.fill: parent
+                                    anchors.margins: 16
+                                    spacing: 8
+
                                     Text {
-                                        text: root.isChinese ? "模型:" : "Model:"
-                                        font.pixelSize: 11
+                                        text: root.isChinese ? "模型信息" : "Model Information"
+                                        font.pixelSize: 16
+                                        font.bold: true
+                                        color: "#495057"
+                                    }
+
+                                    Text {
+                                        text: root.isChinese ?
+                                            `任务: ${root.selectedTask}` :
+                                            `Task: ${root.selectedTask}`
+                                        font.pixelSize: 12
                                         color: "#6c757d"
                                     }
-                                    
+
                                     Text {
-                                        text: root.currentModel
-                                        font.pixelSize: 11
-                                        color: "#495057"
-                                        Layout.fillWidth: true
-                                        elide: Text.ElideMiddle
-                                    }
-                                    
-                                    Button {
-                                        text: root.isChinese ? "保存模型" : "Save Model"
-                                        onClicked: {
-                                            try {
-                                                let savePath = root.continuousLearningController.saveModelWithDialog(root.currentModel)
-                                                if (savePath && savePath.length > 0) {
-                                                    root.addLog(root.isChinese ? `模型已保存到: ${savePath}` : `Model saved to: ${savePath}`)
-                                                } else {
-                                                    root.addLog(root.isChinese ? "保存取消或失败" : "Save cancelled or failed")
-                                                }
-                                            } catch (error) {
-                                                root.addLog(root.isChinese ? `保存错误: ${error}` : `Save error: ${error}`)
+                                        text: {
+                                            if (root.selectedTask === "glr") {
+                                                return root.isChinese ? "类型: 深度学习 (支持实时损失显示)" : "Type: Deep Learning (Real-time loss display)"
+                                            } else {
+                                                return root.isChinese ? "类型: 机器学习 (训练完成后显示结果)" : "Type: Machine Learning (Results after completion)"
                                             }
                                         }
-                                        implicitHeight: 28
-                                        font.pixelSize: 10
+                                        font.pixelSize: 11
+                                        color: root.selectedTask === "glr" ? "#007bff" : "#28a745"
+                                        font.italic: true
+                                    }
+
+                                    Text {
+                                        text: root.isChinese ?
+                                            `特征数: ${root.selectedFeatures.length}` :
+                                            `Features: ${root.selectedFeatures.length}`
+                                        font.pixelSize: 12
+                                        color: "#6c757d"
+                                    }
+
+                                    Text {
+                                        text: root.isChinese ?
+                                            `目标: ${root.targetLabel}` :
+                                            `Target: ${root.targetLabel}`
+                                        font.pixelSize: 12
+                                        color: "#6c757d"
+                                    }
+
+                                    // 调试信息
+                                    // Text {
+                                    //     text: `Debug - Current Model: ${root.currentModel || "null"}`
+                                    //     font.pixelSize: 10
+                                    //     color: "#dc3545"
+                                    // }
+
+                                    // Text {
+                                    //     text: `Debug - Is Training: ${root.isTraining}`
+                                    //     font.pixelSize: 10
+                                    //     color: "#dc3545"
+                                    // }
+
+                                    RowLayout {
+                                        visible: root.currentModel.length > 0 && !root.isTraining
+
+                                        Text {
+                                            text: root.isChinese ? "模型:" : "Model:"
+                                            font.pixelSize: 11
+                                            color: "#6c757d"
+                                        }
+
+                                        Text {
+                                            text: root.currentModel
+                                            font.pixelSize: 11
+                                            color: "#495057"
+                                            Layout.fillWidth: true
+                                            elide: Text.ElideMiddle
+                                        }
+
+                                        Button {
+                                            text: root.isChinese ? "保存模型" : "Save Model"
+                                            onClicked: {
+                                                try {
+                                                    let savePath = root.continuousLearningController.saveModelWithDialog(root.currentModel)
+                                                    if (savePath && savePath.length > 0) {
+                                                        root.addLog(root.isChinese ? `模型已保存到: ${savePath}` : `Model saved to: ${savePath}`)
+                                                    } else {
+                                                        root.addLog(root.isChinese ? "保存取消或失败" : "Save cancelled or failed")
+                                                    }
+                                                } catch (error) {
+                                                    root.addLog(root.isChinese ? `保存错误: ${error}` : `Save error: ${error}`)
+                                                }
+                                            }
+                                            implicitHeight: 28
+                                            font.pixelSize: 10
+                                        }
                                     }
                                 }
                             }
-                        }
-                        
-                        // 训练参数控制 (仅对深度学习模型显示)
-                        Rectangle {
+
+                            // 训练参数控制 (仅对深度学习模型显示)
+                            Rectangle {
                             Layout.preferredWidth: 280
                             Layout.minimumHeight: 150
                             Layout.preferredHeight: Math.max(150, trainingParamsColumn.implicitHeight + 32)
@@ -1299,7 +1299,7 @@ Rectangle {
                                 }
                             }
                         }
-                    }
+                        }
                     
                         // 可视化区域 - 现在直接包含在主滚动区域中
                         // 第一部分：实时损失曲线 (仅深度学习任务显示)
@@ -1314,1247 +1314,1264 @@ Rectangle {
                             border.color: "#dee2e6"
                             visible: root.selectedTask === "glr"  // 仅对深度学习任务显示
                                 
-                                ColumnLayout {
-                                    anchors.fill: parent
-                                    anchors.margins: 12
-                                    spacing: 8
-                                    
-                                    RowLayout {
-                                        Layout.fillWidth: true
-                                        
-                                        Text {
-                                            text: root.isChinese ? "实时损失曲线" : "Real-time Loss Curves"
-                                            font.pixelSize: 14
-                                            font.bold: true
-                                            color: "#495057"
+                            ColumnLayout {
+                                anchors.fill: parent
+                                anchors.margins: 12
+                                spacing: 8
+
+                                RowLayout {
+                                    Layout.fillWidth: true
+
+                                    Text {
+                                        text: root.isChinese ? "实时损失曲线" : "Real-time Loss Curves"
+                                        font.pixelSize: 14
+                                        font.bold: true
+                                        color: "#495057"
+                                    }
+
+                                    Item { Layout.fillWidth: true }
+
+                                    // 状态指示器
+                                    Rectangle {
+                                        Layout.preferredWidth: 8
+                                        Layout.preferredHeight: 8
+                                        radius: 4
+                                        color: {
+                                            if (!root.lossData) return "#6c757d"
+                                            if (!root.lossData.train_losses || root.lossData.train_losses.length === 0) return "#ffc107"
+                                            return "#28a745"
                                         }
-                                        
+                                    }
+
+                                    Text {
+                                        text: {
+                                            if (!root.lossData) return "无数据"
+                                            if (!root.lossData.train_losses || root.lossData.train_losses.length === 0) return "等待中"
+                                            return `${root.lossData.train_losses.length}点`
+                                        }
+                                        font.pixelSize: 9
+                                        color: "#6c757d"
+                                    }
+
+                                    // Button {
+                                    //     text: "测试数据流"
+                                    //     implicitHeight: 20
+                                    //     font.pixelSize: 8
+                                    //     onClicked: {
+                                    //         console.log("=== Testing data flow ===")
+                                    //         root.addLog("开始测试数据流...")
+
+                                    //         // 模拟损失数据更新
+                                    //         var testLossData = {
+                                    //             "train_losses": [1.0, 0.8, 0.6, 0.5, 0.4],
+                                    //             "val_losses": [1.1, 0.9, 0.7, 0.6, 0.5],
+                                    //             "epochs": [1, 2, 3, 4, 5],
+                                    //             "epoch": 5,
+                                    //             "train_loss": 0.4,
+                                    //             "val_loss": 0.5
+                                    //         }
+
+                                    //         root.addLog("调用 onLossDataUpdated 进行测试...")
+                                    //         onLossDataUpdated(testLossData)
+                                    //     }
+                                    // }
+
+                                    // Button {
+                                    //     text: "增量测试"
+                                    //     implicitHeight: 20
+                                    //     font.pixelSize: 8
+                                    //     onClicked: {
+                                    //         console.log("=== Testing incremental update ===")
+
+                                    //         // 模拟增量损失数据更新
+                                    //         let currentEpoch = root.lossData && root.lossData.train_losses ? root.lossData.train_losses.length + 1 : 1
+                                    //         let trainLoss = Math.max(0.1, Math.random() * 0.5)
+                                    //         let valLoss = trainLoss + Math.random() * 0.1
+
+                                    //         // 创建增量数据
+                                    //         var currentTrainLosses = root.lossData && root.lossData.train_losses ? [...root.lossData.train_losses] : []
+                                    //         var currentValLosses = root.lossData && root.lossData.val_losses ? [...root.lossData.val_losses] : []
+
+                                    //         currentTrainLosses.push(trainLoss)
+                                    //         currentValLosses.push(valLoss)
+
+                                    //         var incrementalData = {
+                                    //             "epoch": currentEpoch,
+                                    //             "train_loss": trainLoss,
+                                    //             "val_loss": valLoss,
+                                    //             "train_losses": currentTrainLosses,
+                                    //             "val_losses": currentValLosses
+                                    //         }
+
+                                    //         console.log("=== 增量数据 ===", JSON.stringify(incrementalData))
+
+                                    //         root.addLog(`模拟第${currentEpoch}轮训练结果: 训练损失=${trainLoss.toFixed(4)}, 验证损失=${valLoss.toFixed(4)}`)
+
+                                    //         // 使用增强版处理函数
+                                    //         onLossDataUpdated(incrementalData)
+                                    //     }
+                                    // }
+
+                                    // Button {
+                                    //     text: "清空"
+                                    //     implicitHeight: 20
+                                    //     font.pixelSize: 8
+                                    //     onClicked: {
+                                    //         root.lossData = {
+                                    //             "train_losses": [],
+                                    //             "val_losses": [],
+                                    //             "epochs": []
+                                    //         }
+                                    //         root.addLog("已清空损失数据")
+                                    //     }
+                                    // }
+                                }
+
+                                // 实时损失值显示
+                                Rectangle {
+                                    Layout.fillWidth: true
+                                    Layout.preferredHeight: 40
+                                    color: "#f8f9fa"
+                                    border.width: 1
+                                    border.color: "#e9ecef"
+                                    radius: 4
+
+                                    RowLayout {
+                                        anchors.fill: parent
+                                        anchors.margins: 8
+                                        spacing: 16
+
+                                        ColumnLayout {
+                                            spacing: 2
+
+                                            Text {
+                                                text: "训练损失"
+                                                font.pixelSize: 8
+                                                color: "#6c757d"
+                                            }
+
+                                            Text {
+                                                text: root.lossData && root.lossData.train_losses && root.lossData.train_losses.length > 0 ?
+                                                    root.lossData.train_losses[root.lossData.train_losses.length - 1].toFixed(4) : "N/A"
+                                                font.pixelSize: 12
+                                                font.bold: true
+                                                color: "#dc3545"
+                                            }
+                                        }
+
+                                        ColumnLayout {
+                                            spacing: 2
+
+                                            Text {
+                                                text: "验证损失"
+                                                font.pixelSize: 8
+                                                color: "#6c757d"
+                                            }
+
+                                            Text {
+                                                text: root.lossData && root.lossData.val_losses && root.lossData.val_losses.length > 0 ?
+                                                    root.lossData.val_losses[root.lossData.val_losses.length - 1].toFixed(4) : "N/A"
+                                                font.pixelSize: 12
+                                                font.bold: true
+                                                color: "#007bff"
+                                            }
+                                        }
+
                                         Item { Layout.fillWidth: true }
-                                        
-                                        // 状态指示器
+
+                                        ColumnLayout {
+                                            spacing: 2
+
+                                            Text {
+                                                text: "轮次"
+                                                font.pixelSize: 8
+                                                color: "#6c757d"
+                                            }
+
+                                            Text {
+                                                text: root.lossData && root.lossData.train_losses ?
+                                                    `${root.lossData.train_losses.length}/${root.epochs}` : "0/0"
+                                                font.pixelSize: 12
+                                                font.bold: true
+                                                color: "#495057"
+                                            }
+                                        }
+                                    }
+                                }
+
+                                // 损失曲线图表
+                                Rectangle {
+                                    Layout.fillWidth: true
+                                    Layout.fillHeight: true
+                                    color: "#f8f9fa"
+                                    border.width: 1
+                                    border.color: "#e9ecef"
+                                    radius: 4
+
+                                    Canvas {
+                                        id: realtimeLossCanvas
+                                        objectName: "realtimeLossCanvas"
+                                        anchors.fill: parent
+                                        anchors.margins: 15
+
+                                        property var chartData: root.lossData
+                                        property bool autoUpdate: true
+
+                                        // 监听数据变化并自动更新
+                                        onChartDataChanged: {
+                                            if (autoUpdate) {
+                                                console.log("=== Realtime Canvas: chartData changed ===")
+                                                console.log("Data points:", chartData && chartData.train_losses ? chartData.train_losses.length : 0)
+                                                root.addLog("Canvas检测到数据变化，数据点数: " + (chartData && chartData.train_losses ? chartData.train_losses.length : 0))
+                                                requestPaint()
+                                            }
+                                        }
+
+                                        // 连接到root的lossData属性变化
+                                        Connections {
+                                            target: root
+                                            function onLossDataChanged() {
+                                                console.log("=== Realtime Canvas: Received lossDataChanged signal ===")
+                                                console.log("=== New lossData:", JSON.stringify(root.lossData))
+                                                root.addLog("Canvas接收到lossDataChanged信号，数据: " + JSON.stringify(root.lossData))
+                                                realtimeLossCanvas.chartData = root.lossData
+                                                realtimeLossCanvas.requestPaint()
+                                            }
+                                        }
+
+                                        // 新增：直接连接控制器信号
+                                        Connections {
+                                            target: root.continuousLearningController
+                                            function onLossDataUpdated(lossData) {
+                                                console.log("=== Direct Controller Signal: lossDataUpdated ===")
+                                                console.log("Direct loss data received:", JSON.stringify(lossData))
+                                                root.addLog("直接接收控制器损失数据: " + JSON.stringify(lossData))
+
+                                                // 直接更新Canvas数据
+                                                realtimeLossCanvas.chartData = lossData
+                                                root.lossData = lossData  // 同步更新root属性
+                                                realtimeLossCanvas.requestPaint()
+                                            }
+                                        }
+
+                                        onPaint: {
+                                            console.log("=== Realtime Canvas: onPaint called ===")
+                                            console.log("chartData available:", !!chartData)
+                                            if (chartData) {
+                                                console.log("chartData.train_losses length:", chartData.train_losses ? chartData.train_losses.length : "undefined")
+                                                console.log("chartData.val_losses length:", chartData.val_losses ? chartData.val_losses.length : "undefined")
+                                                console.log("chartData sample:", JSON.stringify({
+                                                    train_losses: chartData.train_losses ? chartData.train_losses.slice(0, 3) : null,
+                                                    val_losses: chartData.val_losses ? chartData.val_losses.slice(0, 3) : null
+                                                }))
+                                            }
+
+                                            var ctx = getContext("2d")
+                                            ctx.clearRect(0, 0, width, height)
+
+                                            if (!chartData || !chartData.train_losses || chartData.train_losses.length === 0) {
+                                                // 显示等待消息
+                                                ctx.fillStyle = "#6c757d"
+                                                ctx.font = "12px Arial"
+                                                ctx.textAlign = "center"
+                                                var waitingText = root.isChinese ?
+                                                    "等待损失数据...\n请开始GLR任务训练" :
+                                                    "Waiting for loss data...\nPlease start GLR training"
+                                                ctx.fillText(waitingText, width / 2, height / 2)
+                                                console.log("=== Canvas: 显示等待消息 ===")
+                                                root.addLog("Canvas显示等待消息")
+                                                return
+                                            }
+
+                                            var trainLosses = chartData.train_losses
+                                            var valLosses = chartData.val_losses || []
+
+                                            console.log("Realtime Canvas: Drawing", trainLosses.length, "train points,", valLosses.length, "val points")
+
+                                            // 设置绘图区域边距 (增加左边距为Y轴标签留出空间)
+                                            let margin = 50  // 增加左边距
+                                            let plotWidth = width - 2 * margin
+                                            let plotHeight = height - 2 * margin
+
+                                            // 计算数据范围
+                                            var allLosses = trainLosses.concat(valLosses)
+                                            var minLoss = Math.min.apply(Math, allLosses)
+                                            var maxLoss = Math.max.apply(Math, allLosses)
+                                            var lossRange = maxLoss - minLoss
+
+                                            if (lossRange === 0) lossRange = 1
+
+                                            // 绘制坐标轴
+                                            ctx.strokeStyle = "#333"
+                                            ctx.lineWidth = 1
+
+                                            // Y轴
+                                            ctx.beginPath()
+                                            ctx.moveTo(margin, margin)
+                                            ctx.lineTo(margin, height - margin)
+                                            ctx.stroke()
+
+                                            // X轴
+                                            ctx.beginPath()
+                                            ctx.moveTo(margin, height - margin)
+                                            ctx.lineTo(width - margin, height - margin)
+                                            ctx.stroke()
+
+                                            // 绘制Y轴刻度和标签
+                                            ctx.fillStyle = "#666"
+                                            ctx.font = "10px Arial"
+                                            ctx.textAlign = "right"
+                                            for (let i = 0; i <= 5; i++) {
+                                                let y = margin + (plotHeight * i) / 5
+                                                let value = maxLoss - (lossRange * i) / 5
+
+                                                // 刻度线
+                                                ctx.beginPath()
+                                                ctx.moveTo(margin - 5, y)
+                                                ctx.lineTo(margin, y)
+                                                ctx.stroke()
+
+                                                // 标签 (取整显示，增加右边距避免遮挡)
+                                                let displayValue = value < 1 ? value.toFixed(3) : value.toFixed(2)
+                                                ctx.fillText(displayValue, margin - 10, y + 3)
+                                            }
+
+                                            // 绘制X轴刻度和标签
+                                            ctx.textAlign = "center"
+                                            for (let i = 0; i <= 5; i++) {
+                                                let x = margin + (plotWidth * i) / 5
+                                                let epoch = Math.round((trainLosses.length * i) / 5)
+
+                                                // 刻度线
+                                                ctx.beginPath()
+                                                ctx.moveTo(x, height - margin)
+                                                ctx.lineTo(x, height - margin + 5)
+                                                ctx.stroke()
+
+                                                // 标签
+                                                ctx.fillText(epoch.toString(), x, height - margin + 18)
+                                            }
+
+                                            // 绘制轴标签
+                                            ctx.fillStyle = "#333"
+                                            ctx.font = "12px Arial"
+                                            ctx.textAlign = "center"
+
+                                            // X轴标签
+                                            ctx.fillText(root.isChinese ? "训练轮数" : "Epochs", width / 2, height - 5)
+
+                                            // Y轴标签（旋转，调整位置避免遮挡数值）
+                                            ctx.save()
+                                            ctx.translate(20, height / 2)  // 增加x坐标，远离数值标签
+                                            ctx.rotate(-Math.PI / 2)
+                                            ctx.fillText(root.isChinese ? "损失值" : "Loss", 0, 0)
+                                            ctx.restore()
+
+                                            // 绘制背景网格
+                                            ctx.strokeStyle = "#f0f0f0"
+                                            ctx.lineWidth = 0.5
+
+                                            // 垂直网格线
+                                            for (var i = 1; i < 6; i++) {
+                                                var x = margin + (plotWidth * i) / 6
+                                                ctx.beginPath()
+                                                ctx.moveTo(x, margin)
+                                                ctx.lineTo(x, height - margin)
+                                                ctx.stroke()
+                                            }
+
+                                            // 水平网格线
+                                            for (var j = 1; j < 5; j++) {
+                                                var y = margin + (plotHeight * j) / 5
+                                                ctx.beginPath()
+                                                ctx.moveTo(margin, y)
+                                                ctx.lineTo(width - margin, y)
+                                                ctx.stroke()
+                                            }
+
+                                            // 绘制训练损失曲线
+                                            if (trainLosses.length > 0) {
+                                                ctx.strokeStyle = "#dc3545"
+                                                ctx.lineWidth = 2
+                                                ctx.beginPath()
+
+                                                for (var i = 0; i < trainLosses.length; i++) {
+                                                    if (trainLosses[i] !== undefined && !isNaN(trainLosses[i])) {
+                                                        var x = margin + (i / Math.max(1, trainLosses.length - 1)) * plotWidth
+                                                        var y = margin + plotHeight - ((trainLosses[i] - minLoss) / lossRange) * plotHeight
+
+                                                        if (i === 0) {
+                                                            ctx.moveTo(x, y)
+                                                        } else {
+                                                            ctx.lineTo(x, y)
+                                                        }
+                                                    }
+                                                }
+                                                ctx.stroke()
+
+                                                // 绘制最新点
+                                                if (trainLosses.length > 0 && trainLosses[trainLosses.length - 1] !== undefined) {
+                                                    var lastX = margin + ((trainLosses.length - 1) / Math.max(1, trainLosses.length - 1)) * plotWidth
+                                                    var lastY = margin + plotHeight - ((trainLosses[trainLosses.length - 1] - minLoss) / lossRange) * plotHeight
+                                                    ctx.fillStyle = "#dc3545"
+                                                    ctx.beginPath()
+                                                    ctx.arc(lastX, lastY, 3, 0, 2 * Math.PI)
+                                                    ctx.fill()
+                                                }
+                                            }
+
+                                            // 绘制验证损失曲线
+                                            if (valLosses.length > 0) {
+                                                ctx.strokeStyle = "#007bff"
+                                                ctx.lineWidth = 2
+                                                ctx.beginPath()
+
+                                                for (var j = 0; j < valLosses.length; j++) {
+                                                    if (valLosses[j] !== undefined && !isNaN(valLosses[j])) {
+                                                        var x2 = margin + (j / Math.max(1, valLosses.length - 1)) * plotWidth
+                                                        var y2 = margin + plotHeight - ((valLosses[j] - minLoss) / lossRange) * plotHeight
+
+                                                        if (j === 0) {
+                                                            ctx.moveTo(x2, y2)
+                                                        } else {
+                                                            ctx.lineTo(x2, y2)
+                                                        }
+                                                    }
+                                                }
+                                                ctx.stroke()
+
+                                                // 绘制最新点
+                                                if (valLosses.length > 0 && valLosses[valLosses.length - 1] !== undefined) {
+                                                    var lastX2 = margin + ((valLosses.length - 1) / Math.max(1, valLosses.length - 1)) * plotWidth
+                                                    var lastY2 = margin + plotHeight - ((valLosses[valLosses.length - 1] - minLoss) / lossRange) * plotHeight
+                                                    ctx.fillStyle = "#007bff"
+                                                    ctx.beginPath()
+                                                    ctx.arc(lastX2, lastY2, 3, 0, 2 * Math.PI)
+                                                    ctx.fill()
+                                                }
+                                            }
+
+                                            // 绘制图例 (移到右上角避免遮挡数值)
+                                            let legendX = width - margin - 80  // 右上角位置
+                                            let legendY = margin + 10
+
+                                            ctx.fillStyle = "#dc3545"
+                                            ctx.fillRect(legendX, legendY, 12, 3)
+                                            ctx.fillStyle = "#495057"
+                                            ctx.font = "10px Arial"
+                                            ctx.textAlign = "left"
+                                            ctx.fillText(root.isChinese ? "训练" : "Train", legendX + 17, legendY + 8)
+
+                                            if (valLosses.length > 0) {
+                                                ctx.fillStyle = "#007bff"
+                                                ctx.fillRect(legendX, legendY + 17, 12, 3)
+                                                ctx.fillStyle = "#495057"
+                                                ctx.fillText(root.isChinese ? "验证" : "Val", legendX + 17, legendY + 25)
+                                            }
+
+                                            console.log("Realtime Canvas: Paint completed")
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                            
+                        // 第二部分：残差图/MSE误差图
+                        Rectangle {
+                            Layout.fillWidth: true
+                            Layout.minimumHeight: 300
+                            Layout.preferredHeight: 400
+                            Layout.maximumHeight: 600
+                            color: "white"
+                            radius: 8
+                            border.width: 1
+                            border.color: "#dee2e6"
+
+                            ColumnLayout {
+                                anchors.fill: parent
+                                anchors.margins: 12
+                                spacing: 8
+
+                                Text {
+                                    text: {
+                                        if (root.selectedTask === "glr") {
+                                            return root.isChinese ? "残差分析" : "Residual Analysis"
+                                        } else {
+                                            return root.isChinese ? "残差分析" : "Residual Analysis"
+                                        }
+                                    }
+                                    font.pixelSize: 14
+                                    font.bold: true
+                                    color: "#495057"
+                                }
+
+                                // 状态指示
+                                Rectangle {
+                                    Layout.fillWidth: true
+                                    Layout.preferredHeight: 24
+                                    color: "#f8f9fa"
+                                    border.width: 1
+                                    border.color: "#e9ecef"
+                                    radius: 4
+
+                                    RowLayout {
+                                        anchors.fill: parent
+                                        anchors.margins: 6
+                                        spacing: 6
+
                                         Rectangle {
                                             Layout.preferredWidth: 8
                                             Layout.preferredHeight: 8
                                             radius: 4
                                             color: {
-                                                if (!root.lossData) return "#6c757d"
-                                                if (!root.lossData.train_losses || root.lossData.train_losses.length === 0) return "#ffc107"
+                                                if (root.isTraining) return "#ffc107"
+                                                if (!root.currentModel || root.currentModel.length === 0) return "#6c757d"
                                                 return "#28a745"
                                             }
                                         }
-                                        
+
                                         Text {
                                             text: {
-                                                if (!root.lossData) return "无数据"
-                                                if (!root.lossData.train_losses || root.lossData.train_losses.length === 0) return "等待中"
-                                                return `${root.lossData.train_losses.length}点`
+                                                if (root.isTraining) {
+                                                    return root.isChinese ? "训练中..." : "Training..."
+                                                } else if (!root.currentModel || root.currentModel.length === 0) {
+                                                    return root.isChinese ? "等待训练完成" : "Waiting for completion"
+                                                } else {
+                                                    return root.isChinese ? "可查看结果" : "Results available"
+                                                }
                                             }
-                                            font.pixelSize: 9
-                                            color: "#6c757d"
+                                            font.pixelSize: 10
+                                            color: "#495057"
                                         }
-                                        
-                                        // Button {
-                                        //     text: "测试数据流"
-                                        //     implicitHeight: 20
-                                        //     font.pixelSize: 8
-                                        //     onClicked: {
-                                        //         console.log("=== Testing data flow ===")
-                                        //         root.addLog("开始测试数据流...")
-                                                
-                                        //         // 模拟损失数据更新
-                                        //         var testLossData = {
-                                        //             "train_losses": [1.0, 0.8, 0.6, 0.5, 0.4],
-                                        //             "val_losses": [1.1, 0.9, 0.7, 0.6, 0.5],
-                                        //             "epochs": [1, 2, 3, 4, 5],
-                                        //             "epoch": 5,
-                                        //             "train_loss": 0.4,
-                                        //             "val_loss": 0.5
-                                        //         }
-                                                
-                                        //         root.addLog("调用 onLossDataUpdated 进行测试...")
-                                        //         onLossDataUpdated(testLossData)
-                                        //     }
-                                        // }
-                                        
-                                        // Button {
-                                        //     text: "增量测试"
-                                        //     implicitHeight: 20
-                                        //     font.pixelSize: 8
-                                        //     onClicked: {
-                                        //         console.log("=== Testing incremental update ===")
-                                                
-                                        //         // 模拟增量损失数据更新
-                                        //         let currentEpoch = root.lossData && root.lossData.train_losses ? root.lossData.train_losses.length + 1 : 1
-                                        //         let trainLoss = Math.max(0.1, Math.random() * 0.5)
-                                        //         let valLoss = trainLoss + Math.random() * 0.1
-                                                
-                                        //         // 创建增量数据
-                                        //         var currentTrainLosses = root.lossData && root.lossData.train_losses ? [...root.lossData.train_losses] : []
-                                        //         var currentValLosses = root.lossData && root.lossData.val_losses ? [...root.lossData.val_losses] : []
-                                                
-                                        //         currentTrainLosses.push(trainLoss)
-                                        //         currentValLosses.push(valLoss)
-                                                
-                                        //         var incrementalData = {
-                                        //             "epoch": currentEpoch,
-                                        //             "train_loss": trainLoss,
-                                        //             "val_loss": valLoss,
-                                        //             "train_losses": currentTrainLosses,
-                                        //             "val_losses": currentValLosses
-                                        //         }
-                                                
-                                        //         console.log("=== 增量数据 ===", JSON.stringify(incrementalData))
-                                                
-                                        //         root.addLog(`模拟第${currentEpoch}轮训练结果: 训练损失=${trainLoss.toFixed(4)}, 验证损失=${valLoss.toFixed(4)}`)
-                                                
-                                        //         // 使用增强版处理函数
-                                        //         onLossDataUpdated(incrementalData)
-                                        //     }
-                                        // }
-                                        
-                                        // Button {
-                                        //     text: "清空"
-                                        //     implicitHeight: 20
-                                        //     font.pixelSize: 8
-                                        //     onClicked: {
-                                        //         root.lossData = {
-                                        //             "train_losses": [],
-                                        //             "val_losses": [],
-                                        //             "epochs": []
-                                        //         }
-                                        //         root.addLog("已清空损失数据")
-                                        //     }
-                                        // }
-                                    }
-                                    
-                                    // 实时损失值显示
-                                    Rectangle {
-                                        Layout.fillWidth: true
-                                        Layout.preferredHeight: 40
-                                        color: "#f8f9fa"
-                                        border.width: 1
-                                        border.color: "#e9ecef"
-                                        radius: 4
-                                        
-                                        RowLayout {
-                                            anchors.fill: parent
-                                            anchors.margins: 8
-                                            spacing: 16
-                                            
-                                            ColumnLayout {
-                                                spacing: 2
-                                                
-                                                Text {
-                                                    text: "训练损失"
-                                                    font.pixelSize: 8
-                                                    color: "#6c757d"
-                                                }
-                                                
-                                                Text {
-                                                    text: root.lossData && root.lossData.train_losses && root.lossData.train_losses.length > 0 ? 
-                                                        root.lossData.train_losses[root.lossData.train_losses.length - 1].toFixed(4) : "N/A"
-                                                    font.pixelSize: 12
-                                                    font.bold: true
-                                                    color: "#dc3545"
-                                                }
-                                            }
-                                            
-                                            ColumnLayout {
-                                                spacing: 2
-                                                
-                                                Text {
-                                                    text: "验证损失"
-                                                    font.pixelSize: 8
-                                                    color: "#6c757d"
-                                                }
-                                                
-                                                Text {
-                                                    text: root.lossData && root.lossData.val_losses && root.lossData.val_losses.length > 0 ? 
-                                                        root.lossData.val_losses[root.lossData.val_losses.length - 1].toFixed(4) : "N/A"
-                                                    font.pixelSize: 12
-                                                    font.bold: true
-                                                    color: "#007bff"
-                                                }
-                                            }
-                                            
-                                            Item { Layout.fillWidth: true }
-                                            
-                                            ColumnLayout {
-                                                spacing: 2
-                                                
-                                                Text {
-                                                    text: "轮次"
-                                                    font.pixelSize: 8
-                                                    color: "#6c757d"
-                                                }
-                                                
-                                                Text {
-                                                    text: root.lossData && root.lossData.train_losses ? 
-                                                        `${root.lossData.train_losses.length}/${root.epochs}` : "0/0"
-                                                    font.pixelSize: 12
-                                                    font.bold: true
-                                                    color: "#495057"
-                                                }
-                                            }
-                                        }
-                                    }
-                                    
-                                    // 损失曲线图表
-                                    Rectangle {
-                                        Layout.fillWidth: true
-                                        Layout.fillHeight: true
-                                        color: "#f8f9fa"
-                                        border.width: 1
-                                        border.color: "#e9ecef"
-                                        radius: 4
-                                        
-                                        Canvas {
-                                            id: realtimeLossCanvas
-                                            objectName: "realtimeLossCanvas"
-                                            anchors.fill: parent
-                                            anchors.margins: 15
-                                            
-                                            property var chartData: root.lossData
-                                            property bool autoUpdate: true
-                                            
-                                            // 监听数据变化并自动更新
-                                            onChartDataChanged: {
-                                                if (autoUpdate) {
-                                                    console.log("=== Realtime Canvas: chartData changed ===")
-                                                    console.log("Data points:", chartData && chartData.train_losses ? chartData.train_losses.length : 0)
-                                                    root.addLog("Canvas检测到数据变化，数据点数: " + (chartData && chartData.train_losses ? chartData.train_losses.length : 0))
-                                                    requestPaint()
-                                                }
-                                            }
-                                            
-                            // 连接到root的lossData属性变化
-                            Connections {
-                                target: root
-                                function onLossDataChanged() {
-                                    console.log("=== Realtime Canvas: Received lossDataChanged signal ===")
-                                    console.log("=== New lossData:", JSON.stringify(root.lossData))
-                                    root.addLog("Canvas接收到lossDataChanged信号，数据: " + JSON.stringify(root.lossData))
-                                    realtimeLossCanvas.chartData = root.lossData
-                                    realtimeLossCanvas.requestPaint()
-                                }
-                            }
-                            
-                            // 新增：直接连接控制器信号
-                            Connections {
-                                target: root.continuousLearningController
-                                function onLossDataUpdated(lossData) {
-                                    console.log("=== Direct Controller Signal: lossDataUpdated ===")
-                                    console.log("Direct loss data received:", JSON.stringify(lossData))
-                                    root.addLog("直接接收控制器损失数据: " + JSON.stringify(lossData))
-                                    
-                                    // 直接更新Canvas数据
-                                    realtimeLossCanvas.chartData = lossData
-                                    root.lossData = lossData  // 同步更新root属性
-                                    realtimeLossCanvas.requestPaint()
-                                }
-                            }
-                            
-                            onPaint: {
-                                console.log("=== Realtime Canvas: onPaint called ===")
-                                console.log("chartData available:", !!chartData)
-                                if (chartData) {
-                                    console.log("chartData.train_losses length:", chartData.train_losses ? chartData.train_losses.length : "undefined")
-                                    console.log("chartData.val_losses length:", chartData.val_losses ? chartData.val_losses.length : "undefined")
-                                    console.log("chartData sample:", JSON.stringify({
-                                        train_losses: chartData.train_losses ? chartData.train_losses.slice(0, 3) : null,
-                                        val_losses: chartData.val_losses ? chartData.val_losses.slice(0, 3) : null
-                                    }))
-                                }
-                                
-                                var ctx = getContext("2d")
-                                ctx.clearRect(0, 0, width, height)
-                                
-                                if (!chartData || !chartData.train_losses || chartData.train_losses.length === 0) {
-                                    // 显示等待消息
-                                    ctx.fillStyle = "#6c757d"
-                                    ctx.font = "12px Arial"
-                                    ctx.textAlign = "center"
-                                    var waitingText = root.isChinese ? 
-                                        "等待损失数据...\n请开始GLR任务训练" : 
-                                        "Waiting for loss data...\nPlease start GLR training"
-                                    ctx.fillText(waitingText, width / 2, height / 2)
-                                    console.log("=== Canvas: 显示等待消息 ===")
-                                    root.addLog("Canvas显示等待消息")
-                                    return
-                                }
-                                                
-                                                var trainLosses = chartData.train_losses
-                                                var valLosses = chartData.val_losses || []
-                                                
-                                                console.log("Realtime Canvas: Drawing", trainLosses.length, "train points,", valLosses.length, "val points")
-                                                
-                                                // 设置绘图区域边距 (增加左边距为Y轴标签留出空间)
-                                                let margin = 50  // 增加左边距
-                                                let plotWidth = width - 2 * margin
-                                                let plotHeight = height - 2 * margin
-                                                
-                                                // 计算数据范围
-                                                var allLosses = trainLosses.concat(valLosses)
-                                                var minLoss = Math.min.apply(Math, allLosses)
-                                                var maxLoss = Math.max.apply(Math, allLosses)
-                                                var lossRange = maxLoss - minLoss
-                                                
-                                                if (lossRange === 0) lossRange = 1
-                                                
-                                                // 绘制坐标轴
-                                                ctx.strokeStyle = "#333"
-                                                ctx.lineWidth = 1
-                                                
-                                                // Y轴
-                                                ctx.beginPath()
-                                                ctx.moveTo(margin, margin)
-                                                ctx.lineTo(margin, height - margin)
-                                                ctx.stroke()
-                                                
-                                                // X轴
-                                                ctx.beginPath()
-                                                ctx.moveTo(margin, height - margin)
-                                                ctx.lineTo(width - margin, height - margin)
-                                                ctx.stroke()
-                                                
-                                                // 绘制Y轴刻度和标签
-                                                ctx.fillStyle = "#666"
-                                                ctx.font = "10px Arial"
-                                                ctx.textAlign = "right"
-                                                for (let i = 0; i <= 5; i++) {
-                                                    let y = margin + (plotHeight * i) / 5
-                                                    let value = maxLoss - (lossRange * i) / 5
-                                                    
-                                                    // 刻度线
-                                                    ctx.beginPath()
-                                                    ctx.moveTo(margin - 5, y)
-                                                    ctx.lineTo(margin, y)
-                                                    ctx.stroke()
-                                                    
-                                                    // 标签 (取整显示，增加右边距避免遮挡)
-                                                    let displayValue = value < 1 ? value.toFixed(3) : value.toFixed(2)
-                                                    ctx.fillText(displayValue, margin - 10, y + 3)
-                                                }
-                                                
-                                                // 绘制X轴刻度和标签
-                                                ctx.textAlign = "center"
-                                                for (let i = 0; i <= 5; i++) {
-                                                    let x = margin + (plotWidth * i) / 5
-                                                    let epoch = Math.round((trainLosses.length * i) / 5)
-                                                    
-                                                    // 刻度线
-                                                    ctx.beginPath()
-                                                    ctx.moveTo(x, height - margin)
-                                                    ctx.lineTo(x, height - margin + 5)
-                                                    ctx.stroke()
-                                                    
-                                                    // 标签
-                                                    ctx.fillText(epoch.toString(), x, height - margin + 18)
-                                                }
-                                                
-                                                // 绘制轴标签
-                                                ctx.fillStyle = "#333"
-                                                ctx.font = "12px Arial"
-                                                ctx.textAlign = "center"
-                                                
-                                                // X轴标签
-                                                ctx.fillText(root.isChinese ? "训练轮数" : "Epochs", width / 2, height - 5)
-                                                
-                                                // Y轴标签（旋转，调整位置避免遮挡数值）
-                                                ctx.save()
-                                                ctx.translate(20, height / 2)  // 增加x坐标，远离数值标签
-                                                ctx.rotate(-Math.PI / 2)
-                                                ctx.fillText(root.isChinese ? "损失值" : "Loss", 0, 0)
-                                                ctx.restore()
-                                                
-                                                // 绘制背景网格
-                                                ctx.strokeStyle = "#f0f0f0"
-                                                ctx.lineWidth = 0.5
-                                                
-                                                // 垂直网格线
-                                                for (var i = 1; i < 6; i++) {
-                                                    var x = margin + (plotWidth * i) / 6
-                                                    ctx.beginPath()
-                                                    ctx.moveTo(x, margin)
-                                                    ctx.lineTo(x, height - margin)
-                                                    ctx.stroke()
-                                                }
-                                                
-                                                // 水平网格线
-                                                for (var j = 1; j < 5; j++) {
-                                                    var y = margin + (plotHeight * j) / 5
-                                                    ctx.beginPath()
-                                                    ctx.moveTo(margin, y)
-                                                    ctx.lineTo(width - margin, y)
-                                                    ctx.stroke()
-                                                }
-                                                
-                                                // 绘制训练损失曲线
-                                                if (trainLosses.length > 0) {
-                                                    ctx.strokeStyle = "#dc3545"
-                                                    ctx.lineWidth = 2
-                                                    ctx.beginPath()
-                                                    
-                                                    for (var i = 0; i < trainLosses.length; i++) {
-                                                        if (trainLosses[i] !== undefined && !isNaN(trainLosses[i])) {
-                                                            var x = margin + (i / Math.max(1, trainLosses.length - 1)) * plotWidth
-                                                            var y = margin + plotHeight - ((trainLosses[i] - minLoss) / lossRange) * plotHeight
-                                                            
-                                                            if (i === 0) {
-                                                                ctx.moveTo(x, y)
-                                                            } else {
-                                                                ctx.lineTo(x, y)
-                                                            }
-                                                        }
-                                                    }
-                                                    ctx.stroke()
-                                                    
-                                                    // 绘制最新点
-                                                    if (trainLosses.length > 0 && trainLosses[trainLosses.length - 1] !== undefined) {
-                                                        var lastX = margin + ((trainLosses.length - 1) / Math.max(1, trainLosses.length - 1)) * plotWidth
-                                                        var lastY = margin + plotHeight - ((trainLosses[trainLosses.length - 1] - minLoss) / lossRange) * plotHeight
-                                                        ctx.fillStyle = "#dc3545"
-                                                        ctx.beginPath()
-                                                        ctx.arc(lastX, lastY, 3, 0, 2 * Math.PI)
-                                                        ctx.fill()
-                                                    }
-                                                }
-                                                
-                                                // 绘制验证损失曲线
-                                                if (valLosses.length > 0) {
-                                                    ctx.strokeStyle = "#007bff"
-                                                    ctx.lineWidth = 2
-                                                    ctx.beginPath()
-                                                    
-                                                    for (var j = 0; j < valLosses.length; j++) {
-                                                        if (valLosses[j] !== undefined && !isNaN(valLosses[j])) {
-                                                            var x2 = margin + (j / Math.max(1, valLosses.length - 1)) * plotWidth
-                                                            var y2 = margin + plotHeight - ((valLosses[j] - minLoss) / lossRange) * plotHeight
-                                                            
-                                                            if (j === 0) {
-                                                                ctx.moveTo(x2, y2)
-                                                            } else {
-                                                                ctx.lineTo(x2, y2)
-                                                            }
-                                                        }
-                                                    }
-                                                    ctx.stroke()
-                                                    
-                                                    // 绘制最新点
-                                                    if (valLosses.length > 0 && valLosses[valLosses.length - 1] !== undefined) {
-                                                        var lastX2 = margin + ((valLosses.length - 1) / Math.max(1, valLosses.length - 1)) * plotWidth
-                                                        var lastY2 = margin + plotHeight - ((valLosses[valLosses.length - 1] - minLoss) / lossRange) * plotHeight
-                                                        ctx.fillStyle = "#007bff"
-                                                        ctx.beginPath()
-                                                        ctx.arc(lastX2, lastY2, 3, 0, 2 * Math.PI)
-                                                        ctx.fill()
-                                                    }
-                                                }
-                                                
-                                                // 绘制图例 (移到右上角避免遮挡数值)
-                                                let legendX = width - margin - 80  // 右上角位置
-                                                let legendY = margin + 10
-                                                
-                                                ctx.fillStyle = "#dc3545"
-                                                ctx.fillRect(legendX, legendY, 12, 3)
-                                                ctx.fillStyle = "#495057"
-                                                ctx.font = "10px Arial"
-                                                ctx.textAlign = "left"
-                                                ctx.fillText(root.isChinese ? "训练" : "Train", legendX + 17, legendY + 8)
-                                                
-                                                if (valLosses.length > 0) {
-                                                    ctx.fillStyle = "#007bff"
-                                                    ctx.fillRect(legendX, legendY + 17, 12, 3)
-                                                    ctx.fillStyle = "#495057"
-                                                    ctx.fillText(root.isChinese ? "验证" : "Val", legendX + 17, legendY + 25)
-                                                }
-                                                
-                                                console.log("Realtime Canvas: Paint completed")
-                                            }
-                                        }
+
+                                        Item { Layout.fillWidth: true }
                                     }
                                 }
-                            }
-                            
-                            // 第二部分：残差图/MSE误差图
-                            Rectangle {
-                                Layout.fillWidth: true
-                                Layout.minimumHeight: 300
-                                Layout.preferredHeight: 400
-                                Layout.maximumHeight: 600
-                                color: "white"
-                                radius: 8
-                                border.width: 1
-                                border.color: "#dee2e6"
-                                
-                                ColumnLayout {
-                                    anchors.fill: parent
-                                    anchors.margins: 12
-                                    spacing: 8
-                                    
+
+                                Rectangle {
+                                    Layout.fillWidth: true
+                                    Layout.fillHeight: true
+                                    color: "#f8f9fa"
+                                    border.width: 1
+                                    border.color: "#e9ecef"
+                                    radius: 4
+
+                                    // 显示相应的图表或提示
                                     Text {
+                                        anchors.centerIn: parent
                                         text: {
                                             if (root.selectedTask === "glr") {
-                                                return root.isChinese ? "残差分析" : "Residual Analysis"
+                                                if (root.isTraining) {
+                                                    return root.isChinese ? "训练进行中...\n残差图将在训练完成后显示" : "Training in progress...\nResidual plot will appear after completion"
+                                                } else if (!root.currentModel || root.currentModel.length === 0) {
+                                                    return root.isChinese ? "等待训练完成\n残差图显示预测误差分布" : "Waiting for training completion\nResidual plot shows prediction errors"
+                                                } else {
+                                                    return ""  // 有模型时隐藏提示文字，显示图表
+                                                }
                                             } else {
-                                                return root.isChinese ? "残差分析" : "Residual Analysis"
-                                            }
-                                        }
-                                        font.pixelSize: 14
-                                        font.bold: true
-                                        color: "#495057"
-                                    }
-                                    
-                                    // 状态指示
-                                    Rectangle {
-                                        Layout.fillWidth: true
-                                        Layout.preferredHeight: 24
-                                        color: "#f8f9fa"
-                                        border.width: 1
-                                        border.color: "#e9ecef"
-                                        radius: 4
-                                        
-                                        RowLayout {
-                                            anchors.fill: parent
-                                            anchors.margins: 6
-                                            spacing: 6
-                                            
-                                            Rectangle {
-                                                Layout.preferredWidth: 8
-                                                Layout.preferredHeight: 8
-                                                radius: 4
-                                                color: {
-                                                    if (root.isTraining) return "#ffc107"
-                                                    if (!root.currentModel || root.currentModel.length === 0) return "#6c757d"
-                                                    return "#28a745"
-                                                }
-                                            }
-                                            
-                                            Text {
-                                                text: {
-                                                    if (root.isTraining) {
-                                                        return root.isChinese ? "训练中..." : "Training..."
-                                                    } else if (!root.currentModel || root.currentModel.length === 0) {
-                                                        return root.isChinese ? "等待训练完成" : "Waiting for completion"
-                                                    } else {
-                                                        return root.isChinese ? "可查看结果" : "Results available"
-                                                    }
-                                                }
-                                                font.pixelSize: 10
-                                                color: "#495057"
-                                            }
-                                            
-                                            Item { Layout.fillWidth: true }
-                                        }
-                                    }
-                                    
-                                    Rectangle {
-                                        Layout.fillWidth: true
-                                        Layout.fillHeight: true
-                                        color: "#f8f9fa"
-                                        border.width: 1
-                                        border.color: "#e9ecef"
-                                        radius: 4
-                                        
-                                        // 显示相应的图表或提示
-                                        Text {
-                                            anchors.centerIn: parent
-                                            text: {
-                                                if (root.selectedTask === "glr") {
-                                                    if (root.isTraining) {
-                                                        return root.isChinese ? "训练进行中...\n残差图将在训练完成后显示" : "Training in progress...\nResidual plot will appear after completion"
-                                                    } else if (!root.currentModel || root.currentModel.length === 0) {
-                                                        return root.isChinese ? "等待训练完成\n残差图显示预测误差分布" : "Waiting for training completion\nResidual plot shows prediction errors"
-                                                    } else {
-                                                        return ""  // 有模型时隐藏提示文字，显示图表
-                                                    }
+                                                if (!root.trainingResults.error_plot_data && (!root.currentModel || root.currentModel.length === 0)) {
+                                                    return root.isChinese ? "训练完成后显示残差图" : "Residual plot will appear after training"
                                                 } else {
-                                                    if (!root.trainingResults.error_plot_data && (!root.currentModel || root.currentModel.length === 0)) {
-                                                        return root.isChinese ? "训练完成后显示残差图" : "Residual plot will appear after training"
-                                                    } else {
-                                                        return ""  // 有数据时隐藏提示文字，显示图表
-                                                    }
+                                                    return ""  // 有数据时隐藏提示文字，显示图表
                                                 }
                                             }
-                                            font.pixelSize: 12
-                                            color: "#6c757d"
-                                            horizontalAlignment: Text.AlignHCenter
-                                            wrapMode: Text.WordWrap
-                                            width: parent.width * 0.8
-                                            visible: text.length > 0
                                         }
-                                        
-                                        // GLR任务的残差图
-                                        Canvas {
-                                            id: glrResidualCanvas
-                                            anchors.fill: parent
-                                            anchors.margins: 15
-                                            visible: root.selectedTask === "glr" && root.currentModel && root.currentModel.length > 0 && !root.isTraining
-                                            
-                                            property var residualData: null
-                                            
-                                            // 监听trainingResults变化 (GLR任务也可能有训练结果数据)
-                                            Connections {
-                                                target: root
-                                                function onTrainingResultsChanged() {
-                                                    console.log("GLR Canvas: trainingResults changed")
-                                                    if (root.trainingResults && root.trainingResults.error_plot_data) {
-                                                        console.log("GLR Canvas: Updating residualData with real data")
-                                                        glrResidualCanvas.residualData = root.trainingResults.error_plot_data
-                                                        glrResidualCanvas.requestPaint()
-                                                    }
+                                        font.pixelSize: 12
+                                        color: "#6c757d"
+                                        horizontalAlignment: Text.AlignHCenter
+                                        wrapMode: Text.WordWrap
+                                        width: parent.width * 0.8
+                                        visible: text.length > 0
+                                    }
+
+                                    // GLR任务的残差图
+                                    Canvas {
+                                        id: glrResidualCanvas
+                                        anchors.fill: parent
+                                        anchors.margins: 15
+                                        visible: root.selectedTask === "glr" && root.currentModel && root.currentModel.length > 0 && !root.isTraining
+
+                                        property var residualData: null
+
+                                        // 监听trainingResults变化 (GLR任务也可能有训练结果数据)
+                                        Connections {
+                                            target: root
+                                            function onTrainingResultsChanged() {
+                                                console.log("GLR Canvas: trainingResults changed")
+                                                if (root.trainingResults && root.trainingResults.error_plot_data) {
+                                                    console.log("GLR Canvas: Updating residualData with real data")
+                                                    glrResidualCanvas.residualData = root.trainingResults.error_plot_data
+                                                    glrResidualCanvas.requestPaint()
                                                 }
                                             }
-                                            
-                                            onVisibleChanged: {
-                                                if (visible) {
-                                                    console.log("GLR Canvas: Became visible")
-                                                    if (root.trainingResults && root.trainingResults.error_plot_data) {
-                                                        console.log("GLR Canvas: Using real training data")
-                                                        residualData = root.trainingResults.error_plot_data
-                                                    } else {
-                                                        console.log("GLR Canvas: Generating simulated data")
-                                                        // 当变为可见时，生成模拟残差数据
-                                                        generateSimulatedResidualData()
-                                                    }
-                                                    requestPaint()
+                                        }
+
+                                        onVisibleChanged: {
+                                            if (visible) {
+                                                console.log("GLR Canvas: Became visible")
+                                                if (root.trainingResults && root.trainingResults.error_plot_data) {
+                                                    console.log("GLR Canvas: Using real training data")
+                                                    residualData = root.trainingResults.error_plot_data
+                                                } else {
+                                                    console.log("GLR Canvas: Generating simulated data")
+                                                    // 当变为可见时，生成模拟残差数据
+                                                    generateSimulatedResidualData()
                                                 }
+                                                requestPaint()
                                             }
-                                            
-                                            function generateSimulatedResidualData() {
-                                                // 生成模拟的预测值vs实际值数据（与非GLR任务保持一致）
-                                                let predicted = []
-                                                let actual = []
-                                                
-                                                for (let i = 0; i < 50; i++) {
-                                                    let pred = Math.random() * 100 + 50
-                                                    let noise = (Math.random() - 0.5) * 20
-                                                    let act = pred + noise
-                                                    predicted.push(pred)
-                                                    actual.push(act)
-                                                }
-                                                
-                                                residualData = {
-                                                    predicted: predicted,
-                                                    actual: actual
-                                                }
+                                        }
+
+                                        function generateSimulatedResidualData() {
+                                            // 生成模拟的预测值vs实际值数据（与非GLR任务保持一致）
+                                            let predicted = []
+                                            let actual = []
+
+                                            for (let i = 0; i < 50; i++) {
+                                                let pred = Math.random() * 100 + 50
+                                                let noise = (Math.random() - 0.5) * 20
+                                                let act = pred + noise
+                                                predicted.push(pred)
+                                                actual.push(act)
                                             }
-                                            
-                                            onPaint: {
-                                                var ctx = getContext("2d")
-                                                ctx.clearRect(0, 0, width, height)
-                                                
-                                                // 如果没有残差数据，显示提示信息
-                                                if (!residualData) {
-                                                    ctx.fillStyle = "#6c757d"
-                                                    ctx.font = "12px Arial"
-                                                    ctx.textAlign = "center"
-                                                    ctx.fillText(
-                                                        root.isChinese ? "残差图\n等待训练数据..." : "Residual Plot\nWaiting for training data...",
-                                                        width / 2, height / 2
-                                                    )
-                                                    return
-                                                }
-                                                
-                                                // 检查数据有效性
-                                                if (!residualData.predicted || !residualData.actual || 
-                                                    residualData.predicted.length === 0 || residualData.actual.length === 0) {
-                                                    ctx.fillStyle = "#6c757d"
-                                                    ctx.font = "12px Arial"
-                                                    ctx.textAlign = "center"
-                                                    ctx.fillText(
-                                                        root.isChinese ? "无有效数据点" : "No valid data points",
-                                                        width / 2, height / 2
-                                                    )
-                                                    return
-                                                }
-                                                
-                                                // 计算残差 (actual - predicted)
-                                                let residuals = []
-                                                let predicted = residualData.predicted
-                                                let actual = residualData.actual
-                                                
-                                                for (let i = 0; i < Math.min(predicted.length, actual.length); i++) {
-                                                    if (predicted[i] !== undefined && actual[i] !== undefined && 
-                                                        !isNaN(predicted[i]) && !isNaN(actual[i])) {
-                                                        residuals.push(actual[i] - predicted[i])
-                                                    }
-                                                }
-                                                
-                                                if (residuals.length === 0) {
-                                                    ctx.fillStyle = "#6c757d"
-                                                    ctx.font = "12px Arial"
-                                                    ctx.textAlign = "center"
-                                                    ctx.fillText(
-                                                        root.isChinese ? "无有效数据点" : "No valid data points",
-                                                        width / 2, height / 2
-                                                    )
-                                                    return
-                                                }
-                                                
-                                                // 绘制残差图 (预测值 vs 残差)
-                                                let margin = 50
-                                                let plotWidth = width - 2 * margin
-                                                let plotHeight = height - 2 * margin
-                                                
-                                                // 计算数据范围
-                                                let minPred = Math.min.apply(Math, predicted.filter((v, i) => i < residuals.length))
-                                                let maxPred = Math.max.apply(Math, predicted.filter((v, i) => i < residuals.length))
-                                                let minRes = Math.min.apply(Math, residuals)
-                                                let maxRes = Math.max.apply(Math, residuals)
-                                                
-                                                let predRange = maxPred - minPred
-                                                let resRange = maxRes - minRes
-                                                
-                                                if (predRange === 0) predRange = 1
-                                                if (resRange === 0) resRange = 1
-                                                
-                                                // 扩展残差范围以显示误差线
-                                                let avgActual = actual.reduce((sum, val, i) => sum + (i < residuals.length ? val : 0), 0) / residuals.length
-                                                let upperError = 0.15 * avgActual
-                                                let lowerError = -0.15 * avgActual
-                                                
-                                                // 调整残差范围以包含误差线
-                                                minRes = Math.min(minRes, lowerError)
-                                                maxRes = Math.max(maxRes, upperError)
-                                                resRange = maxRes - minRes
-                                                if (resRange === 0) resRange = 1
-                                                
-                                                // 绘制坐标轴
-                                                ctx.strokeStyle = "#333"
-                                                ctx.lineWidth = 1
-                                                
-                                                // Y轴
-                                                ctx.beginPath()
-                                                ctx.moveTo(margin, margin)
-                                                ctx.lineTo(margin, height - margin)
-                                                ctx.stroke()
-                                                
-                                                // X轴
-                                                ctx.beginPath()
-                                                ctx.moveTo(margin, height - margin)
-                                                ctx.lineTo(width - margin, height - margin)
-                                                ctx.stroke()
-                                                
-                                                // 绘制零误差线 (Zero Error)
-                                                let zeroY = height - margin - ((0 - minRes) / resRange) * plotHeight
-                                                ctx.strokeStyle = "#000"
-                                                ctx.lineWidth = 1
-                                                ctx.setLineDash([5, 5])
-                                                ctx.beginPath()
-                                                ctx.moveTo(margin, zeroY)
-                                                ctx.lineTo(width - margin, zeroY)
-                                                ctx.stroke()
-                                                ctx.setLineDash([])
-                                                
-                                                // 绘制+15%误差线
-                                                let upperErrorY = height - margin - ((upperError - minRes) / resRange) * plotHeight
-                                                if (upperErrorY >= margin && upperErrorY <= height - margin) {
-                                                    ctx.strokeStyle = "#dc3545"
-                                                    ctx.lineWidth = 1
-                                                    ctx.setLineDash([5, 5])
-                                                    ctx.beginPath()
-                                                    ctx.moveTo(margin, upperErrorY)
-                                                    ctx.lineTo(width - margin, upperErrorY)
-                                                    ctx.stroke()
-                                                    ctx.setLineDash([])
-                                                }
-                                                
-                                                // 绘制-15%误差线
-                                                let lowerErrorY = height - margin - ((lowerError - minRes) / resRange) * plotHeight
-                                                if (lowerErrorY >= margin && lowerErrorY <= height - margin) {
-                                                    ctx.strokeStyle = "#007bff"
-                                                    ctx.lineWidth = 1
-                                                    ctx.setLineDash([5, 5])
-                                                    ctx.beginPath()
-                                                    ctx.moveTo(margin, lowerErrorY)
-                                                    ctx.lineTo(width - margin, lowerErrorY)
-                                                    ctx.stroke()
-                                                    ctx.setLineDash([])
-                                                }
-                                                
-                                                // 绘制残差散点
-                                                ctx.fillStyle = "#28a745" // 绿色，参考原始代码
-                                                for (let i = 0; i < residuals.length; i++) {
-                                                    if (predicted[i] !== undefined && residuals[i] !== undefined && 
-                                                        !isNaN(predicted[i]) && !isNaN(residuals[i])) {
-                                                        let x = margin + ((predicted[i] - minPred) / predRange) * plotWidth
-                                                        let y = height - margin - ((residuals[i] - minRes) / resRange) * plotHeight
-                                                        
-                                                        ctx.beginPath()
-                                                        ctx.arc(x, y, 3, 0, 2 * Math.PI)
-                                                        ctx.fill()
-                                                    }
-                                                }
-                                                
-                                                // 绘制轴标签
-                                                ctx.fillStyle = "#333"
+
+                                            residualData = {
+                                                predicted: predicted,
+                                                actual: actual
+                                            }
+                                        }
+
+                                        onPaint: {
+                                            var ctx = getContext("2d")
+                                            ctx.clearRect(0, 0, width, height)
+
+                                            console.log("GLR Canvas: onPaint called")
+
+                                            // 如果没有残差数据，显示提示信息
+                                            if (!residualData) {
+                                                console.log("GLR Canvas: No residualData")
+                                                ctx.fillStyle = "#6c757d"
                                                 ctx.font = "12px Arial"
                                                 ctx.textAlign = "center"
-                                                
-                                                // X轴标签
-                                                ctx.fillText(root.isChinese ? "预测值" : "Predicted Values", width / 2, height - 5)
-                                                
-                                                // Y轴标签
-                                                ctx.save()
-                                                ctx.translate(15, height / 2)
-                                                ctx.rotate(-Math.PI / 2)
-                                                ctx.fillText(root.isChinese ? "残差" : "Residuals", 0, 0)
-                                                ctx.restore()
-                                                
-                                                // 绘制Y轴刻度和标签
-                                                ctx.fillStyle = "#666"
-                                                ctx.font = "10px Arial"
-                                                ctx.textAlign = "right"
-                                                for (let i = 0; i <= 5; i++) {
-                                                    let y = margin + (plotHeight * i) / 5
-                                                    let value = maxRes - (resRange * i) / 5
-                                                    
-                                                    // 刻度线
-                                                    ctx.strokeStyle = "#333"
-                                                    ctx.lineWidth = 1
-                                                    ctx.beginPath()
-                                                    ctx.moveTo(margin - 5, y)
-                                                    ctx.lineTo(margin, y)
-                                                    ctx.stroke()
-                                                    
-                                                    // 标签
-                                                    let displayValue = Math.abs(value) < 1 ? Number(value).toFixed(3) : Number(value).toFixed(2)
-                                                    ctx.fillText(displayValue, margin - 10, y + 3)
-                                                }
-                                                
-                                                // 绘制X轴刻度和标签
-                                                ctx.textAlign = "center"
-                                                for (let i = 0; i <= 5; i++) {
-                                                    let x = margin + (plotWidth * i) / 5
-                                                    let value = minPred + (predRange * i) / 5
-                                                    
-                                                    // 刻度线
-                                                    ctx.strokeStyle = "#333"
-                                                    ctx.lineWidth = 1
-                                                    ctx.beginPath()
-                                                    ctx.moveTo(x, height - margin)
-                                                    ctx.lineTo(x, height - margin + 5)
-                                                    ctx.stroke()
-                                                    
-                                                    // 标签
-                                                    let displayValue = value < 1 ? Number(value).toFixed(3) : Number(value).toFixed(2)
-                                                    ctx.fillText(displayValue, x, height - margin + 18)
-                                                }
-                                                
-                                                // 绘制图例
-                                                let legendX = width - margin - 120
-                                                let legendY = margin + 10
-                                                let lineHeight = 15
-                                                
-                                                // 残差点图例
-                                                ctx.fillStyle = "#28a745"
-                                                ctx.beginPath()
-                                                ctx.arc(legendX, legendY, 3, 0, 2 * Math.PI)
-                                                ctx.fill()
-                                                ctx.fillStyle = "#495057"
-                                                ctx.font = "10px Arial"
-                                                ctx.textAlign = "left"
-                                                ctx.fillText(root.isChinese ? "残差" : "Residuals", legendX + 10, legendY + 3)
-                                                
-                                                // 零误差线图例
-                                                ctx.strokeStyle = "#000"
-                                                ctx.lineWidth = 1
-                                                ctx.setLineDash([5, 5])
-                                                ctx.beginPath()
-                                                ctx.moveTo(legendX - 5, legendY + lineHeight)
-                                                ctx.lineTo(legendX + 15, legendY + lineHeight)
-                                                ctx.stroke()
-                                                ctx.setLineDash([])
-                                                ctx.fillStyle = "#495057"
-                                                ctx.fillText(root.isChinese ? "零误差" : "Zero Error", legendX + 20, legendY + lineHeight + 3)
-                                                
-                                                // +15%误差线图例
-                                                if (upperErrorY >= margin && upperErrorY <= height - margin) {
-                                                    ctx.strokeStyle = "#dc3545"
-                                                    ctx.lineWidth = 1
-                                                    ctx.setLineDash([5, 5])
-                                                    ctx.beginPath()
-                                                    ctx.moveTo(legendX - 5, legendY + lineHeight * 2)
-                                                    ctx.lineTo(legendX + 15, legendY + lineHeight * 2)
-                                                    ctx.stroke()
-                                                    ctx.setLineDash([])
-                                                    ctx.fillStyle = "#495057"
-                                                    ctx.fillText("+15% " + (root.isChinese ? "误差" : "Error"), legendX + 20, legendY + lineHeight * 2 + 3)
-                                                }
-                                                
-                                                // -15%误差线图例
-                                                if (lowerErrorY >= margin && lowerErrorY <= height - margin) {
-                                                    ctx.strokeStyle = "#007bff"
-                                                    ctx.lineWidth = 1
-                                                    ctx.setLineDash([5, 5])
-                                                    ctx.beginPath()
-                                                    ctx.moveTo(legendX - 5, legendY + lineHeight * 3)
-                                                    ctx.lineTo(legendX + 15, legendY + lineHeight * 3)
-                                                    ctx.stroke()
-                                                    ctx.setLineDash([])
-                                                    ctx.fillStyle = "#495057"
-                                                    ctx.fillText("-15% " + (root.isChinese ? "误差" : "Error"), legendX + 20, legendY + lineHeight * 3 + 3)
-                                                }
-                                                
-                                                console.log("GLR Canvas: 残差图绘制完成")
+                                                ctx.fillText(
+                                                    root.isChinese ? "残差图\n等待训练数据..." : "Residual Plot\nWaiting for training data...",
+                                                    width / 2, height / 2
+                                                )
+                                                return
                                             }
-                                        }
-                                        
-                                        // MSE误差图 (非GLR任务)
-                                        Canvas {
-                                            id: residualCanvas
-                                            anchors.fill: parent
-                                            anchors.margins: 15
-                                            visible: root.selectedTask !== "glr" && (root.trainingResults.error_plot_data || (root.currentModel && root.currentModel.length > 0 && !root.isTraining))
-                                            
-                                            property var plotData: root.trainingResults.error_plot_data || null
-                                            
-                                            // 监听trainingResults变化
-                                            Connections {
-                                                target: root
-                                                function onTrainingResultsChanged() {
-                                                    console.log("MSE Canvas: trainingResults changed")
-                                                    if (root.trainingResults && root.trainingResults.error_plot_data) {
-                                                        console.log("MSE Canvas: Updating plotData with real data")
-                                                        residualCanvas.plotData = root.trainingResults.error_plot_data
-                                                        residualCanvas.requestPaint()
-                                                    }
-                                                }
-                                            }
-                                            
-                                            onVisibleChanged: {
-                                                if (visible) {
-                                                    console.log("MSE Canvas: Became visible")
-                                                    if (root.trainingResults && root.trainingResults.error_plot_data) {
-                                                        console.log("MSE Canvas: Using real training data")
-                                                        plotData = root.trainingResults.error_plot_data
-                                                    } else if (!plotData) {
-                                                        console.log("MSE Canvas: Generating simulated data")
-                                                        // 生成模拟MSE数据
-                                                        generateSimulatedMSEData()
-                                                    }
-                                                    requestPaint()
-                                                }
-                                            }
-                                            
-                                            function generateSimulatedMSEData() {
-                                                // 生成模拟的预测值vs实际值数据
-                                                let predicted = []
-                                                let actual = []
-                                                
-                                                for (let i = 0; i < 40; i++) {
-                                                    let pred = Math.random() * 80 + 20
-                                                    let noise = (Math.random() - 0.5) * 15
-                                                    let act = pred + noise
-                                                    predicted.push(pred)
-                                                    actual.push(act)
-                                                }
-                                                
-                                                plotData = {
-                                                    predicted: predicted,
-                                                    actual: actual
-                                                }
-                                            }
-                                            
-                                            onPlotDataChanged: {
-                                                console.log("MSE Canvas: plotData changed")
-                                                if (plotData) {
-                                                    console.log("MSE Canvas: plotData keys:", Object.keys(plotData))
-                                                    console.log("MSE Canvas: plotData sample:", JSON.stringify(plotData).substring(0, 200))
-                                                    requestPaint()
-                                                } else {
-                                                    console.log("MSE Canvas: plotData is null")
-                                                }
-                                            }
-                                            
-                                            onPaint: {
-                                                var ctx = getContext("2d")
-                                                ctx.clearRect(0, 0, width, height)
-                                                
-                                                // 如果没有数据，显示提示信息
-                                                if (!plotData) {
-                                                    ctx.fillStyle = "#6c757d"
-                                                    ctx.font = "12px Arial"
-                                                    ctx.textAlign = "center"
-                                                    ctx.fillText(
-                                                        root.isChinese ? "残差图\n等待训练数据..." : "Residual Plot\nWaiting for training data...",
-                                                        width / 2, height / 2
-                                                    )
-                                                    return
-                                                }
-                                                
-                                                // 获取数据，优先使用测试集数据，如果没有则使用训练集数据
-                                                let predicted, actual
-                                                
-                                                if (plotData.predicted_test && plotData.actual_test) {
-                                                    predicted = plotData.predicted_test
-                                                    actual = plotData.actual_test
-                                                } else if (plotData.predicted_train && plotData.actual_train) {
-                                                    predicted = plotData.predicted_train
-                                                    actual = plotData.actual_train
-                                                } else if (plotData.predicted && plotData.actual) {
-                                                    // 兼容模拟数据格式
-                                                    predicted = plotData.predicted
-                                                    actual = plotData.actual
-                                                } else {
-                                                    ctx.fillStyle = "#6c757d"
-                                                    ctx.font = "12px Arial"
-                                                    ctx.textAlign = "center"
-                                                    ctx.fillText(
-                                                        root.isChinese ? "数据格式错误" : "Invalid data format",
-                                                        width / 2, height / 2
-                                                    )
-                                                    return
-                                                }
-                                                
-                                                // 检查数据有效性
-                                                if (!predicted || !actual || predicted.length === 0 || actual.length === 0) {
-                                                    ctx.fillStyle = "#6c757d"
-                                                    ctx.font = "12px Arial"
-                                                    ctx.textAlign = "center"
-                                                    ctx.fillText(
-                                                        root.isChinese ? "数据为空" : "No data available",
-                                                        width / 2, height / 2
-                                                    )
-                                                    return
-                                                }
-                                                
-                                                // 计算残差 (actual - predicted)
-                                                let residuals = []
-                                                for (let i = 0; i < Math.min(predicted.length, actual.length); i++) {
-                                                    if (predicted[i] !== undefined && actual[i] !== undefined && 
-                                                        !isNaN(predicted[i]) && !isNaN(actual[i])) {
-                                                        residuals.push(actual[i] - predicted[i])
-                                                    }
-                                                }
-                                                
-                                                if (residuals.length === 0) {
-                                                    ctx.fillStyle = "#6c757d"
-                                                    ctx.font = "12px Arial"
-                                                    ctx.textAlign = "center"
-                                                    ctx.fillText(
-                                                        root.isChinese ? "无有效数据点" : "No valid data points",
-                                                        width / 2, height / 2
-                                                    )
-                                                    return
-                                                }
-                                                
-                                                // 绘制残差图 (预测值 vs 残差)
-                                                let margin = 50
-                                                let plotWidth = width - 2 * margin
-                                                let plotHeight = height - 2 * margin
-                                                
-                                                // 计算数据范围
-                                                let minPred = Math.min.apply(Math, predicted.filter((v, i) => i < residuals.length))
-                                                let maxPred = Math.max.apply(Math, predicted.filter((v, i) => i < residuals.length))
-                                                let minRes = Math.min.apply(Math, residuals)
-                                                let maxRes = Math.max.apply(Math, residuals)
-                                                
-                                                let predRange = maxPred - minPred
-                                                let resRange = maxRes - minRes
-                                                
-                                                if (predRange === 0) predRange = 1
-                                                if (resRange === 0) resRange = 1
-                                                
-                                                // 扩展残差范围以显示误差线
-                                                let avgActual = actual.reduce((sum, val, i) => sum + (i < residuals.length ? val : 0), 0) / residuals.length
-                                                let upperError = 0.15 * avgActual
-                                                let lowerError = -0.15 * avgActual
-                                                
-                                                // 调整残差范围以包含误差线
-                                                minRes = Math.min(minRes, lowerError)
-                                                maxRes = Math.max(maxRes, upperError)
-                                                resRange = maxRes - minRes
-                                                if (resRange === 0) resRange = 1
-                                                
-                                                // 绘制坐标轴
-                                                ctx.strokeStyle = "#333"
-                                                ctx.lineWidth = 1
-                                                
-                                                // Y轴
-                                                ctx.beginPath()
-                                                ctx.moveTo(margin, margin)
-                                                ctx.lineTo(margin, height - margin)
-                                                ctx.stroke()
-                                                
-                                                // X轴
-                                                ctx.beginPath()
-                                                ctx.moveTo(margin, height - margin)
-                                                ctx.lineTo(width - margin, height - margin)
-                                                ctx.stroke()
-                                                
-                                                // 绘制零误差线 (Zero Error)
-                                                let zeroY = height - margin - ((0 - minRes) / resRange) * plotHeight
-                                                ctx.strokeStyle = "#000"
-                                                ctx.lineWidth = 1
-                                                ctx.setLineDash([5, 5])
-                                                ctx.beginPath()
-                                                ctx.moveTo(margin, zeroY)
-                                                ctx.lineTo(width - margin, zeroY)
-                                                ctx.stroke()
-                                                ctx.setLineDash([])
-                                                
-                                                // 绘制+15%误差线
-                                                let upperErrorY = height - margin - ((upperError - minRes) / resRange) * plotHeight
-                                                if (upperErrorY >= margin && upperErrorY <= height - margin) {
-                                                    ctx.strokeStyle = "#dc3545"
-                                                    ctx.lineWidth = 1
-                                                    ctx.setLineDash([5, 5])
-                                                    ctx.beginPath()
-                                                    ctx.moveTo(margin, upperErrorY)
-                                                    ctx.lineTo(width - margin, upperErrorY)
-                                                    ctx.stroke()
-                                                    ctx.setLineDash([])
-                                                }
-                                                
-                                                // 绘制-15%误差线
-                                                let lowerErrorY = height - margin - ((lowerError - minRes) / resRange) * plotHeight
-                                                if (lowerErrorY >= margin && lowerErrorY <= height - margin) {
-                                                    ctx.strokeStyle = "#007bff"
-                                                    ctx.lineWidth = 1
-                                                    ctx.setLineDash([5, 5])
-                                                    ctx.beginPath()
-                                                    ctx.moveTo(margin, lowerErrorY)
-                                                    ctx.lineTo(width - margin, lowerErrorY)
-                                                    ctx.stroke()
-                                                    ctx.setLineDash([])
-                                                }
-                                                
-                                                // 绘制残差散点
-                                                ctx.fillStyle = "#28a745" // 绿色，参考原始代码
-                                                for (let i = 0; i < residuals.length; i++) {
-                                                    if (predicted[i] !== undefined && residuals[i] !== undefined && 
-                                                        !isNaN(predicted[i]) && !isNaN(residuals[i])) {
-                                                        let x = margin + ((predicted[i] - minPred) / predRange) * plotWidth
-                                                        let y = height - margin - ((residuals[i] - minRes) / resRange) * plotHeight
-                                                        
-                                                        ctx.beginPath()
-                                                        ctx.arc(x, y, 3, 0, 2 * Math.PI)
-                                                        ctx.fill()
-                                                    }
-                                                }
-                                                
-                                                // 绘制轴标签
-                                                ctx.fillStyle = "#333"
+
+                                            console.log("GLR Canvas: residualData keys:", Object.keys(residualData))
+
+                                            // 获取数据，优先使用测试集数据，如果没有则使用训练集数据
+                                            let predicted, actual
+
+                                            if (residualData.predicted_test && residualData.actual_test) {
+                                                console.log("GLR Canvas: Using test data")
+                                                predicted = residualData.predicted_test
+                                                actual = residualData.actual_test
+                                            } else if (residualData.predicted_train && residualData.actual_train) {
+                                                console.log("GLR Canvas: Using train data")
+                                                predicted = residualData.predicted_train
+                                                actual = residualData.actual_train
+                                            } else if (residualData.predicted && residualData.actual) {
+                                                console.log("GLR Canvas: Using simulated data")
+                                                // 兼容模拟数据格式
+                                                predicted = residualData.predicted
+                                                actual = residualData.actual
+                                            } else {
+                                                console.log("GLR Canvas: Invalid data format")
+                                                ctx.fillStyle = "#6c757d"
                                                 ctx.font = "12px Arial"
                                                 ctx.textAlign = "center"
-                                                
-                                                // X轴标签
-                                                ctx.fillText(root.isChinese ? "预测值" : "Predicted Values", width / 2, height - 5)
-                                                
-                                                // Y轴标签
-                                                ctx.save()
-                                                ctx.translate(15, height / 2)
-                                                ctx.rotate(-Math.PI / 2)
-                                                ctx.fillText(root.isChinese ? "残差" : "Residuals", 0, 0)
-                                                ctx.restore()
-                                                
-                                                // 绘制Y轴刻度和标签
-                                                ctx.fillStyle = "#666"
-                                                ctx.font = "10px Arial"
-                                                ctx.textAlign = "right"
-                                                for (let i = 0; i <= 5; i++) {
-                                                    let y = margin + (plotHeight * i) / 5
-                                                    let value = maxRes - (resRange * i) / 5
-                                                    
-                                                    // 刻度线
-                                                    ctx.strokeStyle = "#333"
-                                                    ctx.lineWidth = 1
-                                                    ctx.beginPath()
-                                                    ctx.moveTo(margin - 5, y)
-                                                    ctx.lineTo(margin, y)
-                                                    ctx.stroke()
-                                                    
-                                                    // 标签
-                                                    let displayValue = Math.abs(value) < 1 ? Number(value).toFixed(3) : Number(value).toFixed(2)
-                                                    ctx.fillText(displayValue, margin - 10, y + 3)
-                                                }
-                                                
-                                                // 绘制X轴刻度和标签
+                                                ctx.fillText(
+                                                    root.isChinese ? "数据格式错误" : "Invalid data format",
+                                                    width / 2, height / 2
+                                                )
+                                                return
+                                            }
+
+                                            console.log("GLR Canvas: predicted length:", predicted ? predicted.length : 0)
+                                            console.log("GLR Canvas: actual length:", actual ? actual.length : 0)
+
+                                            // 检查数据有效性
+                                            if (!predicted || !actual || predicted.length === 0 || actual.length === 0) {
+                                                ctx.fillStyle = "#6c757d"
+                                                ctx.font = "12px Arial"
                                                 ctx.textAlign = "center"
-                                                for (let i = 0; i <= 5; i++) {
-                                                    let x = margin + (plotWidth * i) / 5
-                                                    let value = minPred + (predRange * i) / 5
-                                                    
-                                                    // 刻度线
-                                                    ctx.strokeStyle = "#333"
-                                                    ctx.lineWidth = 1
-                                                    ctx.beginPath()
-                                                    ctx.moveTo(x, height - margin)
-                                                    ctx.lineTo(x, height - margin + 5)
-                                                    ctx.stroke()
-                                                    
-                                                    // 标签
-                                                    let displayValue = value < 1 ? Number(value).toFixed(3) : Number(value).toFixed(2)
-                                                    ctx.fillText(displayValue, x, height - margin + 18)
+                                                ctx.fillText(
+                                                    root.isChinese ? "数据为空" : "No data available",
+                                                    width / 2, height / 2
+                                                )
+                                                return
+                                            }
+
+                                            // 计算残差 (actual - predicted)
+                                            let residuals = []
+
+                                            for (let i = 0; i < Math.min(predicted.length, actual.length); i++) {
+                                                if (predicted[i] !== undefined && actual[i] !== undefined &&
+                                                    !isNaN(predicted[i]) && !isNaN(actual[i])) {
+                                                    residuals.push(actual[i] - predicted[i])
                                                 }
-                                                
-                                                // 绘制图例
-                                                let legendX = width - margin - 120
-                                                let legendY = margin + 10
-                                                let lineHeight = 15
-                                                
-                                                // 残差点图例
-                                                ctx.fillStyle = "#28a745"
-                                                ctx.beginPath()
-                                                ctx.arc(legendX, legendY, 3, 0, 2 * Math.PI)
-                                                ctx.fill()
-                                                ctx.fillStyle = "#495057"
-                                                ctx.font = "10px Arial"
-                                                ctx.textAlign = "left"
-                                                ctx.fillText(root.isChinese ? "残差" : "Residuals", legendX + 10, legendY + 3)
-                                                
-                                                // 零误差线图例
-                                                ctx.strokeStyle = "#000"
+                                            }
+
+                                            if (residuals.length === 0) {
+                                                ctx.fillStyle = "#6c757d"
+                                                ctx.font = "12px Arial"
+                                                ctx.textAlign = "center"
+                                                ctx.fillText(
+                                                    root.isChinese ? "无有效数据点" : "No valid data points",
+                                                    width / 2, height / 2
+                                                )
+                                                return
+                                            }
+
+                                            // 绘制残差图 (预测值 vs 残差)
+                                            let margin = 50
+                                            let plotWidth = width - 2 * margin
+                                            let plotHeight = height - 2 * margin
+
+                                            // 计算数据范围
+                                            let minPred = Math.min.apply(Math, predicted.filter((v, i) => i < residuals.length))
+                                            let maxPred = Math.max.apply(Math, predicted.filter((v, i) => i < residuals.length))
+                                            let minRes = Math.min.apply(Math, residuals)
+                                            let maxRes = Math.max.apply(Math, residuals)
+
+                                            let predRange = maxPred - minPred
+                                            let resRange = maxRes - minRes
+
+                                            if (predRange === 0) predRange = 1
+                                            if (resRange === 0) resRange = 1
+
+                                            // 扩展残差范围以显示误差线
+                                            let avgActual = actual.reduce((sum, val, i) => sum + (i < residuals.length ? val : 0), 0) / residuals.length
+                                            let upperError = 0.15 * avgActual
+                                            let lowerError = -0.15 * avgActual
+
+                                            // 调整残差范围以包含误差线
+                                            minRes = Math.min(minRes, lowerError)
+                                            maxRes = Math.max(maxRes, upperError)
+                                            resRange = maxRes - minRes
+                                            if (resRange === 0) resRange = 1
+
+                                            // 绘制坐标轴
+                                            ctx.strokeStyle = "#333"
+                                            ctx.lineWidth = 1
+
+                                            // Y轴
+                                            ctx.beginPath()
+                                            ctx.moveTo(margin, margin)
+                                            ctx.lineTo(margin, height - margin)
+                                            ctx.stroke()
+
+                                            // X轴
+                                            ctx.beginPath()
+                                            ctx.moveTo(margin, height - margin)
+                                            ctx.lineTo(width - margin, height - margin)
+                                            ctx.stroke()
+
+                                            // 绘制零误差线 (Zero Error)
+                                            let zeroY = height - margin - ((0 - minRes) / resRange) * plotHeight
+                                            ctx.strokeStyle = "#000"
+                                            ctx.lineWidth = 1
+                                            ctx.setLineDash([5, 5])
+                                            ctx.beginPath()
+                                            ctx.moveTo(margin, zeroY)
+                                            ctx.lineTo(width - margin, zeroY)
+                                            ctx.stroke()
+                                            ctx.setLineDash([])
+
+                                            // 绘制+15%误差线（固定水平线）
+                                            let upperErrorY = height - margin - ((upperError - minRes) / resRange) * plotHeight
+                                            ctx.strokeStyle = "#dc3545"
+                                            ctx.lineWidth = 1
+                                            ctx.setLineDash([5, 5])
+                                            ctx.beginPath()
+                                            ctx.moveTo(margin, upperErrorY)
+                                            ctx.lineTo(width - margin, upperErrorY)
+                                            ctx.stroke()
+                                            ctx.setLineDash([])
+
+                                            // 绘制-15%误差线（固定水平线）
+                                            let lowerErrorY = height - margin - ((lowerError - minRes) / resRange) * plotHeight
+                                            ctx.strokeStyle = "#007bff"
+                                            ctx.lineWidth = 1
+                                            ctx.setLineDash([5, 5])
+                                            ctx.beginPath()
+                                            ctx.moveTo(margin, lowerErrorY)
+                                            ctx.lineTo(width - margin, lowerErrorY)
+                                            ctx.stroke()
+                                            ctx.setLineDash([])
+
+                                            // 绘制残差散点
+                                            ctx.fillStyle = "#28a745" // 绿色，参考原始代码
+                                            for (let i = 0; i < residuals.length; i++) {
+                                                if (predicted[i] !== undefined && residuals[i] !== undefined &&
+                                                    !isNaN(predicted[i]) && !isNaN(residuals[i])) {
+                                                    let x = margin + ((predicted[i] - minPred) / predRange) * plotWidth
+                                                    let y = height - margin - ((residuals[i] - minRes) / resRange) * plotHeight
+
+                                                    ctx.beginPath()
+                                                    ctx.arc(x, y, 3, 0, 2 * Math.PI)
+                                                    ctx.fill()
+                                                }
+                                            }
+
+                                            // 绘制轴标签
+                                            ctx.fillStyle = "#333"
+                                            ctx.font = "12px Arial"
+                                            ctx.textAlign = "center"
+
+                                            // X轴标签
+                                            ctx.fillText(root.isChinese ? "预测值" : "Predicted Values", width / 2, height - 5)
+
+                                            // Y轴标签
+                                            ctx.save()
+                                            ctx.translate(15, height / 2)
+                                            ctx.rotate(-Math.PI / 2)
+                                            ctx.fillText(root.isChinese ? "残差" : "Residuals", 0, 0)
+                                            ctx.restore()
+
+                                            // 绘制Y轴刻度和标签
+                                            ctx.fillStyle = "#666"
+                                            ctx.font = "10px Arial"
+                                            ctx.textAlign = "right"
+                                            for (let i = 0; i <= 5; i++) {
+                                                let y = margin + (plotHeight * i) / 5
+                                                let value = maxRes - (resRange * i) / 5
+
+                                                // 刻度线
+                                                ctx.strokeStyle = "#333"
                                                 ctx.lineWidth = 1
-                                                ctx.setLineDash([5, 5])
                                                 ctx.beginPath()
-                                                ctx.moveTo(legendX - 5, legendY + lineHeight)
-                                                ctx.lineTo(legendX + 15, legendY + lineHeight)
+                                                ctx.moveTo(margin - 5, y)
+                                                ctx.lineTo(margin, y)
                                                 ctx.stroke()
-                                                ctx.setLineDash([])
-                                                ctx.fillStyle = "#495057"
-                                                ctx.fillText(root.isChinese ? "零误差" : "Zero Error", legendX + 20, legendY + lineHeight + 3)
-                                                
-                                                // +15%误差线图例
-                                                if (upperErrorY >= margin && upperErrorY <= height - margin) {
-                                                    ctx.strokeStyle = "#dc3545"
-                                                    ctx.lineWidth = 1
-                                                    ctx.setLineDash([5, 5])
-                                                    ctx.beginPath()
-                                                    ctx.moveTo(legendX - 5, legendY + lineHeight * 2)
-                                                    ctx.lineTo(legendX + 15, legendY + lineHeight * 2)
-                                                    ctx.stroke()
-                                                    ctx.setLineDash([])
-                                                    ctx.fillStyle = "#495057"
-                                                    ctx.fillText("+15% " + (root.isChinese ? "误差" : "Error"), legendX + 20, legendY + lineHeight * 2 + 3)
+
+                                                // 标签
+                                                let displayValue = Math.abs(value) < 1 ? Number(value).toFixed(3) : Number(value).toFixed(2)
+                                                ctx.fillText(displayValue, margin - 10, y + 3)
+                                            }
+
+                                            // 绘制X轴刻度和标签
+                                            ctx.textAlign = "center"
+                                            for (let i = 0; i <= 5; i++) {
+                                                let x = margin + (plotWidth * i) / 5
+                                                let value = minPred + (predRange * i) / 5
+
+                                                // 刻度线
+                                                ctx.strokeStyle = "#333"
+                                                ctx.lineWidth = 1
+                                                ctx.beginPath()
+                                                ctx.moveTo(x, height - margin)
+                                                ctx.lineTo(x, height - margin + 5)
+                                                ctx.stroke()
+
+                                                // 标签
+                                                let displayValue = value < 1 ? Number(value).toFixed(3) : Number(value).toFixed(2)
+                                                ctx.fillText(displayValue, x, height - margin + 18)
+                                            }
+
+                                            // 绘制图例
+                                            let legendX = width - margin - 120
+                                            let legendY = margin + 10
+                                            let lineHeight = 15
+
+                                            // 残差点图例
+                                            ctx.fillStyle = "#28a745"
+                                            ctx.beginPath()
+                                            ctx.arc(legendX, legendY, 3, 0, 2 * Math.PI)
+                                            ctx.fill()
+                                            ctx.fillStyle = "#495057"
+                                            ctx.font = "10px Arial"
+                                            ctx.textAlign = "left"
+                                            ctx.fillText(root.isChinese ? "残差" : "Residuals", legendX + 10, legendY + 3)
+
+                                            // 零误差线图例
+                                            ctx.strokeStyle = "#000"
+                                            ctx.lineWidth = 1
+                                            ctx.setLineDash([5, 5])
+                                            ctx.beginPath()
+                                            ctx.moveTo(legendX - 5, legendY + lineHeight)
+                                            ctx.lineTo(legendX + 15, legendY + lineHeight)
+                                            ctx.stroke()
+                                            ctx.setLineDash([])
+                                            ctx.fillStyle = "#495057"
+                                            ctx.fillText(root.isChinese ? "零误差" : "Zero Error", legendX + 20, legendY + lineHeight + 3)
+
+                                            // +15%误差线图例
+                                            ctx.strokeStyle = "#dc3545"
+                                            ctx.lineWidth = 1
+                                            ctx.setLineDash([5, 5])
+                                            ctx.beginPath()
+                                            ctx.moveTo(legendX - 5, legendY + lineHeight * 2)
+                                            ctx.lineTo(legendX + 15, legendY + lineHeight * 2)
+                                            ctx.stroke()
+                                            ctx.setLineDash([])
+                                            ctx.fillStyle = "#495057"
+                                            ctx.fillText("+15% " + (root.isChinese ? "误差" : "Error"), legendX + 20, legendY + lineHeight * 2 + 3)
+
+                                            // -15%误差线图例
+                                            ctx.strokeStyle = "#007bff"
+                                            ctx.lineWidth = 1
+                                            ctx.setLineDash([5, 5])
+                                            ctx.beginPath()
+                                            ctx.moveTo(legendX - 5, legendY + lineHeight * 3)
+                                            ctx.lineTo(legendX + 15, legendY + lineHeight * 3)
+                                            ctx.stroke()
+                                            ctx.setLineDash([])
+                                            ctx.fillStyle = "#495057"
+                                            ctx.fillText("-15% " + (root.isChinese ? "误差" : "Error"), legendX + 20, legendY + lineHeight * 3 + 3)
+
+                                            console.log("GLR Canvas: 残差图绘制完成")
+                                        }
+                                    }
+
+                                    // MSE误差图 (非GLR任务)
+                                    Canvas {
+                                        id: residualCanvas
+                                        anchors.fill: parent
+                                        anchors.margins: 15
+                                        visible: root.selectedTask !== "glr" && (root.trainingResults.error_plot_data || (root.currentModel && root.currentModel.length > 0 && !root.isTraining))
+
+                                        property var plotData: root.trainingResults.error_plot_data || null
+
+                                        // 监听trainingResults变化
+                                        Connections {
+                                            target: root
+                                            function onTrainingResultsChanged() {
+                                                console.log("MSE Canvas: trainingResults changed")
+                                                if (root.trainingResults && root.trainingResults.error_plot_data) {
+                                                    console.log("MSE Canvas: Updating plotData with real data")
+                                                    residualCanvas.plotData = root.trainingResults.error_plot_data
+                                                    residualCanvas.requestPaint()
                                                 }
-                                                
-                                                // -15%误差线图例
-                                                if (lowerErrorY >= margin && lowerErrorY <= height - margin) {
-                                                    ctx.strokeStyle = "#007bff"
-                                                    ctx.lineWidth = 1
-                                                    ctx.setLineDash([5, 5])
-                                                    ctx.beginPath()
-                                                    ctx.moveTo(legendX - 5, legendY + lineHeight * 3)
-                                                    ctx.lineTo(legendX + 15, legendY + lineHeight * 3)
-                                                    ctx.stroke()
-                                                    ctx.setLineDash([])
-                                                    ctx.fillStyle = "#495057"
-                                                    ctx.fillText("-15% " + (root.isChinese ? "误差" : "Error"), legendX + 20, legendY + lineHeight * 3 + 3)
-                                                }
-                                                
-                                                console.log("MSE Canvas: 残差图绘制完成")
                                             }
                                         }
-                            
+
+                                        onVisibleChanged: {
+                                            if (visible) {
+                                                console.log("MSE Canvas: Became visible")
+                                                if (root.trainingResults && root.trainingResults.error_plot_data) {
+                                                    console.log("MSE Canvas: Using real training data")
+                                                    plotData = root.trainingResults.error_plot_data
+                                                } else if (!plotData) {
+                                                    console.log("MSE Canvas: Generating simulated data")
+                                                    // 生成模拟MSE数据
+                                                    generateSimulatedMSEData()
+                                                }
+                                                requestPaint()
+                                            }
+                                        }
+
+                                        function generateSimulatedMSEData() {
+                                            // 生成模拟的预测值vs实际值数据
+                                            let predicted = []
+                                            let actual = []
+
+                                            for (let i = 0; i < 40; i++) {
+                                                let pred = Math.random() * 80 + 20
+                                                let noise = (Math.random() - 0.5) * 15
+                                                let act = pred + noise
+                                                predicted.push(pred)
+                                                actual.push(act)
+                                            }
+
+                                            plotData = {
+                                                predicted: predicted,
+                                                actual: actual
+                                            }
+                                        }
+
+                                        onPlotDataChanged: {
+                                            console.log("MSE Canvas: plotData changed")
+                                            if (plotData) {
+                                                console.log("MSE Canvas: plotData keys:", Object.keys(plotData))
+                                                console.log("MSE Canvas: plotData sample:", JSON.stringify(plotData).substring(0, 200))
+                                                requestPaint()
+                                            } else {
+                                                console.log("MSE Canvas: plotData is null")
+                                            }
+                                        }
+
+                                        onPaint: {
+                                            var ctx = getContext("2d")
+                                            ctx.clearRect(0, 0, width, height)
+
+                                            // 如果没有数据，显示提示信息
+                                            if (!plotData) {
+                                                ctx.fillStyle = "#6c757d"
+                                                ctx.font = "12px Arial"
+                                                ctx.textAlign = "center"
+                                                ctx.fillText(
+                                                    root.isChinese ? "残差图\n等待训练数据..." : "Residual Plot\nWaiting for training data...",
+                                                    width / 2, height / 2
+                                                )
+                                                return
+                                            }
+
+                                            // 获取数据，优先使用测试集数据，如果没有则使用训练集数据
+                                            let predicted, actual
+
+                                            if (plotData.predicted_test && plotData.actual_test) {
+                                                predicted = plotData.predicted_test
+                                                actual = plotData.actual_test
+                                            } else if (plotData.predicted_train && plotData.actual_train) {
+                                                predicted = plotData.predicted_train
+                                                actual = plotData.actual_train
+                                            } else if (plotData.predicted && plotData.actual) {
+                                                // 兼容模拟数据格式
+                                                predicted = plotData.predicted
+                                                actual = plotData.actual
+                                            } else {
+                                                ctx.fillStyle = "#6c757d"
+                                                ctx.font = "12px Arial"
+                                                ctx.textAlign = "center"
+                                                ctx.fillText(
+                                                    root.isChinese ? "数据格式错误" : "Invalid data format",
+                                                    width / 2, height / 2
+                                                )
+                                                return
+                                            }
+
+                                            // 检查数据有效性
+                                            if (!predicted || !actual || predicted.length === 0 || actual.length === 0) {
+                                                ctx.fillStyle = "#6c757d"
+                                                ctx.font = "12px Arial"
+                                                ctx.textAlign = "center"
+                                                ctx.fillText(
+                                                    root.isChinese ? "数据为空" : "No data available",
+                                                    width / 2, height / 2
+                                                )
+                                                return
+                                            }
+
+                                            // 计算残差 (actual - predicted)
+                                            let residuals = []
+                                            for (let i = 0; i < Math.min(predicted.length, actual.length); i++) {
+                                                if (predicted[i] !== undefined && actual[i] !== undefined &&
+                                                    !isNaN(predicted[i]) && !isNaN(actual[i])) {
+                                                    residuals.push(actual[i] - predicted[i])
+                                                }
+                                            }
+
+                                            if (residuals.length === 0) {
+                                                ctx.fillStyle = "#6c757d"
+                                                ctx.font = "12px Arial"
+                                                ctx.textAlign = "center"
+                                                ctx.fillText(
+                                                    root.isChinese ? "无有效数据点" : "No valid data points",
+                                                    width / 2, height / 2
+                                                )
+                                                return
+                                            }
+
+                                            // 绘制残差图 (预测值 vs 残差)
+                                            let margin = 50
+                                            let plotWidth = width - 2 * margin
+                                            let plotHeight = height - 2 * margin
+
+                                            // 计算数据范围
+                                            let minPred = Math.min.apply(Math, predicted.filter((v, i) => i < residuals.length))
+                                            let maxPred = Math.max.apply(Math, predicted.filter((v, i) => i < residuals.length))
+                                            let minRes = Math.min.apply(Math, residuals)
+                                            let maxRes = Math.max.apply(Math, residuals)
+
+                                            let predRange = maxPred - minPred
+                                            let resRange = maxRes - minRes
+
+                                            if (predRange === 0) predRange = 1
+                                            if (resRange === 0) resRange = 1
+
+                                            // 扩展残差范围以显示误差线
+                                            let avgActual = actual.reduce((sum, val, i) => sum + (i < residuals.length ? val : 0), 0) / residuals.length
+                                            let upperError = 0.15 * avgActual
+                                            let lowerError = -0.15 * avgActual
+
+                                            // 调整残差范围以包含误差线
+                                            minRes = Math.min(minRes, lowerError)
+                                            maxRes = Math.max(maxRes, upperError)
+                                            resRange = maxRes - minRes
+                                            if (resRange === 0) resRange = 1
+
+                                            // 绘制坐标轴
+                                            ctx.strokeStyle = "#333"
+                                            ctx.lineWidth = 1
+
+                                            // Y轴
+                                            ctx.beginPath()
+                                            ctx.moveTo(margin, margin)
+                                            ctx.lineTo(margin, height - margin)
+                                            ctx.stroke()
+
+                                            // X轴
+                                            ctx.beginPath()
+                                            ctx.moveTo(margin, height - margin)
+                                            ctx.lineTo(width - margin, height - margin)
+                                            ctx.stroke()
+
+                                            // 绘制零误差线 (Zero Error)
+                                            let zeroY = height - margin - ((0 - minRes) / resRange) * plotHeight
+                                            ctx.strokeStyle = "#000"
+                                            ctx.lineWidth = 1
+                                            ctx.setLineDash([5, 5])
+                                            ctx.beginPath()
+                                            ctx.moveTo(margin, zeroY)
+                                            ctx.lineTo(width - margin, zeroY)
+                                            ctx.stroke()
+                                            ctx.setLineDash([])
+
+                                            // 绘制+15%误差线（固定水平线）
+                                            let upperErrorY = height - margin - ((upperError - minRes) / resRange) * plotHeight
+                                            ctx.strokeStyle = "#dc3545"
+                                            ctx.lineWidth = 1
+                                            ctx.setLineDash([5, 5])
+                                            ctx.beginPath()
+                                            ctx.moveTo(margin, upperErrorY)
+                                            ctx.lineTo(width - margin, upperErrorY)
+                                            ctx.stroke()
+                                            ctx.setLineDash([])
+
+                                            // 绘制-15%误差线（固定水平线）
+                                            let lowerErrorY = height - margin - ((lowerError - minRes) / resRange) * plotHeight
+                                            ctx.strokeStyle = "#007bff"
+                                            ctx.lineWidth = 1
+                                            ctx.setLineDash([5, 5])
+                                            ctx.beginPath()
+                                            ctx.moveTo(margin, lowerErrorY)
+                                            ctx.lineTo(width - margin, lowerErrorY)
+                                            ctx.stroke()
+                                            ctx.setLineDash([])
+
+                                            // 绘制残差散点
+                                            ctx.fillStyle = "#28a745" // 绿色，参考原始代码
+                                            for (let i = 0; i < residuals.length; i++) {
+                                                if (predicted[i] !== undefined && residuals[i] !== undefined &&
+                                                    !isNaN(predicted[i]) && !isNaN(residuals[i])) {
+                                                    let x = margin + ((predicted[i] - minPred) / predRange) * plotWidth
+                                                    let y = height - margin - ((residuals[i] - minRes) / resRange) * plotHeight
+
+                                                    ctx.beginPath()
+                                                    ctx.arc(x, y, 3, 0, 2 * Math.PI)
+                                                    ctx.fill()
+                                                }
+                                            }
+
+                                            // 绘制轴标签
+                                            ctx.fillStyle = "#333"
+                                            ctx.font = "12px Arial"
+                                            ctx.textAlign = "center"
+
+                                            // X轴标签
+                                            ctx.fillText(root.isChinese ? "预测值" : "Predicted Values", width / 2, height - 5)
+
+                                            // Y轴标签
+                                            ctx.save()
+                                            ctx.translate(15, height / 2)
+                                            ctx.rotate(-Math.PI / 2)
+                                            ctx.fillText(root.isChinese ? "残差" : "Residuals", 0, 0)
+                                            ctx.restore()
+
+                                            // 绘制Y轴刻度和标签
+                                            ctx.fillStyle = "#666"
+                                            ctx.font = "10px Arial"
+                                            ctx.textAlign = "right"
+                                            for (let i = 0; i <= 5; i++) {
+                                                let y = margin + (plotHeight * i) / 5
+                                                let value = maxRes - (resRange * i) / 5
+
+                                                // 刻度线
+                                                ctx.strokeStyle = "#333"
+                                                ctx.lineWidth = 1
+                                                ctx.beginPath()
+                                                ctx.moveTo(margin - 5, y)
+                                                ctx.lineTo(margin, y)
+                                                ctx.stroke()
+
+                                                // 标签
+                                                let displayValue = Math.abs(value) < 1 ? Number(value).toFixed(3) : Number(value).toFixed(2)
+                                                ctx.fillText(displayValue, margin - 10, y + 3)
+                                            }
+
+                                            // 绘制X轴刻度和标签
+                                            ctx.textAlign = "center"
+                                            for (let i = 0; i <= 5; i++) {
+                                                let x = margin + (plotWidth * i) / 5
+                                                let value = minPred + (predRange * i) / 5
+
+                                                // 刻度线
+                                                ctx.strokeStyle = "#333"
+                                                ctx.lineWidth = 1
+                                                ctx.beginPath()
+                                                ctx.moveTo(x, height - margin)
+                                                ctx.lineTo(x, height - margin + 5)
+                                                ctx.stroke()
+
+                                                // 标签
+                                                let displayValue = value < 1 ? Number(value).toFixed(3) : Number(value).toFixed(2)
+                                                ctx.fillText(displayValue, x, height - margin + 18)
+                                            }
+
+                                            // 绘制图例
+                                            let legendX = width - margin - 120
+                                            let legendY = margin + 10
+                                            let lineHeight = 15
+
+                                            // 残差点图例
+                                            ctx.fillStyle = "#28a745"
+                                            ctx.beginPath()
+                                            ctx.arc(legendX, legendY, 3, 0, 2 * Math.PI)
+                                            ctx.fill()
+                                            ctx.fillStyle = "#495057"
+                                            ctx.font = "10px Arial"
+                                            ctx.textAlign = "left"
+                                            ctx.fillText(root.isChinese ? "残差" : "Residuals", legendX + 10, legendY + 3)
+
+                                            // 零误差线图例
+                                            ctx.strokeStyle = "#000"
+                                            ctx.lineWidth = 1
+                                            ctx.setLineDash([5, 5])
+                                            ctx.beginPath()
+                                            ctx.moveTo(legendX - 5, legendY + lineHeight)
+                                            ctx.lineTo(legendX + 15, legendY + lineHeight)
+                                            ctx.stroke()
+                                            ctx.setLineDash([])
+                                            ctx.fillStyle = "#495057"
+                                            ctx.fillText(root.isChinese ? "零误差" : "Zero Error", legendX + 20, legendY + lineHeight + 3)
+
+                                            // +15%误差线图例
+                                            ctx.strokeStyle = "#dc3545"
+                                            ctx.lineWidth = 1
+                                            ctx.setLineDash([5, 5])
+                                            ctx.beginPath()
+                                            ctx.moveTo(legendX - 5, legendY + lineHeight * 2)
+                                            ctx.lineTo(legendX + 15, legendY + lineHeight * 2)
+                                            ctx.stroke()
+                                            ctx.setLineDash([])
+                                            ctx.fillStyle = "#495057"
+                                            ctx.fillText("+15% " + (root.isChinese ? "误差" : "Error"), legendX + 20, legendY + lineHeight * 2 + 3)
+
+                                            // -15%误差线图例
+                                            ctx.strokeStyle = "#007bff"
+                                            ctx.lineWidth = 1
+                                            ctx.setLineDash([5, 5])
+                                            ctx.beginPath()
+                                            ctx.moveTo(legendX - 5, legendY + lineHeight * 3)
+                                            ctx.lineTo(legendX + 15, legendY + lineHeight * 3)
+                                            ctx.stroke()
+                                            ctx.setLineDash([])
+                                            ctx.fillStyle = "#495057"
+                                            ctx.fillText("-15% " + (root.isChinese ? "误差" : "Error"), legendX + 20, legendY + lineHeight * 3 + 3)
+
+                                            console.log("MSE Canvas: 残差图绘制完成")
+                                        }
                                     }
+
                                 }
                             }
-                            
-                            // 第三部分：训练日志
-                            Rectangle {
+                        }
+
+                        // 第三部分：训练日志
+                        Rectangle {
                                 Layout.fillWidth: true
                                 Layout.minimumHeight: 200
                                 Layout.preferredHeight: 300
@@ -2641,7 +2658,6 @@ Rectangle {
                                             }
                                         }
                                     }
-                                }
                                 }
                             }
                         }

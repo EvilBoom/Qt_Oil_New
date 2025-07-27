@@ -45,14 +45,17 @@ Rectangle {
                 onBackRequested: root.backRequested()
                 
                 onStartTestingRequested: {
+                    // 获取完整的配置（包括最终特征配置）
+                    let completeConfig = getCompleteConfiguration()
+                    
                     // 保存配置数据
-                    root.selectedTask = selectedTask
-                    root.selectedModel = selectedModel
-                    root.modelType = modelType
-                    root.selectedDataTables = selectedDataTables
-                    root.selectedFeatures = selectedFeatures
-                    root.targetLabel = targetLabel
-                    root.featureMapping = featureMapping
+                    root.selectedTask = completeConfig.task
+                    root.selectedModel = completeConfig.model
+                    root.modelType = completeConfig.modelType
+                    root.selectedDataTables = completeConfig.dataTables
+                    root.selectedFeatures = completeConfig.inputFeatures  // 使用最终的输入特征
+                    root.targetLabel = completeConfig.targetLabel
+                    root.featureMapping = completeConfig.featureMapping
                     
                     // 切换到执行页面
                     root.currentPage = 1

@@ -214,6 +214,9 @@ class ModelTrainingThread(QThread):
                 elif self.task_type == "glr":
                     # GLR气液比预测任务
                     from models.keraGLR import GLRPredictor
+                    logger.info(f"创建GLR预测器，输入特征维度: {X.shape}")
+                    logger.info("注意: GLR模型将自动应用多项式特征变换，特征维度会从9扩展到54")
+                    
                     model_instance = GLRPredictor(X, y, test_size=0.2)
                     self.trainingProgressUpdated.emit(40.0, {"status": "开始GLR模型训练"})
                     
@@ -1656,6 +1659,9 @@ class ContinuousLearningController(QObject):
             # 设置日志转发
             self._setup_log_forwarding()
             
+            # 初始化变量
+            poly_transformer = None
+            
             # 加载模型
             self.testLogUpdated.emit(f"加载模型: {model_path}")
             self.testLogUpdated.emit(f"模型类型: {model_type}")
@@ -1668,17 +1674,48 @@ class ContinuousLearningController(QObject):
             
             self.testLogUpdated.emit(f"路径检查通过，开始加载模型...")
             
-            model, scaler = self._load_external_model(model_path, model_type)
-            if model is None:
-                error_msg = f"无法加载模型: {model_path}"
-                self.testLogUpdated.emit(error_msg)
-                return
-            
-            self.testLogUpdated.emit(f"模型加载成功: {type(model).__name__}")
-            if scaler:
-                self.testLogUpdated.emit(f"缩放器加载成功: {type(scaler).__name__}")
+            # 特殊处理GLR模型，需要加载多项式变换器
+            if "GLR" in model_type.upper() or model_path.lower().find("glr") != -1:
+                self.testLogUpdated.emit("检测到GLR模型，加载专用预测器...")
+                from models.keraGLR import GLRPredictor
+                
+                predictor = GLRPredictor([], [], log_widget=None)
+                success = predictor.load_model_and_scaler(model_path)
+                
+                if success and predictor.model is not None and predictor.scaler is not None:
+                    model = predictor.model
+                    scaler = predictor.scaler
+                    poly_transformer = getattr(predictor, 'poly', None)
+                    
+                    self.testLogUpdated.emit(f"GLR模型加载成功: {type(model).__name__}")
+                    self.testLogUpdated.emit(f"GLR缩放器加载成功: {type(scaler).__name__}")
+                    if poly_transformer:
+                        self.testLogUpdated.emit(f"GLR多项式变换器加载成功: {type(poly_transformer).__name__}")
+                    else:
+                        self.testLogUpdated.emit("GLR多项式变换器将使用默认配置")
+                else:
+                    error_msg = f"无法加载GLR模型: {model_path}"
+                    self.testLogUpdated.emit(error_msg)
+                    return
             else:
-                self.testLogUpdated.emit("未使用缩放器")
+                # 对于其他模型类型，使用原来的加载方法
+                model, scaler, poly_transformer = self._load_external_model(model_path, model_type)
+                
+                if model is None:
+                    error_msg = f"无法加载模型: {model_path}"
+                    self.testLogUpdated.emit(error_msg)
+                    return
+                
+                self.testLogUpdated.emit(f"模型加载成功: {type(model).__name__}")
+                if scaler:
+                    self.testLogUpdated.emit(f"缩放器加载成功: {type(scaler).__name__}")
+                else:
+                    self.testLogUpdated.emit("未使用缩放器")
+                    
+                if poly_transformer:
+                    self.testLogUpdated.emit(f"多项式变换器加载成功: {type(poly_transformer).__name__}")
+                else:
+                    self.testLogUpdated.emit("未加载多项式变换器")
             
             self.testProgressUpdated.emit(20.0)
             
@@ -1716,20 +1753,27 @@ class ContinuousLearningController(QObject):
                 return
             
             # 应用特征映射（如果有）
-            mapped_features = []
-            for feature in features:
-                if feature_mapping and feature in feature_mapping and feature_mapping[feature]:
-                    mapped_feature = feature_mapping[feature]
-                    mapped_features.append(mapped_feature)
-                    self.testLogUpdated.emit(f"特征映射: {feature} → {mapped_feature}")
-                else:
-                    mapped_features.append(feature)
+            # 注意：此时的features参数已经是经过前端特征对齐后的最终特征列表（数据特征）
+            # feature_mapping是模型特征到数据特征的映射，这里主要用于日志记录
+            mapped_features = features  # 直接使用传入的特征列表
+            
+            if feature_mapping:
+                self.testLogUpdated.emit("特征映射配置:")
+                for model_feature, data_feature in feature_mapping.items():
+                    if data_feature:
+                        self.testLogUpdated.emit(f"  {model_feature} ← {data_feature}")
+                self.testLogUpdated.emit(f"最终使用的数据特征: {features}")
+            else:
+                self.testLogUpdated.emit(f"直接使用选择的特征: {features}")
             
             self.testProgressUpdated.emit(60.0)
             
             # 准备测试数据
             X_test = combined_df[mapped_features].values
             y_true = combined_df[target_label].values
+            
+            self.testLogUpdated.emit(f"准备的测试数据特征维度: {X_test.shape}")
+            self.testLogUpdated.emit(f"使用的特征: {mapped_features}")
             
             # 移除包含NaN的行
             valid_indices = ~(np.isnan(X_test).any(axis=1) | np.isnan(y_true))
@@ -1747,8 +1791,26 @@ class ContinuousLearningController(QObject):
             
             # 数据预处理
             if scaler:
-                X_test_scaled = scaler.transform(X_test)
-                self.testLogUpdated.emit("应用数据缩放")
+                # 检查是否是GLR模型（需要多项式特征变换）
+                if "GLR" in model_type.upper() or model_path.lower().find("glr") != -1:
+                    self.testLogUpdated.emit("应用GLR模型多项式特征变换...")
+                    
+                    if poly_transformer is not None:
+                        # 使用加载的多项式变换器
+                        X_test_poly = poly_transformer.transform(X_test)
+                        self.testLogUpdated.emit(f"使用保存的多项式变换器: {X_test.shape} -> {X_test_poly.shape}")
+                    else:
+                        error_msg = "GLR模型缺少多项式变换器，无法进行测试"
+                        self.testLogUpdated.emit(error_msg)
+                        return
+                    
+                    # 然后应用缩放
+                    X_test_scaled = scaler.transform(X_test_poly)
+                    self.testLogUpdated.emit("应用GLR模型缩放器")
+                else:
+                    # 对于TDH/QF模型，直接应用缩放
+                    X_test_scaled = scaler.transform(X_test)
+                    self.testLogUpdated.emit("应用TDH/QF模型缩放器")
             else:
                 X_test_scaled = X_test
                 self.testLogUpdated.emit("未使用数据缩放")
@@ -1816,7 +1878,7 @@ class ContinuousLearningController(QObject):
                 else:
                     model = model_data
                     scaler = None
-                return model, scaler
+                return model, scaler, None
             
             elif model_type.lower() in ["external", "folder"]:
                 # 外部模型或文件夹，根据路径判断类型
@@ -1841,10 +1903,10 @@ class ContinuousLearningController(QObject):
                         logger.info(f"加载完成，模型状态: {predictor.model is not None}, 缩放器状态: {predictor.scaler is not None}")
                         if predictor.model is not None and predictor.scaler is not None:
                             logger.info(f"TDH模型加载成功: {model_path}")
-                            return predictor.model, predictor.scaler
+                            return predictor.model, predictor.scaler, None
                         else:
                             logger.error(f"TDH模型加载失败: {model_path}")
-                            return None, None
+                            return None, None, None
                     
                     elif any("QF" in f.name for f in model_files):
                         # QF SVR模型
@@ -1854,10 +1916,10 @@ class ContinuousLearningController(QObject):
                         predictor.load_model_and_scaler(str(model_path))
                         if predictor.model is not None and predictor.scaler is not None:
                             logger.info(f"QF模型加载成功: {model_path}")
-                            return predictor.model, predictor.scaler
+                            return predictor.model, predictor.scaler, None
                         else:
                             logger.error(f"QF模型加载失败: {model_path}")
-                            return None, None
+                            return None, None, None
                     
                     elif any("GLR" in f.name for f in h5_files):
                         # GLR Keras模型
@@ -1866,11 +1928,14 @@ class ContinuousLearningController(QObject):
                         predictor = GLRPredictor([], [], log_widget=None)
                         predictor.load_model_and_scaler(str(model_path))
                         if predictor.model is not None and predictor.scaler is not None:
+                            poly_transformer = getattr(predictor, 'poly', None)
                             logger.info(f"GLR模型加载成功: {model_path}")
-                            return predictor.model, predictor.scaler
+                            if poly_transformer:
+                                logger.info("GLR多项式变换器加载成功")
+                            return predictor.model, predictor.scaler, poly_transformer
                         else:
                             logger.error(f"GLR模型加载失败: {model_path}")
-                            return None, None
+                            return None, None, None
                     
                     else:
                         # 通用joblib文件加载
@@ -1879,17 +1944,16 @@ class ContinuousLearningController(QObject):
                             logger.info(f"加载第一个模型文件: {model_files[0]}")
                             model_data = joblib.load(model_files[0])
                             if isinstance(model_data, dict):
-                                return model_data.get("model"), model_data.get("scaler")
-                            return model_data, None
+                                return model_data.get("model"), model_data.get("scaler"), None
+                            return model_data, None, None
                         else:
                             logger.error("文件夹中没有找到可加载的模型文件")
-                            return None, None
+                            return None, None, None
                     
                 elif path_obj.suffix in ['.pth', '.pt']:
                     # PyTorch模型文件 (GLR)
                     logger.info("处理PyTorch模型文件")
                     try:
-                        import torch
                         from models.keraGLR import GLRPredictor
                         
                         # 加载GLR模型
@@ -1898,25 +1962,26 @@ class ContinuousLearningController(QObject):
                         model_dir = str(path_obj.parent)
                         predictor.load_model_and_scaler(model_dir)
                         if predictor.model is not None and predictor.scaler is not None:
+                            poly_transformer = getattr(predictor, 'poly', None)
                             logger.info(f"GLR模型加载成功: {model_path}")
-                            return predictor.model, predictor.scaler
+                            return predictor.model, predictor.scaler, poly_transformer
                         else:
                             logger.error(f"GLR模型权重加载失败: {model_path}")
-                            return None, None
+                            return None, None, None
                     except ImportError:
                         logger.error("PyTorch未安装，无法加载.pth模型")
-                        return None, None
+                        return None, None, None
                     except Exception as e:
                         logger.error(f"GLR模型加载异常: {str(e)}")
-                        return None, None
+                        return None, None, None
                     
                 elif path_obj.suffix in ['.joblib', '.pkl']:
                     # joblib或pickle文件
                     logger.info("处理joblib/pickle文件")
                     model_data = joblib.load(model_path)
                     if isinstance(model_data, dict):
-                        return model_data.get("model"), model_data.get("scaler")
-                    return model_data, None
+                        return model_data.get("model"), model_data.get("scaler"), None
+                    return model_data, None, None
                     
                 elif path_obj.suffix in ['.h5', '.keras']:
                     # Keras模型文件 (GLR)
@@ -1927,22 +1992,23 @@ class ContinuousLearningController(QObject):
                     model_dir = str(path_obj.parent)
                     predictor.load_model_and_scaler(model_dir)
                     if predictor.model is not None and predictor.scaler is not None:
+                        poly_transformer = getattr(predictor, 'poly', None)
                         logger.info(f"GLR模型加载成功: {model_path}")
-                        return predictor.model, predictor.scaler
+                        return predictor.model, predictor.scaler, poly_transformer
                     else:
                         logger.error(f"GLR模型加载失败: {model_path}")
-                        return None, None
+                        return None, None, None
                         
             else:
                 logger.error(f"不支持的模型类型: {model_type}")
             
-            return None, None
+            return None, None, None
             
         except Exception as e:
             logger.error(f"加载模型失败: {str(e)}")
             import traceback
             logger.error(f"详细错误信息: {traceback.format_exc()}")
-            return None, None
+            return None, None, None
     
     @Slot(dict, result=str)
     def saveTestResultsWithDialog(self, test_results):

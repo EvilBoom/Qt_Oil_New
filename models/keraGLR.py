@@ -162,8 +162,17 @@ class GLRPredictor(QObject):
 
     def prepare_data(self, X, y, test_size=0.2):
         """分割数据集"""
-        poly = PolynomialFeatures(degree=2, include_bias=False)
-        X_poly = poly.fit_transform(X)
+        # 记录原始特征数量
+        original_features = X.shape[1]
+        self.log(f"原始特征数量: {original_features}")
+        
+        # 应用多项式特征变换
+        self.poly = PolynomialFeatures(degree=2, include_bias=False)
+        X_poly = self.poly.fit_transform(X)
+        poly_features = X_poly.shape[1]
+        
+        self.log(f"多项式变换后特征数量: {poly_features} (从 {original_features} 扩展)")
+        self.log(f"多项式特征包括: 原始特征({original_features}) + 二次交互项({poly_features - original_features})")
 
         if not getattr(self,'scaler',False):
             self.scaler = StandardScaler()
@@ -293,9 +302,18 @@ class GLRPredictor(QObject):
             save_path.mkdir(exist_ok=True,parents=True)
             model_path = f"{save_path}/GLR-Model.h5"
             scaler_path = f"{save_path}/GLR-Scaler.pkl"
+            poly_path = f"{save_path}/GLR-Poly.pkl"
+            
             self.model.save(model_path)
             joblib.dump(self.scaler, scaler_path)
-            self.log(f"Model saved as {model_path} and {scaler_path}")
+            
+            # 保存多项式变换器
+            if hasattr(self, 'poly') and self.poly is not None:
+                joblib.dump(self.poly, poly_path)
+                self.log(f"Model, scaler and polynomial transformer saved as {model_path}, {scaler_path}, {poly_path}")
+            else:
+                self.log(f"Model and scaler saved as {model_path} and {scaler_path}")
+            
             return True
         except Exception as e:
             self.log(str(e))
@@ -314,8 +332,18 @@ class GLRPredictor(QObject):
                 custom_objects = {"custom_mape": CustomMAPE}
             )
             self.scaler = joblib.load(f"{model_dir}/GLR-Scaler.pkl")
+            
+            # 尝试加载多项式变换器
+            poly_path = f"{model_dir}/GLR-Poly.pkl"
+            if Path(poly_path).exists():
+                self.poly = joblib.load(poly_path)
+                self.log(f"Successfully loaded model, scaler and polynomial transformer from {model_dir}")
+            else:
+                # 如果没有保存的多项式变换器，设置为None，在预测时会报错提示用户
+                self.poly = None
+                self.log(f"Successfully loaded model and scaler from {model_dir}, but no polynomial transformer found")
+                self.log("WARNING: This GLR model was saved without polynomial transformer, prediction may fail")
 
-            self.log(f"Successfully loaded model and scaler from {model_dir}")
             return True
         except Exception as e:
             logger.exception(e)
@@ -327,7 +355,14 @@ class GLRPredictor(QObject):
     def predict(self, input_data: GLRInput) -> float:
         """推理预测"""
         data = np.array(input_data.to_list()).reshape(1, -1)
-        data_poly = PolynomialFeatures(degree=2, include_bias=False).fit_transform(data)
+        
+        # 使用保存的多项式变换器
+        if hasattr(self, 'poly') and self.poly is not None:
+            data_poly = self.poly.transform(data)
+        else:
+            # 如果没有保存的多项式变换器，报错提示
+            raise ValueError("GLR模型缺少多项式变换器，请重新训练模型以保存完整的预处理器")
+            
         data_scaled = self.scaler.transform(data_poly)
         prediction = self.model.predict(data_scaled)
         return float(prediction[0, 0])

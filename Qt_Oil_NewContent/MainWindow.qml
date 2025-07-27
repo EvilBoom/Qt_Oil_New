@@ -209,6 +209,11 @@ Window {
                                 onSubItemClicked: function(action) {
                                     handleNavigation(action)
                                 }
+                                onMainItemClicked: {
+                                    console.log("=== 模型持续学习主导航被点击 ===")
+                                    console.log("Time:", new Date().toLocaleTimeString())
+                                    handleNavigation("continuous-learning-main")
+                                }
                             }
 
                             // 填充空间，确保菜单项不会被压缩
@@ -560,6 +565,15 @@ Window {
         lastNavigationTime = currentTime
 
         switch(action) {
+            case "continuous-learning-main":
+                currentPageIndex = 6  // 持续学习页面
+                console.log("=== Switching to continuous learning main page ===")
+                console.log("Target page index:", currentPageIndex)
+                // 确保跳转到主页面（而不是子模块）
+                Qt.callLater(function() {
+                    setContinuousLearningModule("main")
+                })
+                break
             case "data-management":
                 currentPageIndex = 6  // 持续学习页面
                 console.log("Switching to continuous learning page - data management, index:", currentPageIndex)

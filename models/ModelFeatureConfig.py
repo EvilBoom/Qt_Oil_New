@@ -87,3 +87,16 @@ class ModelFeatureConfig:
             error_message = f"以下特征需要映射: {', '.join(missing_features)}"
         
         return is_valid, missing_features, error_message
+    
+    @classmethod
+    def get_feature_count(cls, task_type: str) -> int:
+        """
+        获取指定任务类型的期望特征数量
+        
+        Args:
+            task_type: 任务类型
+            
+        Returns:
+            int: 特征数量
+        """
+        return len(cls.get_expected_features(task_type))

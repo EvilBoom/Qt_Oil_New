@@ -24,11 +24,55 @@ Rectangle {
     property var selectedFeatures: []          // 选择的输入特征
     property string targetLabel: ""            // 预测标签
     property var modelExpectedFeatures: []     // 模型期望的特征名称列表
-    property var featureMapping: ({})          // 用户特征 -> 模型特征的映射
+    property var featureMapping: ({})          // 模型特征 -> 用户特征的映射
+    property var finalInputFeatures: []        // 最终传入模型的特征列表（按模型期望顺序）
     property bool configurationComplete: false // 配置是否完成
     
     signal backRequested()
     signal startTestingRequested()
+    
+    // 计算属性：获取最终的特征配置
+    function getFinalFeatureConfiguration() {
+        if (root.modelExpectedFeatures.length > 0) {
+            // 如果模型有特定的特征要求，使用映射后的特征
+            let finalFeatures = []
+            for (let expectedFeature of root.modelExpectedFeatures) {
+                let mappedFeature = root.featureMapping[expectedFeature]
+                if (mappedFeature && mappedFeature !== "") {
+                    finalFeatures.push(mappedFeature)
+                }
+            }
+            return {
+                inputFeatures: finalFeatures,
+                featureOrder: root.modelExpectedFeatures,
+                mappingRequired: true
+            }
+        } else {
+            // 如果模型没有特定要求，使用用户选择的特征
+            return {
+                inputFeatures: root.selectedFeatures,
+                featureOrder: root.selectedFeatures,
+                mappingRequired: false
+            }
+        }
+    }
+    
+    // 供外部调用的完整配置获取方法
+    function getCompleteConfiguration() {
+        let featureConfig = getFinalFeatureConfiguration()
+        return {
+            task: root.selectedTask,
+            model: root.selectedModel,
+            modelType: root.modelType,
+            dataTables: root.selectedDataTables,
+            inputFeatures: featureConfig.inputFeatures,
+            featureOrder: featureConfig.featureOrder,
+            targetLabel: root.targetLabel,
+            featureMapping: root.featureMapping,
+            mappingRequired: featureConfig.mappingRequired,
+            projectId: root.currentProjectId
+        }
+    }
     
     ScrollView {
         anchors.fill: parent
@@ -338,7 +382,7 @@ Rectangle {
                                             if (root.isTaskRequiringFolder()) {
                                                 modelFolderDialog.open()
                                             } else {
-                                                modelFileDialog.open()
+                                                modelFolderDialog.open()
                                             }
                                         }
                                     }
@@ -505,6 +549,24 @@ Rectangle {
                     font.pixelSize: 18
                     font.bold: true
                     color: "#495057"
+                }
+                
+                Text {
+                    text: {
+                        if (root.modelExpectedFeatures.length > 0) {
+                            return root.isChinese ? 
+                                "注意：您的模型有特定的特征要求。请在下方完成特征映射以确保特征顺序与模型期望一致。" :
+                                "Note: Your model has specific feature requirements. Please complete the feature mapping below to ensure feature order matches model expectations."
+                        } else {
+                            return root.isChinese ? 
+                                "请选择用于模型输入的特征。所选特征将直接传递给模型。" :
+                                "Please select features for model input. Selected features will be passed directly to the model."
+                        }
+                    }
+                    font.pixelSize: 12
+                    color: "#6c757d"
+                    wrapMode: Text.WordWrap
+                    Layout.fillWidth: true
                 }
                 
                 Rectangle {
@@ -929,9 +991,12 @@ Rectangle {
                         }
                         
                         Text {
-                            text: root.isChinese ? 
-                                `• 输入特征: ${root.selectedFeatures.length} 个` :
-                                `• Input Features: ${root.selectedFeatures.length}`
+                            text: {
+                                let featureConfig = root.getFinalFeatureConfiguration()
+                                return root.isChinese ? 
+                                    `• 最终输入特征: ${featureConfig.inputFeatures.length} 个` :
+                                    `• Final Input Features: ${featureConfig.inputFeatures.length}`
+                            }
                             font.pixelSize: 12
                             color: "#495057"
                         }
@@ -959,6 +1024,27 @@ Rectangle {
                             font.pixelSize: 12
                             color: "#495057"
                             visible: root.modelExpectedFeatures.length > 0
+                        }
+                        
+                        Text {
+                            text: {
+                                let featureConfig = root.getFinalFeatureConfiguration()
+                                if (featureConfig.inputFeatures.length > 0) {
+                                    let featureList = featureConfig.inputFeatures.slice(0, 5).join(', ')
+                                    if (featureConfig.inputFeatures.length > 5) {
+                                        featureList += '...'
+                                    }
+                                    return root.isChinese ? 
+                                        `• 特征列表: [${featureList}]` :
+                                        `• Feature List: [${featureList}]`
+                                } else {
+                                    return root.isChinese ? "• 特征列表: 未配置" : "• Feature List: Not configured"
+                                }
+                            }
+                            font.pixelSize: 11
+                            color: "#6c757d"
+                            Layout.fillWidth: true
+                            wrapMode: Text.WordWrap
                         }
                     }
                 }
@@ -1119,7 +1205,7 @@ Rectangle {
         if (root.isTaskRequiringFolder()) {
             return root.isChinese ? "选择SVR模型目录" : "Select SVR Model Folder"
         } else {
-            return root.isChinese ? "选择GLR模型文件" : "Select GLR Model File"
+            return root.isChinese ? "选择GLR模型目录" : "Select GLR Model Folder"
         }
     }
     
@@ -1206,46 +1292,94 @@ Rectangle {
     function updateFeatureMapping() {
         if (root.modelExpectedFeatures.length === 0) {
             root.featureMapping = {}
+            root.finalInputFeatures = root.selectedFeatures
             return
         }
         
         let newMapping = {}
         
-        // 只对选中的特征进行映射
-        for (let selectedFeature of root.selectedFeatures) {
+        // 保留现有的有效映射
+        for (let expectedFeature of root.modelExpectedFeatures) {
+            let currentMapping = root.featureMapping[expectedFeature] || ""
+            if (currentMapping !== "" && root.commonFeatures.includes(currentMapping)) {
+                newMapping[expectedFeature] = currentMapping
+            } else {
+                newMapping[expectedFeature] = ""
+            }
+        }
+        
+        // 自动映射未映射的特征
+        let availableFeatures = root.commonFeatures.filter(f => f !== root.targetLabel)
+        let usedFeatures = Object.values(newMapping).filter(v => v !== "")
+        
+        for (let expectedFeature of root.modelExpectedFeatures) {
+            if (newMapping[expectedFeature] !== "") {
+                continue // 已经映射过的跳过
+            }
+            
+            // 寻找最佳匹配
             let bestMatch = ""
             
             // 首先尝试完全匹配
-            if (root.modelExpectedFeatures.includes(selectedFeature)) {
-                bestMatch = selectedFeature
-            } else {
-                // 尝试部分匹配 (不区分大小写)
-                for (let expectedFeature of root.modelExpectedFeatures) {
-                    if (selectedFeature.toLowerCase().includes(expectedFeature.toLowerCase()) ||
-                        expectedFeature.toLowerCase().includes(selectedFeature.toLowerCase())) {
-                        bestMatch = expectedFeature
+            for (let availableFeature of availableFeatures) {
+                if (usedFeatures.includes(availableFeature)) {
+                    continue // 已被使用的特征跳过
+                }
+                
+                if (availableFeature.toLowerCase() === expectedFeature.toLowerCase()) {
+                    bestMatch = availableFeature
+                    break
+                }
+            }
+            
+            // 如果没有完全匹配，尝试部分匹配
+            if (bestMatch === "") {
+                for (let availableFeature of availableFeatures) {
+                    if (usedFeatures.includes(availableFeature)) {
+                        continue // 已被使用的特征跳过
+                    }
+                    
+                    if (availableFeature.toLowerCase().includes(expectedFeature.toLowerCase()) ||
+                        expectedFeature.toLowerCase().includes(availableFeature.toLowerCase())) {
+                        bestMatch = availableFeature
                         break
                     }
                 }
             }
             
             if (bestMatch !== "") {
-                newMapping[bestMatch] = selectedFeature
-            }
-        }
-        
-        // 确保所有模型期望特征都有条目
-        for (let expectedFeature of root.modelExpectedFeatures) {
-            if (!(expectedFeature in newMapping)) {
-                newMapping[expectedFeature] = ""
+                newMapping[expectedFeature] = bestMatch
+                usedFeatures.push(bestMatch)
             }
         }
         
         root.featureMapping = newMapping
         
+        // 更新最终输入特征列表
+        root.updateFinalInputFeatures()
+        
         addLog(root.isChinese ? 
             `特征映射已更新: ${Object.keys(newMapping).length}个期望特征，${Object.values(newMapping).filter(v => v !== "").length}个已映射` :
             `Feature mapping updated: ${Object.keys(newMapping).length} expected features, ${Object.values(newMapping).filter(v => v !== "").length} mapped`)
+    }
+    
+    function updateFinalInputFeatures() {
+        if (root.modelExpectedFeatures.length === 0) {
+            root.finalInputFeatures = root.selectedFeatures
+        } else {
+            let finalFeatures = []
+            for (let expectedFeature of root.modelExpectedFeatures) {
+                let mappedFeature = root.featureMapping[expectedFeature]
+                if (mappedFeature && mappedFeature !== "") {
+                    finalFeatures.push(mappedFeature)
+                }
+            }
+            root.finalInputFeatures = finalFeatures
+        }
+        
+        addLog(root.isChinese ? 
+            `最终输入特征列表: [${root.finalInputFeatures.join(', ')}]` :
+            `Final input features: [${root.finalInputFeatures.join(', ')}]`)
     }
     
     function autoMapFeatures() {
@@ -1254,19 +1388,20 @@ Rectangle {
             return
         }
         
-        let newMapping = Object.assign({}, root.featureMapping)
+        let newMapping = {}
         let availableFeatures = root.commonFeatures.filter(f => f !== root.targetLabel)
+        let usedFeatures = []
         
         for (let expectedFeature of root.modelExpectedFeatures) {
-            if (newMapping[expectedFeature] && newMapping[expectedFeature] !== "") {
-                continue // 已经映射过的跳过
-            }
-            
             let bestMatch = ""
             let bestScore = 0
             
-            // 查找最佳匹配
+            // 查找最佳匹配（排除已使用的特征）
             for (let dataFeature of availableFeatures) {
+                if (usedFeatures.includes(dataFeature)) {
+                    continue // 跳过已使用的特征
+                }
+                
                 let score = 0
                 
                 // 完全匹配得最高分
@@ -1300,12 +1435,14 @@ Rectangle {
             
             if (bestMatch !== "") {
                 newMapping[expectedFeature] = bestMatch
-                // 避免重复映射
-                availableFeatures = availableFeatures.filter(f => f !== bestMatch)
+                usedFeatures.push(bestMatch)
+            } else {
+                newMapping[expectedFeature] = ""
             }
         }
         
         root.featureMapping = newMapping
+        root.updateFinalInputFeatures()
         
         let mappedCount = Object.values(newMapping).filter(v => v !== "").length
         addLog(root.isChinese ? 
@@ -1380,10 +1517,12 @@ Rectangle {
     }
     
     function isConfigurationComplete() {
+        let featureConfig = root.getFinalFeatureConfiguration()
+        
         return root.selectedTask.length > 0 &&
                root.selectedModel.length > 0 &&
                root.selectedDataTables.length > 0 && 
-               root.selectedFeatures.length > 0 && 
+               featureConfig.inputFeatures.length > 0 && 
                root.targetLabel.length > 0 &&
                root.checkFeatureMappingComplete()
     }
@@ -1405,8 +1544,13 @@ Rectangle {
             return false
         }
         
-        if (!root.selectedFeatures || root.selectedFeatures.length === 0) {
-            addLog(root.isChinese ? "错误：请选择输入特征" : "Error: Please select input features")
+        let featureConfig = root.getFinalFeatureConfiguration()
+        if (!featureConfig.inputFeatures || featureConfig.inputFeatures.length === 0) {
+            if (featureConfig.mappingRequired) {
+                addLog(root.isChinese ? "错误：请完成特征映射，确保所有模型特征都有对应的数据特征" : "Error: Please complete feature mapping, ensure all model features have corresponding data features")
+            } else {
+                addLog(root.isChinese ? "错误：请选择输入特征" : "Error: Please select input features")
+            }
             return false
         }
         
@@ -1418,6 +1562,17 @@ Rectangle {
         if (root.modelExpectedFeatures.length > 0 && !root.checkFeatureMappingComplete()) {
             addLog(root.isChinese ? "错误：请完成所有特征映射" : "Error: Please complete all feature mappings")
             return false
+        }
+        
+        // 输出最终的特征配置信息
+        addLog(root.isChinese ? 
+            `最终特征配置 - 输入特征: [${featureConfig.inputFeatures.join(', ')}], 预测目标: ${root.targetLabel}` :
+            `Final feature configuration - Input features: [${featureConfig.inputFeatures.join(', ')}], Target: ${root.targetLabel}`)
+        
+        if (featureConfig.mappingRequired) {
+            addLog(root.isChinese ? 
+                `特征映射顺序: [${featureConfig.featureOrder.join(', ')}]` :
+                `Feature mapping order: [${featureConfig.featureOrder.join(', ')}]`)
         }
         
         addLog(root.isChinese ? "配置验证通过，准备开始测试" : "Configuration validated, ready to start testing")
@@ -1437,8 +1592,13 @@ Rectangle {
             return root.isChinese ? "请选择测试数据表" : "Please select test data tables"
         }
         
-        if (!root.selectedFeatures || root.selectedFeatures.length === 0) {
-            return root.isChinese ? "请选择输入特征" : "Please select input features"
+        let featureConfig = root.getFinalFeatureConfiguration()
+        if (!featureConfig.inputFeatures || featureConfig.inputFeatures.length === 0) {
+            if (featureConfig.mappingRequired) {
+                return root.isChinese ? "请完成特征映射" : "Please complete feature mapping"
+            } else {
+                return root.isChinese ? "请选择输入特征" : "Please select input features"
+            }
         }
         
         if (!root.targetLabel || root.targetLabel.length === 0) {
@@ -1454,6 +1614,7 @@ Rectangle {
     
     Component.onCompleted: {
         refreshDataTables()
+        root.updateFinalInputFeatures()
         addLog(root.isChinese ? "模型测试配置页面已加载" : "Model testing configuration page loaded")
         
         // 调试信息
@@ -1466,10 +1627,23 @@ Rectangle {
     onModelExpectedFeaturesChanged: {
         console.log("ModelTestingConfig: modelExpectedFeatures changed to:", root.modelExpectedFeatures)
         console.log("Feature mapping section visible:", root.modelExpectedFeatures.length > 0 && root.selectedDataTables.length > 0)
+        root.updateFinalInputFeatures()
     }
     
     onSelectedDataTablesChanged: {
         console.log("ModelTestingConfig: selectedDataTables changed to:", root.selectedDataTables)
         console.log("Feature mapping section visible:", root.modelExpectedFeatures.length > 0 && root.selectedDataTables.length > 0)
+    }
+    
+    onFeatureMappingChanged: {
+        console.log("ModelTestingConfig: featureMapping changed to:", root.featureMapping)
+        root.updateFinalInputFeatures()
+    }
+    
+    onSelectedFeaturesChanged: {
+        console.log("ModelTestingConfig: selectedFeatures changed to:", root.selectedFeatures)
+        if (root.modelExpectedFeatures.length === 0) {
+            root.updateFinalInputFeatures()
+        }
     }
 }

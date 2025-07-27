@@ -20,10 +20,11 @@ Rectangle {
     // 监听currentModule变化
     onCurrentModuleChanged: {
         console.log("=== ContinuousLearningPage: currentModule changed ===")
-        console.log("Old module:", root.currentModule)
-        console.log("New module:", currentModule)
+        console.log("Previous currentModule:", "unknown")  // QML没有直接获取旧值的方法
+        console.log("New currentModule:", currentModule)
         console.log("StackLayout children count:", moduleStack.children.length)
         console.log("Current StackLayout index:", moduleStack.currentIndex)
+        console.log("Time:", new Date().toLocaleTimeString())
         
         // 强制更新StackLayout的currentIndex
         updateStackIndex()
@@ -32,6 +33,7 @@ Rectangle {
     function updateStackIndex() {
         console.log("=== updateStackIndex called ===")
         console.log("Current module:", root.currentModule)
+        console.log("Time:", new Date().toLocaleTimeString())
         
         var newIndex = 0
         switch(root.currentModule) {
@@ -54,23 +56,40 @@ Rectangle {
         }
         
         console.log("StackLayout currentIndex changing from", moduleStack.currentIndex, "to", newIndex)
+        var oldIndex = moduleStack.currentIndex
         moduleStack.currentIndex = newIndex
         console.log("StackLayout currentIndex after change:", moduleStack.currentIndex)
+        console.log("Index change successful:", (moduleStack.currentIndex === newIndex))
         
         // 检查对应的Item是否处于活动状态
         Qt.callLater(function() {
             console.log("=== Post-update check ===")
             console.log("Final StackLayout currentIndex:", moduleStack.currentIndex)
+            console.log("Expected index:", newIndex)
+            console.log("StackLayout children count:", moduleStack.children.length)
+            
             if (moduleStack.children.length > newIndex) {
                 var targetItem = moduleStack.children[newIndex]
                 console.log("Target item at index", newIndex, ":", targetItem)
                 console.log("Target item visible:", targetItem.visible)
-                if (targetItem.children.length > 0) {
+                console.log("Target item enabled:", targetItem.enabled)
+                
+                if (targetItem.children && targetItem.children.length > 0) {
                     var loader = targetItem.children[0]
                     console.log("Loader in target item:", loader)
-                    console.log("Loader active:", loader.active)
-                    console.log("Loader source:", loader.source)
+                    if (loader.hasOwnProperty("active")) {
+                        console.log("Loader active:", loader.active)
+                        console.log("Loader source:", loader.source)
+                        console.log("Loader status:", loader.status)
+                        if (loader.item) {
+                            console.log("Loader item exists:", !!loader.item)
+                        } else {
+                            console.log("Loader item is null/undefined")
+                        }
+                    }
                 }
+            } else {
+                console.log("ERROR: Not enough children in StackLayout for index", newIndex)
             }
         })
     }
@@ -208,9 +227,13 @@ Rectangle {
                                     text: root.isChinese ? "进入数据管理" : "Enter Data Management"
                                     
                                     onClicked: {
-                                        console.log("数据管理按钮被点击")
+                                        console.log("=== 数据管理按钮被点击 ===")
+                                        console.log("点击时间:", new Date().toLocaleTimeString())
+                                        console.log("当前 currentModule:", root.currentModule)
+                                        console.log("即将设置 currentModule 为: data_management")
                                         root.currentModule = "data_management"
-                                        console.log("设置 currentModule 为:", root.currentModule)
+                                        console.log("设置后 currentModule:", root.currentModule)
+                                        console.log("设置成功:", root.currentModule === "data_management")
                                     }
                                 }
                             }
@@ -218,6 +241,7 @@ Rectangle {
                             MouseArea {
                                 anchors.fill: parent
                                 hoverEnabled: true
+                                propagateComposedEvents: true
                                 onEntered: parent.color = "#f8f9fa"
                                 onExited: parent.color = "white"
                             }
@@ -274,9 +298,13 @@ Rectangle {
                                     text: root.isChinese ? "开始训练" : "Start Training"
                                     
                                     onClicked: {
-                                        console.log("模型训练按钮被点击")
+                                        console.log("=== 模型训练按钮被点击 ===")
+                                        console.log("点击时间:", new Date().toLocaleTimeString())
+                                        console.log("当前 currentModule:", root.currentModule)
+                                        console.log("即将设置 currentModule 为: model_training")
                                         root.currentModule = "model_training"
-                                        console.log("设置 currentModule 为:", root.currentModule)
+                                        console.log("设置后 currentModule:", root.currentModule)
+                                        console.log("设置成功:", root.currentModule === "model_training")
                                     }
                                 }
                             }
@@ -284,6 +312,7 @@ Rectangle {
                             MouseArea {
                                 anchors.fill: parent
                                 hoverEnabled: true
+                                propagateComposedEvents: true
                                 onEntered: parent.color = "#f8f9fa"
                                 onExited: parent.color = "white"
                             }
@@ -340,9 +369,15 @@ Rectangle {
                                     text: root.isChinese ? "模型测试" : "Model Testing"
                                     
                                     onClicked: {
-                                        console.log("模型测试按钮被点击")
+                                    onClicked: {
+                                        console.log("=== 模型测试按钮被点击 ===")
+                                        console.log("点击时间:", new Date().toLocaleTimeString())
+                                        console.log("当前 currentModule:", root.currentModule)
+                                        console.log("即将设置 currentModule 为: model_testing")
                                         root.currentModule = "model_testing"
-                                        console.log("设置 currentModule 为:", root.currentModule)
+                                        console.log("设置后 currentModule:", root.currentModule)
+                                        console.log("设置成功:", root.currentModule === "model_testing")
+                                    }
                                     }
                                 }
                             }
@@ -350,6 +385,7 @@ Rectangle {
                             MouseArea {
                                 anchors.fill: parent
                                 hoverEnabled: true
+                                propagateComposedEvents: true
                                 onEntered: parent.color = "#f8f9fa"
                                 onExited: parent.color = "white"
                             }
@@ -605,12 +641,20 @@ Rectangle {
     }
     
     Component.onCompleted: {
-        console.log("ContinuousLearningPage.qml - Component.onCompleted")
-        console.log("ContinuousLearningPage.qml - continuousLearningController:", root.continuousLearningController)
-        console.log("ContinuousLearningPage.qml - typeof continuousLearningController:", typeof root.continuousLearningController)
-        console.log("ContinuousLearningPage.qml - 初始 currentModule:", root.currentModule)
+        console.log("=== ContinuousLearningPage Component.onCompleted ===")
+        console.log("Time:", new Date().toLocaleTimeString())
+        console.log("continuousLearningController:", root.continuousLearningController)
+        console.log("typeof continuousLearningController:", typeof root.continuousLearningController)
+        console.log("currentProjectId:", root.currentProjectId)
+        console.log("isChinese:", root.isChinese)
+        console.log("初始 currentModule:", root.currentModule)
+        console.log("StackLayout children count:", moduleStack.children.length)
+        console.log("StackLayout initial currentIndex:", moduleStack.currentIndex)
+        
         updateStatistics()
         updateStackIndex()  // 确保初始状态正确
+        
+        console.log("=== Component.onCompleted finished ===")
     }
     
     function updateStatistics() {
