@@ -6,3 +6,5 @@
 /Controller/__pycache__
 /out
 *.db
+data/*.db
+*.pyc
