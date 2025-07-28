@@ -10,7 +10,8 @@ from PySide6.QtCore import QObject, Signal
 from sklearn.preprocessing import StandardScaler, PolynomialFeatures
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import mean_absolute_percentage_error, mean_absolute_error
-from tensorflow.keras.models import Sequential, Model, load_model
+from tensorflow.keras.models import Sequential, Model
+from tensorflow.keras.models import load_model as keras_load_model
 from tensorflow.keras.layers import Dense, Dropout, Add, Input
 from tensorflow.keras.optimizers import Adam
 from tensorflow.keras.callbacks import Callback
@@ -327,7 +328,7 @@ class GLRPredictor(QObject):
             self.log(f"从{model_dir}中加载模型")
 
             # 加载模型和标准化器
-            self.model = load_model(
+            self.model = keras_load_model(
                 f"{model_dir}/GLR-Model.h5",
                 custom_objects = {"custom_mape": CustomMAPE}
             )
