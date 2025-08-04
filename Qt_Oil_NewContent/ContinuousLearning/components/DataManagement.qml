@@ -96,6 +96,114 @@ Rectangle {
                         color: "#6c757d"
                     }
                     
+                    // 模板下载区域
+                    Rectangle {
+                        Layout.fillWidth: true
+                        Layout.preferredHeight: 100
+                        color: "#f8f9fa"
+                        radius: 6
+                        border.width: 1
+                        border.color: "#e9ecef"
+                        
+                        ColumnLayout {
+                            anchors.fill: parent
+                            anchors.margins: 12
+                            spacing: 8
+                            
+                            Text {
+                                text: root.isChinese ? "下载数据格式模板" : "Download Data Format Templates"
+                                font.pixelSize: 14
+                                font.bold: true
+                                color: "#495057"
+                            }
+                            
+                            RowLayout {
+                                spacing: 12
+                                Layout.fillWidth: true
+                                
+                                Button {
+                                    text: root.isChinese ? "📊 GLR模板" : "📊 GLR Template"
+                                    Layout.preferredWidth: 120
+                                    Layout.preferredHeight: 32
+                                    
+                                    background: Rectangle {
+                                        color: parent.pressed ? "#0056b3" : (parent.hovered ? "#0069d9" : "#007bff")
+                                        radius: 4
+                                        border.color: "#007bff"
+                                        border.width: 1
+                                    }
+                                    
+                                    contentItem: Text {
+                                        text: parent.text
+                                        font: parent.font
+                                        color: "white"
+                                        horizontalAlignment: Text.AlignHCenter
+                                        verticalAlignment: Text.AlignVCenter
+                                    }
+                                    
+                                    onClicked: downloadTemplate("glr")
+                                }
+                                
+                                Button {
+                                    text: root.isChinese ? "📈 QF模板" : "📈 QF Template"
+                                    Layout.preferredWidth: 120
+                                    Layout.preferredHeight: 32
+                                    
+                                    background: Rectangle {
+                                        color: parent.pressed ? "#218838" : (parent.hovered ? "#28a745" : "#28a745")
+                                        radius: 4
+                                        border.color: "#28a745"
+                                        border.width: 1
+                                    }
+                                    
+                                    contentItem: Text {
+                                        text: parent.text
+                                        font: parent.font
+                                        color: "white"
+                                        horizontalAlignment: Text.AlignHCenter
+                                        verticalAlignment: Text.AlignVCenter
+                                    }
+                                    
+                                    onClicked: downloadTemplate("qf")
+                                }
+                                
+                                Button {
+                                    text: root.isChinese ? "📋 TDH模板" : "📋 TDH Template"
+                                    Layout.preferredWidth: 120
+                                    Layout.preferredHeight: 32
+                                    
+                                    background: Rectangle {
+                                        color: parent.pressed ? "#e0a800" : (parent.hovered ? "#ffc107" : "#ffc107")
+                                        radius: 4
+                                        border.color: "#ffc107"
+                                        border.width: 1
+                                    }
+                                    
+                                    contentItem: Text {
+                                        text: parent.text
+                                        font: parent.font
+                                        color: "#212529"
+                                        horizontalAlignment: Text.AlignHCenter
+                                        verticalAlignment: Text.AlignVCenter
+                                    }
+                                    
+                                    onClicked: downloadTemplate("tdh")
+                                }
+                                
+                                Item { Layout.fillWidth: true }
+                                
+                                Text {
+                                    text: root.isChinese ? 
+                                        "💡 提示：下载对应任务的模板，了解数据格式要求" :
+                                        "💡 Tip: Download the template for your task to understand data format requirements"
+                                    font.pixelSize: 11
+                                    color: "#6c757d"
+                                    font.italic: true
+                                }
+                            }
+                        }
+                    }
+                    
                     // 文件选择
                     RowLayout {
                         spacing: 12
@@ -700,6 +808,46 @@ Rectangle {
             } catch (e) {
                 console.log("Error deleting table:", e)
             }
+        }
+    }
+    
+    // 下载模板文件
+    function downloadTemplate(taskType) {
+        console.log("下载模板:", taskType)
+        
+        if (!root.continuousLearningController) {
+            console.log("ERROR: continuousLearningController is undefined!")
+            dataFileStatus.text = root.isChinese ? "控制器未初始化" : "Controller not initialized"
+            dataFileStatus.color = "#dc3545"
+            return
+        }
+        
+        // 显示下载提示
+        dataFileStatus.text = root.isChinese ? "正在准备模板下载..." : "Preparing template download..."
+        dataFileStatus.color = "#007bff"
+        
+        try {
+            let result = root.continuousLearningController.downloadTemplate(taskType)
+            if (result && result.success) {
+                dataFileStatus.text = root.isChinese ? 
+                    `${taskType.toUpperCase()}模板已保存` : 
+                    `${taskType.toUpperCase()} template saved successfully`
+                dataFileStatus.color = "#28a745"
+                
+                // 显示文件路径信息
+                if (result.file_path) {
+                    console.log("模板已保存到:", result.file_path)
+                }
+            } else {
+                dataFileStatus.text = root.isChinese ? 
+                    "模板下载失败: " + (result.error || "未知错误") :
+                    "Template download failed: " + (result.error || "Unknown error")
+                dataFileStatus.color = "#dc3545"
+            }
+        } catch (e) {
+            console.log("Error downloading template:", e)
+            dataFileStatus.text = root.isChinese ? "下载模板出错" : "Template download error"
+            dataFileStatus.color = "#dc3545"
         }
     }
     

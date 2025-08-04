@@ -108,12 +108,6 @@ Rectangle {
                             enabled: root.isTesting
                             onClicked: root.stopTesting()
                         }
-                        
-                        Button {
-                            text: root.isChinese ? "保存结果" : "Save Results"
-                            enabled: !root.isTesting && Object.keys(root.testResults).length > 0
-                            onClicked: root.saveTestResults()
-                        }
                     }
                     
                     ProgressBar {
@@ -831,24 +825,6 @@ Rectangle {
     function stopTesting() {
         root.isTesting = false
         addLog(root.isChinese ? "测试已停止" : "Testing stopped")
-    }
-    
-    function saveTestResults() {
-        if (!root.continuousLearningController || Object.keys(root.testResults).length === 0) {
-            addLog(root.isChinese ? "没有可保存的测试结果" : "No test results to save")
-            return
-        }
-        
-        try {
-            let savePath = root.continuousLearningController.saveTestResultsWithDialog(root.testResults)
-            if (savePath && savePath.length > 0) {
-                addLog(root.isChinese ? `测试结果已保存到: ${savePath}` : `Test results saved to: ${savePath}`)
-            } else {
-                addLog(root.isChinese ? "保存取消或失败" : "Save cancelled or failed")
-            }
-        } catch (error) {
-            addLog(root.isChinese ? `保存错误: ${error}` : `Save error: ${error}`)
-        }
     }
     
     function addLog(message) {

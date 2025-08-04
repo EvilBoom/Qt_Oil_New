@@ -351,8 +351,8 @@ class GLRInput:
     
     @classmethod
     def get_features(cls):
-        return ("地层压力Pr", "生产指数IP", "井底温度BHT", "期望产量QF", "BSW", "API度", 
-                "GOR油气比", "泡点压力Pb", "井口压力WHP")
+        return ("地层压力", "生产指数", "井底温度", "期望产量", "含水率", "原油密度", "油气比",
+                "泡点压力", "井口压力")
 
 
 @dataclass
@@ -376,8 +376,8 @@ class QFInput:
     
     @classmethod
     def get_features(cls):
-        return ("射孔垂深度freq", "泵挂垂深phdm", "油藏压力Pr", "生产指数IP", "井底温度BHT", 
-                "期望产量QF", "BSW", "API度", "GOR油气比", "泡点压力Pb", "井口压力WHP")
+        return ("射孔垂深", "泵挂垂深", "油藏压力PR", "生产指数IP", "井底温度BHT", 
+                "期望产量QF", "含水率BSW", "原油密度API", "油气比GOR", "泡点压力Pb", "井口压力WHP")
 
 
 @dataclass
@@ -400,8 +400,8 @@ class SVRInput:
     
     @classmethod
     def get_features(cls):
-        return ("射孔垂深度freq", "泵挂垂深phdm", "油藏压力Pr", "生产指数IP", "井底温度BHT",
-                "期望产量QF", "BSW", "API度", "GOR油气比", "泡点压力Pb", "井口压力WHP")
+        return ("射孔垂深", "泵挂垂深", "油藏压力PR", "生产指数IP", "井底温度BHT",
+                "期望产量QF", "含水率BSW", "原油密度API", "油气比GOR", "泡点压力Pb", "井口压力WHP")
 
 
 # Keras训练回调

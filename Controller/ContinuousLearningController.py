@@ -1,6 +1,6 @@
 # Controller/ContinuousLearningController.py
 from PySide6.QtCore import QObject, Signal, Slot, Property, QThread, QMutex
-from PySide6.QtWidgets import QVBoxLayout, QFileDialog
+from PySide6.QtWidgets import QVBoxLayout, QFileDialog, QApplication
 from typing import Dict, Any, List
 import logging
 import sqlite3
@@ -13,15 +13,11 @@ from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 import json
 import time
 import sys
-
-# 导入数据处理器
-from .DataProcessor import DataProcessor
-
-# 导入重构后的统一预测器接口
 import sys
 sys.path.append(str(Path(__file__).parent.parent))
 
-
+# 导入数据处理器
+from .DataProcessor import DataProcessor
 from models.model import (
     BasePredictor, GLRPredictor, QFPredictor, TDHPredictor,
     TrainingConfig, ModelInfo, CallbackEvent, CallbackData,
@@ -301,25 +297,66 @@ class ModelTrainingThread(QThread):
             return None, None, None
     
     def _apply_feature_mapping(self):
-        """应用特征映射"""
-        mapped_features = []
+        """应用特征映射，直接按照model.py中Input类的to_list方法顺序返回特征"""
+        
+        # 根据任务类型获取对应Input类的特征顺序
+        def get_model_feature_order(task_type):
+            """获取模型特征的标准顺序"""
+            if task_type == "glr":
+                # GLRInput.to_list() 的顺序 - 9个特征
+                return GLRInput.get_features()
+            elif task_type in ["production"]:
+                # QFInput 和 SVRInput 的 to_list() 顺序相同 - 11个特征
+                return QFInput.get_features()
+            elif task_type in ["head"]:
+                # SVRInput 的 to_list() 顺序 - 11个特征
+                return SVRInput.get_features()
+            else:
+                self.trainingLogUpdated.emit(f"警告: 未知任务类型 {task_type}")
+                return []
+        
+        # 获取模型期望的特征顺序
+        model_feature_order = get_model_feature_order(self.task_type)
+        
+        if not model_feature_order:
+            self.trainingLogUpdated.emit("无法确定模型特征顺序，使用用户原始特征")
+            return self.features
+        
+        self.trainingLogUpdated.emit(f"任务类型 {self.task_type} 期望 {len(model_feature_order)} 个特征: {model_feature_order}")
+        
+        # 如果有特征映射，直接按照to_list顺序从映射中取特征
         if self.feature_mapping:
             self.trainingLogUpdated.emit("应用特征映射:")
-            for model_feature, user_feature in self.feature_mapping.items():
-                if user_feature and user_feature.strip():
-                    mapped_features.append(user_feature)
-                    self.trainingLogUpdated.emit(f"  模型特征 {model_feature} → 用户数据 {user_feature}")
+            self.trainingLogUpdated.emit(f"特征映射字典: {self.feature_mapping}")
+            mapped_features = []
             
-            if not mapped_features:
-                self.trainingLogUpdated.emit("特征映射为空，使用用户选择的特征")
-                mapped_features = self.features
+            for i, model_feature in enumerate(model_feature_order):
+                if model_feature in self.feature_mapping:
+                    user_feature = self.feature_mapping[model_feature]
+                    mapped_features.append(user_feature)
+                    self.trainingLogUpdated.emit(f"  [{i}] {model_feature} → {user_feature}")
+                else:
+                    self.trainingLogUpdated.emit(f"  [{i}] 错误: 特征映射中缺少 {model_feature}")
+                    self.trainingLogUpdated.emit(f"映射不完整，返回原始特征: {self.features}")
+                    return self.features  # 映射不完整，返回原始特征
+            
+            self.trainingLogUpdated.emit(f"映射完成，最终特征数量: {len(mapped_features)}")
+            self.trainingLogUpdated.emit(f"映射完成，最终特征顺序: {mapped_features}")
+            self.trainingLogUpdated.emit(f"期望特征顺序: {model_feature_order}")
+            return mapped_features
         else:
-            mapped_features = self.features
-            self.trainingLogUpdated.emit("未使用特征映射，直接使用用户选择的特征")
-        
-        # 🔥 新增：记录最终特征顺序
-        self.trainingLogUpdated.emit(f"训练时最终特征顺序: {mapped_features}")
-        return mapped_features
+            # 没有特征映射，直接取用户特征的前N个
+            expected_count = len(model_feature_order)
+            if len(self.features) >= expected_count:
+                selected_features = self.features[:expected_count]
+                self.trainingLogUpdated.emit(f"无特征映射，取前 {expected_count} 个用户特征:")
+                self.trainingLogUpdated.emit(f"原始用户特征: {self.features}")
+                self.trainingLogUpdated.emit(f"选择的特征: {selected_features}")
+                return selected_features
+            else:
+                self.trainingLogUpdated.emit(f"用户特征数量 {len(self.features)} 少于期望的 {expected_count} 个")
+                self.trainingLogUpdated.emit(f"返回所有用户特征: {self.features}")
+                return self.features
     
     def _create_predictor(self, X, y, config):
         """根据任务类型创建预测器"""
@@ -914,6 +951,64 @@ class ContinuousLearningController(QObject):
         logger.info(f"getCurrentModelName 被调用，返回: {current_model}")
         return current_model
     
+    @Slot(result=str)
+    def saveCurrentModel(self):
+        """保存当前训练的模型 - 使用统一接口"""
+        try:
+            if not self._current_model:
+                logger.warning("没有当前模型可保存")
+                return ""
+            
+            model_name = self._current_model
+            logger.info(f"开始保存当前模型: {model_name}")
+            
+            if model_name not in self._predictors:
+                logger.warning(f"预测器 {model_name} 不存在")
+                return ""
+            
+            predictor = self._predictors[model_name]
+            model_info = self._models[model_name]
+            task_type = model_info.get('task_type', 'unknown')
+            
+            # 根据任务类型生成模型名称和保存路径
+            default_base_path = Path(__file__).parent.parent
+            timestamp = pd.Timestamp.now().strftime('%Y%m%d_%H%M%S')
+            
+            if task_type == "head":
+                save_name = f"TDH-{timestamp}"
+            elif task_type == "production":
+                save_name = f"QF-{timestamp}"
+            elif task_type == "glr":
+                save_name = f"GLR-{timestamp}"
+            else:
+                save_name = f"MODEL-{timestamp}"
+            
+            # 使用预测器的统一保存接口
+            success = predictor.save_model(save_name)
+            
+            if success:
+                # 计算实际保存路径
+                if task_type == "head":
+                    actual_save_path = default_base_path / "TDHsave" / save_name
+                elif task_type == "production":
+                    actual_save_path = default_base_path / "QFsave" / save_name
+                elif task_type == "glr":
+                    actual_save_path = default_base_path / "GLRsave" / save_name
+                else:
+                    actual_save_path = default_base_path / "saved_models" / save_name
+                
+                logger.info(f"模型已成功保存到: {actual_save_path}")
+                self.modelSaved.emit(model_name, str(actual_save_path))
+                return str(actual_save_path)
+            else:
+                logger.error("模型保存失败")
+                return ""
+            
+        except Exception as e:
+            error_msg = f"保存当前模型失败: {str(e)}"
+            logger.error(error_msg)
+            return ""
+    
     # ================== 模型测试功能 - 使用统一接口 ==================
     
     @Slot(str, str, list, list, str, dict)
@@ -932,8 +1027,9 @@ class ContinuousLearningController(QObject):
             
             self.testProgressUpdated.emit(20.0)
             
-            # 加载测试数据
-            X_test, y_test = self._load_test_data(data_tables, features, target_label, feature_mapping)
+            # 加载测试数据 - 传递任务类型信息
+            task_type = self._infer_task_type_from_model_type(model_type, model_path)
+            X_test, y_test = self._load_test_data(data_tables, features, target_label, feature_mapping, task_type)
             if X_test is None or y_test is None:
                 error_msg = "测试数据加载失败"
                 self.testLogUpdated.emit(error_msg)
@@ -1015,7 +1111,27 @@ class ContinuousLearningController(QObject):
             self.testLogUpdated.emit(f"加载预测器失败: {str(e)}")
             return None
     
-    def _load_test_data(self, data_tables, features, target_label, feature_mapping):
+    def _infer_task_type_from_model_type(self, model_type, model_path):
+        """从模型类型和路径推断任务类型"""
+        try:
+            model_type_upper = model_type.upper()
+            model_path_lower = model_path.lower()
+            
+            if "GLR" in model_type_upper or "glr" in model_path_lower:
+                return "glr"
+            elif "TDH" in model_type_upper or "tdh" in model_path_lower or "head" in model_path_lower:
+                return "head"
+            elif "QF" in model_type_upper or "qf" in model_path_lower or "production" in model_path_lower:
+                return "production"
+            else:
+                self.testLogUpdated.emit(f"无法从模型类型 {model_type} 和路径 {model_path} 推断任务类型")
+                return "unknown"
+                
+        except Exception as e:
+            self.testLogUpdated.emit(f"推断任务类型失败: {str(e)}")
+            return "unknown"
+    
+    def _load_test_data(self, data_tables, features, target_label, feature_mapping, task_type=None):
         """加载测试数据"""
         try:
             # 合并所有数据表
@@ -1039,22 +1155,66 @@ class ContinuousLearningController(QObject):
             combined_df = pd.concat(all_data, ignore_index=True)
             self.testLogUpdated.emit(f"合并数据完成: 总共 {len(combined_df)} 行")
             
-            # 🔥 关键修复：使用与训练时相同的特征映射逻辑
-            if feature_mapping:
-                # 按照特征映射的顺序构建测试特征
-                mapped_features = []
-                self.testLogUpdated.emit("应用特征映射:")
-                for model_feature, user_feature in feature_mapping.items():
-                    if user_feature and user_feature.strip():
-                        mapped_features.append(user_feature)
-                        self.testLogUpdated.emit(f"  模型特征 {model_feature} → 用户数据 {user_feature}")
-                
-                if not mapped_features:
-                    self.testLogUpdated.emit("特征映射为空，使用用户选择的特征")
-                    mapped_features = features
-            else:
+            # 使用与训练时相同的特征映射逻辑
+            def get_model_feature_order(task_type):
+                """获取模型特征的标准顺序（与训练时保持一致）"""
+                if task_type == "glr":
+                    return 
+                    return ["Geopressure", "ProduceIndex", "BHT", "Qf", "BSW", "API", "GOR", "Pb", "WHP"]
+                elif task_type in ["production", "head"]:
+                    return ["phdm", "freq", "Pr", "IP", "BHT", "Qf", "BSW", "API", "GOR", "Pb", "WHP"]
+                else:
+                    self.testLogUpdated.emit(f"警告: 未知任务类型 {task_type}")
+                    return []
+            
+            # 获取模型期望的特征顺序
+            model_feature_order = get_model_feature_order(task_type) if task_type else []
+            
+            if not model_feature_order:
+                self.testLogUpdated.emit("无法确定模型特征顺序，使用用户原始特征")
                 mapped_features = features
-                self.testLogUpdated.emit("未使用特征映射，直接使用用户选择的特征")
+            elif feature_mapping:
+                # 有特征映射，直接按照to_list顺序从映射中取特征
+                self.testLogUpdated.emit("应用特征映射:")
+                self.testLogUpdated.emit(f"特征映射字典: {feature_mapping}")
+                self.testLogUpdated.emit(f"期望特征顺序: {model_feature_order}")
+                mapped_features = []
+                
+                for i, model_feature in enumerate(model_feature_order):
+                    if model_feature in feature_mapping:
+                        user_feature = feature_mapping[model_feature]
+                        mapped_features.append(user_feature)
+                        self.testLogUpdated.emit(f"  [{i}] {model_feature} → {user_feature}")
+                    else:
+                        self.testLogUpdated.emit(f"  [{i}] 错误: 特征映射中缺少 {model_feature}")
+                        self.testLogUpdated.emit(f"映射不完整，返回原始特征: {features}")
+                        mapped_features = features  # 映射不完整，返回原始特征
+                        break
+            else:
+                # 没有特征映射，直接取用户特征的前N个
+                expected_count = len(model_feature_order)
+                if len(features) >= expected_count:
+                    mapped_features = features[:expected_count]
+                    self.testLogUpdated.emit(f"无特征映射，取前 {expected_count} 个用户特征:")
+                    self.testLogUpdated.emit(f"原始用户特征: {features}")
+                    self.testLogUpdated.emit(f"选择的特征: {mapped_features}")
+                else:
+                    self.testLogUpdated.emit(f"用户特征数量 {len(features)} 少于期望的 {expected_count} 个")
+                    self.testLogUpdated.emit(f"返回所有用户特征: {features}")
+                    mapped_features = features
+            
+            self.testLogUpdated.emit(f"最终特征数量: {len(mapped_features)}")
+            self.testLogUpdated.emit(f"最终特征顺序: {mapped_features}")
+            self.testLogUpdated.emit(f"期望特征顺序: {model_feature_order}")
+            
+            # 验证特征顺序是否正确
+            if len(mapped_features) == len(model_feature_order) and feature_mapping:
+                self.testLogUpdated.emit("特征顺序验证:")
+                for i, (expected, actual) in enumerate(zip(model_feature_order, mapped_features)):
+                    if expected in feature_mapping and feature_mapping[expected] == actual:
+                        self.testLogUpdated.emit(f"  ✓ [{i}] {expected} → {actual}")
+                    else:
+                        self.testLogUpdated.emit(f"  ✗ [{i}] 期望 {expected}，实际 {actual}")
             
             # 检查必要的列
             required_cols = mapped_features + [target_label]
@@ -1063,8 +1223,6 @@ class ContinuousLearningController(QObject):
                 self.testLogUpdated.emit(f"数据中缺少必要的列: {missing_cols}")
                 return None, None
             
-            # 🔥 使用映射后的特征顺序
-            self.testLogUpdated.emit(f"最终特征顺序: {mapped_features}")
             X_test = combined_df[mapped_features].values
             y_test = combined_df[target_label].values
             
@@ -1278,6 +1436,212 @@ class ContinuousLearningController(QObject):
             
         except Exception as e:
             error_msg = f"删除表失败: {str(e)}"
+            logger.error(error_msg)
+            return {
+                "success": False,
+                "error": error_msg
+            }
+    
+    @Slot(str, result='QVariant')
+    def downloadTemplate(self, task_type):
+        """下载对应任务的Excel模板文件"""
+        try:
+            task_type = task_type.lower()
+            
+            # 定义每个任务类型的模板数据
+            templates = {
+                "glr": {
+                    "filename": "GLR_预测模板.xlsx",
+                    "headers_cn": [
+                        "泵挂垂深", "射孔垂深", "地层压力", "生产指数", "井底温度", "期望产量", 
+                        "含水率", "原油密度", "油气比", "泡点压力", "井口压力", "GLR目标值"
+                    ],
+                    "headers_en": [
+                        "phdm", "freq", "Geopressure", "ProduceIndex", "BHT", "Qf", 
+                        "BSW", "API", "GOR", "Pb", "WHP", "GLR_target"
+                    ],
+                    "units": [
+                        "ft", "ft", "psi", "bbl/d/psi", "°F", "bbl/d", 
+                        "%", "°API", "scf/bbl", "psi", "psi", "无量纲"
+                    ],
+                    "sample_data": [
+                        [8500.0, 8200.0, 2500.0, 1.5, 180.0, 1500.0, 20.0, 35.0, 300.0, 1800.0, 120.0, 0.2],
+                        [8200.0, 7800.0, 2400.0, 1.8, 175.0, 1800.0, 15.0, 38.0, 320.0, 1750.0, 100.0, 0.18],
+                        [8800.0, 8400.0, 2600.0, 1.2, 185.0, 1200.0, 25.0, 32.0, 280.0, 1900.0, 140.0, 0.22]
+                    ],
+                    "description": "气液比(GLR)预测模型训练数据模板。基于GLRInput类的11个特征进行预测。",
+                    "features_count": 11
+                },
+                "qf": {
+                    "filename": "QF_预测模板.xlsx",
+                    "headers_cn": [
+                        "射孔垂深", "泵挂垂深", "油藏压力", "生产指数", "井底温度", "期望产量", 
+                        "含水率", "原油密度", "油气比", "泡点压力", "井口压力", "QF目标值"
+                    ],
+                    "headers_en": [
+                        "phdm", "freq", "Pr", "IP", "BHT", "Qf", 
+                        "BSW", "API", "GOR", "Pb", "WHP", "QF_target"
+                    ],
+                    "units": [
+                        "ft", "ft", "psi", "bbl/d/psi", "°F", "bbl/d", 
+                        "%", "°API", "scf/bbl", "psi", "psi", "bbl/d"
+                    ],
+                    "sample_data": [
+                        [8500.0, 55.0, 2500.0, 1.5, 180.0, 1500.0, 20.0, 35.0, 300.0, 1800.0, 120.0, 1520.0],
+                        [8200.0, 60.0, 2400.0, 1.8, 175.0, 1800.0, 15.0, 38.0, 320.0, 1750.0, 100.0, 1850.0],
+                        [8800.0, 50.0, 2600.0, 1.2, 185.0, 1200.0, 25.0, 32.0, 280.0, 1900.0, 140.0, 1180.0]
+                    ],
+                    "description": "产量(QF)预测模型训练数据模板。基于QFInput类的11个特征进行预测。",
+                    "features_count": 11
+                },
+                "tdh": {
+                    "filename": "TDH_预测模板.xlsx",
+                    "headers_cn": [
+                        "射孔垂深", "泵挂垂深", "油藏压力", "生产指数", "井底温度", "期望产量", 
+                        "含水率", "原油密度", "油气比", "泡点压力", "井口压力", "TDH目标值"
+                    ],
+                    "headers_en": [
+                        "phdm", "freq", "Pr", "IP", "BHT", "Qf", 
+                        "BSW", "API", "GOR", "Pb", "WHP", "TDH_target"
+                    ],
+                    "units": [
+                        "ft", "ft", "psi", "bbl/d/psi", "°F", "bbl/d", 
+                        "%", "°API", "scf/bbl", "psi", "psi", "ft"
+                    ],
+                    "sample_data": [
+                        [8500.0, 55.0, 2500.0, 1.5, 180.0, 1500.0, 20.0, 35.0, 300.0, 1800.0, 120.0, 8950.0],
+                        [8200.0, 60.0, 2400.0, 1.8, 175.0, 1800.0, 15.0, 38.0, 320.0, 1750.0, 100.0, 8480.0],
+                        [8800.0, 50.0, 2600.0, 1.2, 185.0, 1200.0, 25.0, 32.0, 280.0, 1900.0, 140.0, 9320.0]
+                    ],
+                    "description": "总扬程(TDH)预测模型训练数据模板。基于SVRInput类的11个特征进行预测。",
+                    "features_count": 11
+                }
+            }
+            
+            if task_type not in templates:
+                return {
+                    "success": False,
+                    "error": f"不支持的任务类型: {task_type}"
+                }
+            
+            template_info = templates[task_type]
+            
+            # 使用文件保存对话框让用户选择保存位置
+            from PySide6.QtWidgets import QFileDialog, QApplication
+            if QApplication.instance():
+                # 获取用户文档目录作为默认路径
+                from PySide6.QtCore import QStandardPaths
+                documents_path = QStandardPaths.writableLocation(QStandardPaths.DocumentsLocation)
+                default_path = f"{documents_path}/{template_info['filename']}"
+                
+                # 弹出保存文件对话框
+                file_path, _ = QFileDialog.getSaveFileName(
+                    None,
+                    "保存模板文件" if task_type.lower() in ['glr', 'qf', 'tdh'] else "Save Template File",
+                    default_path,
+                    "Excel files (*.xlsx);;All files (*.*)"
+                )
+                
+                # 如果用户取消了保存
+                if not file_path:
+                    return {
+                        "success": False,
+                        "error": "用户取消了保存操作"
+                    }
+            else:
+                # 如果没有GUI环境，使用默认路径
+                from PySide6.QtCore import QStandardPaths
+                documents_path = QStandardPaths.writableLocation(QStandardPaths.DocumentsLocation)
+                file_path = f"{documents_path}/{template_info['filename']}"
+            
+            # 创建带有中文标题和单位行的DataFrame
+            # 第一行：中文字段名
+            # 第二行：单位行（实际使用时需要删除此行）
+            # 第三行开始：示例数据
+            excel_data = []
+            excel_data.append(template_info["headers_cn"])  # 中文标题行
+            excel_data.append(template_info["units"])       # 单位行
+            excel_data.extend(template_info["sample_data"]) # 示例数据
+            
+            df = pd.DataFrame(excel_data)
+            
+            # 保存Excel文件，包含数据和说明
+            with pd.ExcelWriter(file_path, engine='openpyxl') as writer:
+                # 写入主数据表（不要列标题，因为我们已经在数据中包含了）
+                df.to_excel(writer, sheet_name='数据模板', index=False, header=False)
+                
+                # 创建字段说明表
+                field_desc_data = []
+                field_desc_data.append(['中文字段名', '英文字段名', '单位', '说明'])
+                
+                # 添加每个字段的具体说明
+                for i, (cn_name, en_name, unit) in enumerate(zip(
+                    template_info["headers_cn"], 
+                    template_info["headers_en"], 
+                    template_info["units"]
+                )):
+                    if i == len(template_info["headers_cn"]) - 1:  # 目标字段
+                        desc = f"{task_type.upper()}预测的目标值"
+                    else:  # 特征字段
+                        desc = f"{task_type.upper()}模型的输入特征"
+                    
+                    field_desc_data.append([cn_name, en_name, unit, desc])
+                
+                field_desc_df = pd.DataFrame(field_desc_data[1:], columns=field_desc_data[0])
+                field_desc_df.to_excel(writer, sheet_name='字段说明', index=False)
+                
+                # 创建使用说明表
+                description_df = pd.DataFrame({
+                    '重要使用说明': [
+                        '⚠️ 重要提醒：上传Excel文件时，必须删除第2行单位行！',
+                        '',
+                        '模板说明：' + template_info["description"],
+                        '',
+                        '模板结构：',
+                        '• 第1行：中文字段名（请保持不变）',
+                        '• 第2行：字段单位（仅供参考，上传时请删除此行）',
+                        '• 第3行开始：示例数据（请替换为真实数据）',
+                        '',
+                        '数据要求：',
+                        '• 数值字段：请填入数字，避免文本',
+                        '• 单位：请按照第2行显示的单位填写数据',
+                        '',
+                        '数据质量要求：',
+                        '• 避免空值和异常值',
+                        '• 数值范围要合理（参考示例数据）',
+                        '• 建议数据量不少于100条以获得更好训练效果',
+                        '',
+                        '使用步骤：',
+                        '1. 保留第1行（中文字段名）',
+                        '2. 删除第2行（单位行）',
+                        '3. 删除第3行开始的示例数据',
+                        '4. 填入您的真实数据',
+                        '5. 检查数据格式和完整性',
+                        '6. 保存文件并在数据管理界面上传',
+                        '',
+                        '⚠️ 特别注意：',
+                        '• 上传时只保留第1行字段名和实际数据',
+                        '• 必须删除第2行单位行，否则会影响数据导入',
+                        '• 数据列顺序必须与模板保持一致',
+                        '• 目标值列是您要预测的量（最后一列）',
+                        '',
+                        f'模板信息：',
+                        f'• 任务类型：{task_type.upper()}预测模型',
+                        f'• 输入特征数：{template_info["features_count"]}个',
+                        f'• 对应模型类：{task_type.upper()}Input'
+                    ]
+                })
+                description_df.to_excel(writer, sheet_name='使用说明', index=False, header=False)
+            
+            logger.info(f"成功创建{task_type.upper()}模板文件: {file_path}")
+            return {
+                "success": True,
+                "message": f"模板已保存到: {file_path}",
+                "file_path": file_path
+            }
+            
+        except Exception as e:
+            error_msg = f"下载模板失败: {str(e)}"
             logger.error(error_msg)
             return {
                 "success": False,
