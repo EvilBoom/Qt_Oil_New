@@ -16,6 +16,12 @@ Item {
     property int lineWidth: 3
     property bool showPercentage: true
 
+    // 新增：文本配置属性（外部可直接控制内部Text）
+    property string textContent: `${Math.round(value * 100)}%` // 自定义文本内容
+    property int textFontSize: Math.max(Math.min(width, height) * 0.35, 12) // 字体大小
+    property color textColor: Material.primaryTextColor // 文本颜色
+    property bool textBold: true // 文本加粗
+
     width: 50
     height: 50
 

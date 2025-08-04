@@ -41,7 +41,7 @@ Rectangle {
 
                 model: ListModel {
                     ListElement { value: "all"; label: "全部类型"; label_en: "All Types" }
-                    ListElement { value: "pump"; label: "潜油离心泵"; label_en: "Centrifugal Pump" }
+                    ListElement { value: "pump"; label: "泵设备"; label_en: "Pump" }
                     ListElement { value: "motor"; label: "电机"; label_en: "Motor" }
                     ListElement { value: "protector"; label: "保护器"; label_en: "Protector" }
                     ListElement { value: "separator"; label: "分离器"; label_en: "Separator" }

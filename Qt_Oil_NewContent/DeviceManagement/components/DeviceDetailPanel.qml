@@ -759,7 +759,8 @@ Rectangle {
     function getTypeText(type) {
         if (isChineseMode) {
             switch(type) {
-                case "pump": return "潜油离心泵"
+                // 🔥 修改：从"潜油离心泵"改为"泵设备"
+                case "pump": return "泵设备"
                 case "motor": return "电机"
                 case "protector": return "保护器"
                 case "separator": return "分离器"
@@ -767,7 +768,8 @@ Rectangle {
             }
         } else {
             switch(type) {
-                case "pump": return "Centrifugal Pump"
+                // 🔥 修改：从"Centrifugal Pump"改为"Pump"
+                case "pump": return "Pump"
                 case "motor": return "Motor"
                 case "protector": return "Protector"
                 case "separator": return "Separator"

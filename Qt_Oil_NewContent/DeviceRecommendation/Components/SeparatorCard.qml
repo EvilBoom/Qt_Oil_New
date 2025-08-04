@@ -13,23 +13,33 @@ Rectangle {
     property bool isSelected: false
     property int matchScore: 50
     property bool isChineseMode: true
-    
+    // 🔥 添加单位制属性
+    property bool isMetric: unitSystemController ? unitSystemController.isMetric : false
+    // 🔥 监听单位制变化
+    Connections {
+        target: unitSystemController
+        enabled: unitSystemController !== null
+
+        function onUnitSystemChanged(isMetric) {
+            root.isMetric = isMetric
+            console.log("SeparatorCard中单位制切换为:", isMetric ? "公制" : "英制")
+        }
+    }
     signal clicked()
-    
-    color: isSelected ? Material.dialogColor : Material.backgroundColor
+    color: isSelected ? '#F5F5DC' : Material.backgroundColor
     radius: 8
     border.width: isSelected ? 2 : 1
-    border.color: isSelected ? Material.accent : Material.dividerColor
+    border.color: isSelected ? Material.DeepPurple : Material.Brown
     
     // 推荐标识
     Rectangle {
         anchors.top: parent.top
         anchors.right: parent.right
-        anchors.margins: 8
+        anchors.margins: 1
         width: 60
-        height: 24
+        height: 20
         radius: 12
-        color: Material.accent
+        color: Material.Green
         visible: matchScore >= 80 && !separatorData.isNoSeparator
         
         Text {
@@ -182,7 +192,10 @@ Rectangle {
                 }
                 
                 Text {
-                    text: (separatorData ? separatorData.gasHandlingCapacity : 0) + " mcf/d"
+                    text: {
+                        if (!separatorData) return "N/A"
+                        return formatGasCapacity(separatorData.gasHandlingCapacity)
+                    }
                     font.pixelSize: 12
                     font.bold: true
                     color: Material.primaryTextColor
@@ -194,7 +207,10 @@ Rectangle {
                 spacing: 2
                 
                 Text {
-                    text: isChineseMode ? "液体处理" : "Liquid Capacity"
+                    text: {
+                        if (!separatorData) return "N/A"
+                        return formatFlowRate(separatorData.liquidHandlingCapacity)
+                    }
                     font.pixelSize: 11
                     color: Material.hintTextColor
                 }
@@ -218,7 +234,10 @@ Rectangle {
                 }
                 
                 Text {
-                    text: (separatorData ? separatorData.outerDiameter : 0) + " in"
+                    text: {
+                        if (!separatorData) return "N/A"
+                        return formatDiameter(separatorData.outerDiameter)
+                    }
                     font.pixelSize: 12
                     font.bold: true
                     color: Material.primaryTextColor
@@ -234,6 +253,87 @@ Rectangle {
         opacity: 0.1
         radius: parent.radius
         visible: isSelected
+    }
+    // 🔥 =====================================
+    // 🔥 单位转换和格式化函数
+    // 🔥 =====================================
+
+    function formatFlowRate(valueInBbl) {
+        if (!valueInBbl || valueInBbl <= 0) return "N/A"
+
+        if (isMetric) {
+            // 转换为 m³/d
+            var m3Value = valueInBbl * 0.159
+            return m3Value.toFixed(1) + " m³/d"
+        } else {
+            // 保持 bbl/d
+            return valueInBbl.toFixed(0) + " bbl/d"
+        }
+    }
+
+    function formatGasCapacity(valueInMcf) {
+        if (!valueInMcf || valueInMcf <= 0) return "N/A"
+
+        if (isMetric) {
+            // 转换为 m³/d (1 mcf = 28.317 m³)
+            var m3Value = valueInMcf * 28.317
+            return m3Value.toFixed(0) + " m³/d"
+        } else {
+            // 保持 mcf/d
+            return valueInMcf.toFixed(1) + " mcf/d"
+        }
+    }
+
+    function formatDiameter(valueInInches) {
+        if (!valueInInches || valueInInches <= 0) return "N/A"
+
+        if (isMetric) {
+            // 转换为毫米
+            var mmValue = valueInInches * 25.4
+            return mmValue.toFixed(0) + " mm"
+        } else {
+            // 保持英寸
+            return valueInInches.toFixed(1) + " in"
+        }
+    }
+
+    function formatLength(valueInFt) {
+        if (!valueInFt || valueInFt <= 0) return "N/A"
+
+        if (isMetric) {
+            // 转换为米
+            var mValue = valueInFt * 0.3048
+            return mValue.toFixed(1) + " m"
+        } else {
+            // 保持英尺
+            return valueInFt.toFixed(1) + " ft"
+        }
+    }
+
+    function formatWeight(valueInLbs) {
+        if (!valueInLbs || valueInLbs <= 0) return "N/A"
+
+        if (isMetric) {
+            // 转换为千克
+            var kgValue = valueInLbs * 0.453592
+            return kgValue.toFixed(0) + " kg"
+        } else {
+            // 保持磅
+            return valueInLbs.toFixed(0) + " lbs"
+        }
+    }
+
+    function formatPressure(valueInPsi) {
+        if (!valueInPsi || valueInPsi <= 0) return "N/A"
+
+        if (isMetric) {
+            // 转换为MPa
+            var mpaValue = valueInPsi / 145.038
+            return mpaValue.toFixed(1) + " MPa"
+        } else {
+            // 保持psi
+            return valueInPsi.toFixed(0) + " psi"
+        }
     }
 }
 

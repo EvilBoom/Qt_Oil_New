@@ -18,12 +18,60 @@ Rectangle {
     // 组件加载时初始化
     Component.onCompleted: {
 
+        console.log("========================================")
+        console.log("=== DeviceManagementPage 初始化开始 ===")
+        console.log("========================================")
+
+        console.log("页面属性:")
+        console.log("  - isChineseMode:", isChineseMode)
+        console.log("  - root.width:", root.width)
+        console.log("  - root.height:", root.height)
+
+        // 检查 deviceController 是否存在
+        console.log("控制器检查:")
+        console.log("  - typeof deviceController:", typeof deviceController)
+        console.log("  - deviceController 存在:", typeof deviceController !== 'undefined')
+
         if (typeof deviceController !== 'undefined') {
-            deviceController.loadDevices()
-            deviceController.loadStatistics()
+            console.log("deviceController 详细信息:")
+            try {
+                console.log("  - loading:", deviceController.loading)
+                console.log("  - deviceListModel:", deviceController.deviceListModel)
+                console.log("  - totalCount:", deviceController.totalCount)
+                console.log("  - currentPage:", deviceController.currentPage)
+                console.log("  - totalPages:", deviceController.totalPages)
+
+                console.log("开始调用 loadDevices()...")
+                deviceController.loadDevices()
+
+                console.log("开始调用 loadStatistics()...")
+                deviceController.loadStatistics()
+
+                console.log("设备控制器初始化完成")
+            } catch (e) {
+                console.error("访问 deviceController 时出错:", e)
+            }
         } else {
-            console.error("DeviceController not found in context")
+            console.error("❌ DeviceController 未在上下文中找到")
             showMessage(isChineseMode ? "设备控制器未初始化" : "Device controller not initialized", true)
+        }
+
+        console.log("=== DeviceManagementPage 初始化完成 ===")
+
+    }
+    // 🔥 添加错误边界
+    Timer {
+        id: initTimer
+        interval: 1000
+        running: true
+        onTriggered: {
+            console.log("=== 延迟检查（1秒后）===")
+            console.log("页面是否可见:", root.visible)
+            console.log("页面尺寸:", root.width, "x", root.height)
+
+            if (typeof deviceController !== 'undefined' && deviceController.deviceListModel) {
+                console.log("设备模型行数:", deviceController.deviceListModel.rowCount())
+            }
         }
     }
 
@@ -107,7 +155,7 @@ Rectangle {
                         flat: true
 
                         onClicked: {
-                            exportDialog.open()
+                            exportDialog.show()
                         }
                     }
 
@@ -115,6 +163,27 @@ Rectangle {
                     Button {
                         text: isChineseMode ? "➕ 添加设备" : "➕ Add Device"
                         highlighted: true
+                        // 定制按钮背景为蓝色
+                        background: Rectangle {
+
+                                radius: 4 // 轻微圆角，增强视觉效果
+                                // 可选：添加状态变化（悬停/按下时颜色加深）
+                                Behavior on color {
+                                    ColorAnimation { duration: 200 }
+                                }
+                                color: parent.pressed ? "#0A47CC" : // 按下时深色
+                                       parent.hovered ? "#2A6FFF" : // 悬停时中色
+                                       "blue" // 默认蓝色
+                            }
+                            // 定制文本颜色（白色更适配蓝色背景）
+                        contentItem: Text {
+                                    text: parent.text
+                                    color: "white" // 白色文本
+                                    font.pixelSize: 14
+                                    font.bold: true
+                                    horizontalAlignment: Text.AlignHCenter
+                                    verticalAlignment: Text.AlignVCenter
+                                }
 
                         onClicked: {
                             if (deviceController) {
@@ -468,14 +537,21 @@ Rectangle {
         }
     }
 
-    // 导入导出对话框
+    // 在DeviceImportDialog的信号连接部分
     DeviceImportDialog {
         id: importDialog
-        isChineseMode: root.isChineseMode
 
-        onImportRequested: function(fileUrl, deviceType) {
-            if (deviceController) {
-                deviceController.importFromExcel(fileUrl, deviceType)
+        onImportRequested: function(fileUrl, deviceType, isMetric) {
+            console.log("Import requested:", fileUrl, deviceType, "Metric:", isMetric)
+            if (typeof deviceController !== "undefined") {
+                deviceController.importFromExcel(fileUrl, deviceType, isMetric)
+            }
+        }
+
+        onTemplateDownloadRequested: function(deviceType, savePath, isMetric) {
+            console.log("Template download requested:", deviceType, "Path:", savePath, "Metric:", isMetric)
+            if (typeof deviceController !== "undefined") {
+                deviceController.generateTemplate(deviceType, savePath, isMetric)
             }
         }
     }
@@ -485,9 +561,14 @@ Rectangle {
         isChineseMode: root.isChineseMode
 
         onExportRequested: function(fileUrl, deviceType) {
-            if (deviceController) {
-                deviceController.exportToExcel(fileUrl, deviceType)
+            console.log("Export requested:", fileUrl, deviceType)
+            if (typeof deviceController !== "undefined") {
+                deviceController.exportDevices(fileUrl, deviceType)
             }
+
+            // 显示导出进度提示
+            busyIndicator.visible = true
+            statusText.text = isChineseMode ? "正在导出..." : "Exporting..."
         }
     }
 
@@ -528,6 +609,13 @@ Rectangle {
 
         function onErrorOccurred(errorMessage) {
             showMessage(errorMessage, true)
+        }
+        function onTemplateGenerated(filePath) {
+            showMessage(isChineseMode ? "模板下载成功" : "Template downloaded successfully", false)
+        }
+
+        function onTemplateGenerationFailed(errorMsg) {
+            showMessage(isChineseMode ? "模板生成失败: " + errorMsg : "Template generation failed: " + errorMsg, true)
         }
     }
 

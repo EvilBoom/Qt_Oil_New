@@ -12,14 +12,26 @@ Rectangle {
     property bool isSelected: false
     property int matchScore: 50
     property bool isChineseMode: true
+    // 🔥 添加单位制属性
+    property bool isMetric: unitSystemController ? unitSystemController.isMetric : false
 
     signal clicked()
 
-    color: isSelected ? Material.accent : Material.backgroundColor
-    border.color: isSelected ? Material.accent : Material.dividerColor
+    color: isSelected ? '#F5F5DC' : Material.backgroundColor
+    border.color: isSelected ? Material.DeepPurple : Material.Brown
     border.width: isSelected ? 2 : 1
     radius: 8
 
+    // 🔥 监听单位制变化
+    Connections {
+        target: unitSystemController
+        enabled: unitSystemController !== null
+
+        function onUnitSystemChanged(isMetric) {
+            root.isMetric = isMetric
+            console.log("PumpSelectionCard中单位制切换为:", isMetric ? "公制" : "英制")
+        }
+    }
     // 推荐标识
     Rectangle {
         anchors.top: parent.top
@@ -58,14 +70,14 @@ Rectangle {
                 Text {
                     text: pumpData ? pumpData.manufacturer : ""
                     font.pixelSize: 12
-                    color: isSelected ? "white" : Material.secondaryTextColor
+                    color: isSelected ? "black" : Material.secondaryTextColor
                 }
 
                 Text {
                     text: pumpData ? pumpData.model : ""
                     font.pixelSize: 16
                     font.bold: true
-                    color: isSelected ? "white" : Material.primaryTextColor
+                    color: isSelected ? "black" : Material.primaryTextColor
                     elide: Text.ElideRight
                     width: parent.width
                 }
@@ -73,7 +85,7 @@ Rectangle {
                 Text {
                     text: pumpData ? pumpData.series + " Series" : ""
                     font.pixelSize: 11
-                    color: isSelected ? "white" : Material.hintTextColor
+                    color: isSelected ? "black" : Material.hintTextColor
                 }
             }
 
@@ -83,7 +95,7 @@ Rectangle {
                 height: 50
                 radius: 25
                 color: "transparent"
-                border.color: isSelected ? "white" : Material.accent
+                border.color: isSelected ? "black" : Material.Blue
                 border.width: 2
 
                 Text {
@@ -91,7 +103,7 @@ Rectangle {
                     text: matchScore + "%"
                     font.pixelSize: 11
                     font.bold: true
-                    color: isSelected ? "white" : Material.accent
+                    color: isSelected ? "black" : Material.Blue
                 }
             }
         }
@@ -111,7 +123,7 @@ Rectangle {
                 text: isChineseMode ? "关键参数" : "Key Parameters"
                 font.pixelSize: 13
                 font.bold: true
-                color: isSelected ? "white" : Material.primaryTextColor
+                color: isSelected ? "black" : Material.primaryTextColor
             }
 
             // 🔥 使用Column + Row的简单布局
@@ -126,14 +138,17 @@ Rectangle {
                     Text {
                         text: isChineseMode ? "流量:" : "Flow:"
                         font.pixelSize: 11
-                        color: isSelected ? Qt.rgba(1,1,1,0.8) : Material.secondaryTextColor
+                        color: isSelected ? "black" : Material.secondaryTextColor
                         width: 60
                     }
                     Text {
-                        text: pumpData ? pumpData.minFlow + "-" + pumpData.maxFlow + " bbl/d" : "N/A"
+                        text: {
+                            if (!pumpData) return "N/A"
+                            return formatFlowRange(pumpData.minFlow, pumpData.maxFlow)
+                        }
                         font.pixelSize: 11
                         font.bold: true
-                        color: isSelected ? "white" : Material.primaryTextColor
+                        color: isSelected ? "black" : Material.primaryTextColor
                         width: parent.width - 72
                         wrapMode: Text.WordWrap
                     }
@@ -146,14 +161,17 @@ Rectangle {
                     Text {
                         text: isChineseMode ? "扬程:" : "Head:"
                         font.pixelSize: 11
-                        color: isSelected ? Qt.rgba(1,1,1,0.8) : Material.secondaryTextColor
+                        color: isSelected ? "black" : Material.secondaryTextColor
                         width: 60
                     }
                     Text {
-                        text: pumpData ? pumpData.headPerStage + " ft/stage" : "N/A"
+                        text: {
+                            if (!pumpData) return "N/A"
+                            return formatHeadPerStage(pumpData.headPerStage)
+                        }
                         font.pixelSize: 11
                         font.bold: true
-                        color: isSelected ? "white" : Material.primaryTextColor
+                        color: isSelected ? "black" : Material.primaryTextColor
                     }
                 }
 
@@ -164,14 +182,14 @@ Rectangle {
                     Text {
                         text: isChineseMode ? "效率:" : "Efficiency:"
                         font.pixelSize: 11
-                        color: isSelected ? Qt.rgba(1,1,1,0.8) : Material.secondaryTextColor
+                        color: isSelected ? "black" : Material.secondaryTextColor
                         width: 60
                     }
                     Text {
                         text: pumpData ? pumpData.efficiency + "%" : "N/A"
                         font.pixelSize: 11
                         font.bold: true
-                        color: isSelected ? "white" : "#4CAF50"
+                        color: isSelected ? "black" : "#4CAF50"
                     }
                 }
 
@@ -182,14 +200,35 @@ Rectangle {
                     Text {
                         text: isChineseMode ? "外径:" : "OD:"
                         font.pixelSize: 11
-                        color: isSelected ? Qt.rgba(1,1,1,0.8) : Material.secondaryTextColor
+                        color: isSelected ? "black" : Material.secondaryTextColor
                         width: 60
                     }
                     Text {
-                        text: pumpData ? pumpData.outerDiameter + " in" : "N/A"
+                        text: {
+                            if (!pumpData) return "N/A"
+                            return formatDiameter(pumpData.outerDiameter)
+                        }
                         font.pixelSize: 11
                         font.bold: true
-                        color: isSelected ? "white" : Material.primaryTextColor
+                        color: isSelected ? "black" : Material.primaryTextColor
+                    }
+                }
+                // 🔥 可选：添加最大级数显示
+                Row {
+                    width: parent.width
+                    spacing: 12
+
+                    Text {
+                        text: isChineseMode ? "级数:" : "Max Stages:"
+                        font.pixelSize: 11
+                        color: isSelected ? "black" : Material.secondaryTextColor
+                        width: 60
+                    }
+                    Text {
+                        text: pumpData ? pumpData.maxStages + (isChineseMode ? " 级" : " stages") : "N/A"
+                        font.pixelSize: 11
+                        font.bold: true
+                        color: isSelected ? "black" : Material.primaryTextColor
                     }
                 }
             }
@@ -206,8 +245,8 @@ Rectangle {
                   (isChineseMode ? "✓ 已选择" : "✓ Selected") :
                   (isChineseMode ? "选择此泵" : "Select Pump")
 
-            Material.background: isSelected ? "white" : Material.accent
-            Material.foreground: isSelected ? Material.accent : "white"
+            Material.background: isSelected ? "white" : Material.Green
+            Material.foreground: isSelected ? Material.Green : "white"
             font.pixelSize: 12
             font.bold: true
 
@@ -226,5 +265,60 @@ Rectangle {
             root.clicked()
         }
         z: -1  // 确保按钮可以接收点击
+    }
+    // 🔥 =====================================
+    // 🔥 单位转换和格式化函数
+    // 🔥 =====================================
+
+    function formatFlowRange(minFlow, maxFlow) {
+        if (!minFlow || !maxFlow) return "N/A"
+
+        if (isMetric) {
+            // 转换为 m³/d
+            var minM3 = minFlow * 0.159
+            var maxM3 = maxFlow * 0.159
+            return minM3.toFixed(0) + "-" + maxM3.toFixed(0) + " m³/d"
+        } else {
+            // 保持 bbl/d
+            return minFlow + "-" + maxFlow + " bbl/d"
+        }
+    }
+
+    function formatHeadPerStage(headPerStage) {
+        if (!headPerStage) return "N/A"
+
+        if (isMetric) {
+            // 转换为 m/级
+            var mPerStage = headPerStage * 0.3048
+            return mPerStage.toFixed(1) + " " + (isChineseMode ? "m/级" : "m/stage")
+        } else {
+            // 保持 ft/stage
+            return headPerStage + " " + (isChineseMode ? "ft/级" : "ft/stage")
+        }
+    }
+
+    function formatDiameter(diameter) {
+        if (!diameter) return "N/A"
+
+        if (isMetric) {
+            // 转换为毫米
+            var mmValue = diameter * 25.4
+            return mmValue.toFixed(0) + " mm"
+        } else {
+            // 保持英寸
+            return diameter.toFixed(1) + " in"
+        }
+    }
+
+    function formatPower(powerPerStage) {
+        if (!powerPerStage) return "N/A"
+
+        if (isMetric) {
+            // 功率通常保持kW不变，或者转换
+            return powerPerStage.toFixed(1) + " kW/stage"
+        } else {
+            // 保持HP
+            return powerPerStage.toFixed(1) + " HP/stage"
+        }
     }
 }

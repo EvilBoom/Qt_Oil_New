@@ -113,8 +113,8 @@ class MLPredictionService:
                 'scaler': 'QF-SVR-SCALER-Best-03-16.pkl'
             },
             'total_head': {
-                'model': 'TDH-SVR-Model-Best-05-16.joblib',
-                'scaler': 'TDH-SVR-SCALER-Best-05-16.pkl'
+                'model': 'TDH-SVR-Model-Best.joblib',
+                'scaler': 'TDH-SVR-SCALER-Best.joblib'
             },
             'gas_rate': {
                 'model': 'best_model_0815.keras',

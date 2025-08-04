@@ -9,6 +9,7 @@ from PySide6.QtCore import QObject, Signal, Slot, QUrl
 # 导入控制器
 from Controller.LoginController import LoginController
 from Controller.ProjectController import ProjectController
+from Controller.UnitSystemController import UnitSystemController
 from Controller.WellDataController import WellDataController
 from Controller.ReservoirDataController import ReservoirDataController
 
@@ -56,7 +57,7 @@ class Application(QObject):
         self.app = QApplication(sys.argv)
         self.engine = QQmlApplicationEngine()
         # 设置全局字体
-        self.setup_global_font()
+        # self.setup_global_font()
         # 设置应用程序信息
         self.app.setOrganizationName("OilTech")
         self.app.setOrganizationDomain("oiltech.com")
@@ -77,7 +78,7 @@ class Application(QObject):
         self.device_recommendation_controller = DeviceRecommendationController()
         self.pump_curves_controller = PumpCurvesController()
         self.pump_curves_controller.set_database_service(self.db_service)
-
+        self.unit_system_controller = UnitSystemController()
 
         # 存储用户信息
         self.current_user = ""
@@ -103,7 +104,8 @@ class Application(QObject):
         self.project_controller.error.connect(self.on_controller_error)
         self.well_controller.error.connect(self.on_controller_error)
         self.reservoir_controller.error.connect(self.on_controller_error)
-
+        # 🔥 连接单位制变化信号到其他控制器
+        # self.unit_system_controller.unitSystemChanged.connect(self.on_unit_system_changed)
 
         # 将控制器注册到QML引擎
         self.engine.rootContext().setContextProperty("loginController", self.login_controller)
@@ -117,7 +119,15 @@ class Application(QObject):
         self.engine.rootContext().setContextProperty("deviceController", self.device_controller)
         self.engine.rootContext().setContextProperty("deviceRecommendationController", self.device_recommendation_controller)
         self.engine.rootContext().setContextProperty("pumpCurvesController", self.pump_curves_controller)
+        self.engine.rootContext().setContextProperty("unitSystemController", self.unit_system_controller)
 
+        # 连接Excel导入控制器信号
+        self.excel_import_controller.templateGenerated.connect(self.on_template_generated)
+        self.excel_import_controller.templateGenerationFailed.connect(self.on_template_generation_failed)
+        # 🔥 连接设备导出信号
+        self.device_controller.exportCompleted.connect(self.on_device_export_completed)
+        self.device_controller.exportProgress.connect(self.on_device_export_progress)
+        self.device_controller.exportFailed.connect(self.on_device_export_failed)
 
         # 加载登录QML文件
         qml_file = Path(__file__).resolve().parent / "QT_Oil_NewContent/StartWindow.qml"
@@ -208,7 +218,7 @@ class Application(QObject):
         # 这里可以添加全局错误处理逻辑
 
     def open_main_window(self, project_name, user_name):
-
+        
         """打开主窗口"""
         try:
             # 先加载主窗口
@@ -251,7 +261,8 @@ class Application(QObject):
                 main_window.setProperty("currentProjectName", project_name)
                 
                 main_window.setProperty("isChinese", self.login_controller.language)
-
+                # 在 open_main_window 方法中添加
+                main_window.setProperty("isMetric", self.unit_system_controller.isMetric)
                 print(f"主窗口已加载，用户: {user_name}, 项目: {project_name}, 项目ID: {self.current_project_id}, 语言: {'中文' if self.login_controller.language else '英文'}")
 
                 # 加载项目数据
@@ -292,6 +303,31 @@ class Application(QObject):
     def on_well_deleted(self, well_id, well_name):
         """井删除成功处理函数"""
         print(f"井删除成功: {well_name} (ID: {well_id})")
+
+    @Slot(str)
+    def on_template_generated(self, file_path):
+        """模板生成成功处理"""
+        print(f"模板生成成功: {file_path}")
+
+    @Slot(str)  
+    def on_template_generation_failed(self, error_msg):
+        """模板生成失败处理"""
+        print(f"模板生成失败: {error_msg}")
+
+    @Slot(str, int)
+    def on_device_export_completed(self, file_path, count):
+        """设备导出完成处理"""
+        print(f"设备导出完成: {count}个设备已导出到 {file_path}")
+
+    @Slot(int, int)
+    def on_device_export_progress(self, current, total):
+        """设备导出进度处理"""
+        print(f"导出进度: {current}/{total}")
+
+    @Slot(str)
+    def on_device_export_failed(self, error_msg):
+        """设备导出失败处理"""
+        print(f"设备导出失败: {error_msg}")
 
 if __name__ == "__main__":
     app = Application()

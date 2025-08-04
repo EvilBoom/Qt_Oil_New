@@ -6,6 +6,8 @@ import QtQuick.Layouts
 import QtQuick.Controls.Material
 import QtCharts
 import "../Components" as LocalComponents
+import "../../Common/Components" as CommonComponents
+import "../../Common/Utils/UnitUtils.js" as UnitUtils
 
 Rectangle {
     id: root
@@ -16,7 +18,8 @@ Rectangle {
     property int wellId: -1
     property var stepData: ({})
     property var constraints: ({})
-    
+    // 🔥 添加单位制属性
+    property bool isMetric: unitSystemController ? unitSystemController.isMetric : false
     // 信号
     signal nextStepRequested()
     signal dataChanged(var data)
@@ -44,6 +47,18 @@ Rectangle {
         console.log("🔍 filteredMotors计算结果:", result ? result.length : "null", "个")
 
         return result
+    }
+    // 🔥 监听单位制变化
+    Connections {
+        target: unitSystemController
+        enabled: unitSystemController !== null
+
+        function onUnitSystemChanged(isMetric) {
+            root.isMetric = isMetric
+            console.log("Step7中单位制切换为:", isMetric ? "公制" : "英制")
+            // 强制更新显示
+            updateParameterDisplays()
+        }
     }
     // 同时添加一个监听器
     onFilteredMotorsChanged: {
@@ -239,7 +254,7 @@ Rectangle {
     
     ColumnLayout {
         anchors.fill: parent
-        spacing: 16
+        spacing: 5
         
         // 标题栏
         RowLayout {
@@ -326,7 +341,13 @@ Rectangle {
                         }
                         
                         Text {
-                            text: "(" + (requiredPower * 0.746).toFixed(0) + " kW)"
+                            text: {
+                                if (isMetric) {
+                                    return "(" + (requiredPower * 0.746).toFixed(0) + " kW)"
+                                } else {
+                                    return "(" + (requiredPower * 0.746).toFixed(0) + " kW)"
+                                }
+                            }
                             font.pixelSize: 14
                             color: Material.secondaryTextColor
                         }
@@ -350,7 +371,10 @@ Rectangle {
                     }
                     
                     Text {
-                        text: (stepData.parameters ? stepData.parameters.bht : "235") + " °F"
+                        text: {
+                            var tempF = stepData.parameters ? stepData.parameters.bht : "235"
+                            return formatTemperature(parseFloat(tempF))
+                        }
                         font.pixelSize: 18
                         font.bold: true
                         color: Material.primaryTextColor
@@ -374,7 +398,7 @@ Rectangle {
                     }
                     
                     Text {
-                        text: requiredShaftDiameter + " in"
+                        text: formatDiameter(requiredShaftDiameter)
                         font.pixelSize: 18
                         font.bold: true
                         color: Material.primaryTextColor
@@ -401,10 +425,9 @@ Rectangle {
                     Text {
                         text: {
                             if (productionCasingInnerDiameter > 0) {
-                                var originalMm = inchesToMm(productionCasingInnerDiameter)
-                                return productionCasingInnerDiameter.toFixed(2) + " in"
+                                return formatDiameter(productionCasingInnerDiameter)
                             } else {
-                                return "6.18 in (默认)"
+                                return formatDiameter(6.18) + " " + (isChineseMode ? "(默认)" : "(Default)")
                             }
                         }
                         font.pixelSize: 18
@@ -416,7 +439,9 @@ Rectangle {
                         text: {
                             if (productionCasingInnerDiameter > 0) {
                                 var originalMm = inchesToMm(productionCasingInnerDiameter)
-                                return "(" + originalMm.toFixed(1) + " mm)"
+                                return isMetric ?
+                                    "(" + productionCasingInnerDiameter.toFixed(2) + " in)" :
+                                    "(" + originalMm.toFixed(1) + " mm)"
                             } else {
                                 return isChineseMode ? "使用默认" : "Using Default"
                             }
@@ -485,6 +510,7 @@ Rectangle {
                                 selectedVoltage: root.selectedVoltage
                                 selectedFrequency: root.selectedFrequency
                                 isChineseMode: root.isChineseMode
+                                isMetric: root.isMetric  // 🔥 传递单位制属性
                                 
                                 onClicked: {
                                     console.log("电机被选中:", modelData.model)
@@ -642,26 +668,28 @@ Rectangle {
                                         width: 70
                                         height: 70
                                         value: selectedMotor ? calculateMotorMatchScore(selectedMotor) / 100 : 0
+                                        // 可选自定义属性
+                                        lineWidth: 4  // 调整进度环宽度
+                                        backgroundColor: "#E0E0E0"  // 自定义背景色
+                                        // Column {
+                                        //     anchors.centerIn: parent
+                                        //     spacing: 2
 
-                                        Column {
-                                            anchors.centerIn: parent
-                                            spacing: 2
+                                        //     Text {
+                                        //         anchors.horizontalCenter: parent.horizontalCenter
+                                        //         text: selectedMotor ? calculateMotorMatchScore(selectedMotor) + "%" : "0%"
+                                        //         font.pixelSize: 16
+                                        //         font.bold: true
+                                        //         color: Material.primaryTextColor
+                                        //     }
 
-                                            Text {
-                                                anchors.horizontalCenter: parent.horizontalCenter
-                                                text: selectedMotor ? calculateMotorMatchScore(selectedMotor) + "%" : "0%"
-                                                font.pixelSize: 16
-                                                font.bold: true
-                                                color: Material.primaryTextColor
-                                            }
-
-                                            Text {
-                                                anchors.horizontalCenter: parent.horizontalCenter
-                                                text: isChineseMode ? "匹配度" : "Match"
-                                                font.pixelSize: 10
-                                                color: Material.hintTextColor
-                                            }
-                                        }
+                                        //     Text {
+                                        //         anchors.horizontalCenter: parent.horizontalCenter
+                                        //         text: isChineseMode ? "匹配度" : "Match"
+                                        //         font.pixelSize: 10
+                                        //         color: Material.hintTextColor
+                                        //     }
+                                        // }
                                     }
                                 }
                             }
@@ -699,7 +727,7 @@ Rectangle {
                                     rowSpacing: 8
                                     anchors.horizontalCenter: parent.horizontalCenter
 
-                                    // 额定功率
+                                    // 🔥 额定功率 - 支持单位转换
                                     Column {
                                         spacing: 2
                                         Text {
@@ -708,7 +736,7 @@ Rectangle {
                                             color: Material.secondaryTextColor
                                         }
                                         Text {
-                                            text: (selectedMotor ? selectedMotor.power : 0) + " HP"
+                                            text: formatPower(selectedMotor ? selectedMotor.power : 0)
                                             font.pixelSize: 13
                                             font.bold: true
                                             color: Material.primaryTextColor
@@ -903,7 +931,7 @@ Rectangle {
                                     columnSpacing: 20
                                     rowSpacing: 8
 
-                                    // 外径
+                                    // 🔥 外径 - 支持单位转换
                                     Column {
                                         spacing: 2
                                         Text {
@@ -912,14 +940,14 @@ Rectangle {
                                             color: Material.secondaryTextColor
                                         }
                                         Text {
-                                            text: (selectedMotor ? selectedMotor.outerDiameter : 0) + " in"
+                                            text: formatDiameter(selectedMotor ? selectedMotor.outerDiameter : 0)
                                             font.pixelSize: 13
                                             font.bold: true
                                             color: Material.primaryTextColor
                                         }
                                     }
 
-                                    // 长度
+                                    // 🔥 长度 - 支持单位转换
                                     Column {
                                         spacing: 2
                                         Text {
@@ -928,14 +956,14 @@ Rectangle {
                                             color: Material.secondaryTextColor
                                         }
                                         Text {
-                                            text: (selectedMotor ? selectedMotor.length : 0) + " ft"
+                                            text: formatLength(selectedMotor ? selectedMotor.length : 0)
                                             font.pixelSize: 13
                                             font.bold: true
                                             color: Material.primaryTextColor
                                         }
                                     }
 
-                                    // 重量
+                                    // 🔥 重量 - 支持单位转换
                                     Column {
                                         spacing: 2
                                         Text {
@@ -944,7 +972,7 @@ Rectangle {
                                             color: Material.secondaryTextColor
                                         }
                                         Text {
-                                            text: (selectedMotor ? selectedMotor.weight : 0) + " lbs"
+                                            text: formatWeight(selectedMotor ? selectedMotor.weight : 0)
                                             font.pixelSize: 13
                                             font.bold: true
                                             color: Material.primaryTextColor
@@ -1162,9 +1190,10 @@ Rectangle {
         return root.filteredMotors
     }
 
-    // 🔥 在外径筛选逻辑中添加调试信息
+    // 🔥 修复 getFilteredMotorsInternal() 函数中的功率筛选逻辑
+
     function getFilteredMotorsInternal() {
-        console.log("=== 电机筛选（修复版）===")
+        console.log("=== 电机筛选（修复单位匹配问题）===")
 
         if (!availableMotors || availableMotors.length === 0) {
             console.log("⚠️ 没有可用电机数据")
@@ -1227,9 +1256,14 @@ Rectangle {
 
         console.log("🔄 频率筛选后:", frequencyFiltered.length, "个")
 
-        // 3. 功率筛选
+        // 🔥 3. 修复功率筛选 - 处理单位转换
         var powerFiltered = []
-        var requiredPowerValue = parseFloat(requiredPower)
+        var requiredPowerValue = parseFloat(requiredPower) // 需求功率（HP）
+
+        // 🔥 将需求功率转换为kW进行比较，因为数据库中存储的是kW
+        var requiredPowerKw = requiredPowerValue * 0.746 // HP转kW
+
+        console.log(`💪 功率筛选参数: 需求 ${requiredPowerValue} HP = ${requiredPowerKw.toFixed(1)} kW`)
 
         for (var i = 0; i < frequencyFiltered.length; i++) {
             var motor = frequencyFiltered[i]
@@ -1237,18 +1271,20 @@ Rectangle {
 
             var powerOk = false
             if (motor.power !== undefined && motor.power !== null) {
-                var motorPower = parseFloat(motor.power)
+                var motorPowerKw = parseFloat(motor.power) // 电机功率（kW）
 
-                if (motorPower >= requiredPowerValue) {
+                // 🔥 直接使用kW进行比较
+                if (motorPowerKw >= requiredPowerKw) {
                     powerOk = true
-                    console.log(`✅ 电机通过 - ${motor.model}: ${motorPower}HP >= ${requiredPowerValue}HP (大于需求)`)
+                    console.log(`✅ 电机通过 - ${motor.model}: ${motorPowerKw}kW >= ${requiredPowerKw.toFixed(1)}kW (满足需求)`)
                 } else {
-                    var minAcceptablePower = requiredPowerValue * 0.85
-                    if (motorPower >= minAcceptablePower) {
+                    // 允许功率略小于需求（85%以上）
+                    var minAcceptablePowerKw = requiredPowerKw * 0.85
+                    if (motorPowerKw >= minAcceptablePowerKw) {
                         powerOk = true
-                        console.log(`⚠️ 电机通过 - ${motor.model}: ${motorPower}HP (${(motorPower/requiredPowerValue*100).toFixed(1)}% 需求功率)`)
+                        console.log(`⚠️ 电机通过 - ${motor.model}: ${motorPowerKw}kW (${(motorPowerKw/requiredPowerKw*100).toFixed(1)}% 需求功率)`)
                     } else {
-                        console.log(`❌ 电机拒绝 - ${motor.model}: ${motorPower}HP < ${minAcceptablePower.toFixed(0)}HP (功率不足)`)
+                        console.log(`❌ 电机拒绝 - ${motor.model}: ${motorPowerKw}kW < ${minAcceptablePowerKw.toFixed(1)}kW (功率不足)`)
                     }
                 }
             }
@@ -1260,9 +1296,9 @@ Rectangle {
 
         console.log("💪 功率筛选后:", powerFiltered.length, "个")
 
-        // 🔥 4. 修复外径筛选逻辑 - 使用生产套管内径（已转换为英寸）
+        // 4. 外径筛选（保持原有逻辑）
         var sizeFiltered = []
-        var casingInnerDiameter = productionCasingInnerDiameter || 6.184  // 使用生产套管内径（英寸）
+        var casingInnerDiameter = productionCasingInnerDiameter || 6.184
         var originalMm = inchesToMm(casingInnerDiameter)
 
         console.log("📏 生产套管内径限制:", casingInnerDiameter.toFixed(2), "英寸 (", originalMm.toFixed(1), "mm)")
@@ -1274,16 +1310,15 @@ Rectangle {
             var sizeOk = true
             if (motor.outerDiameter !== undefined && motor.outerDiameter !== null) {
                 var motorDiameter = parseFloat(motor.outerDiameter)
-                var maxDiameter = casingInnerDiameter - 0.25  // 🔥 预留0.25英寸间隙
+                var maxDiameter = casingInnerDiameter - 0.25  // 预留0.25英寸间隙
                 sizeOk = motorDiameter <= maxDiameter
 
                 if (sizeOk) {
-                    console.log(`✅ 尺寸合适 - ${motor.model}: ${motorDiameter}in <= ${maxDiameter.toFixed(2)}in (套管内径${casingInnerDiameter.toFixed(2)}in)`)
+                    console.log(`✅ 尺寸合适 - ${motor.model}: ${motorDiameter}in <= ${maxDiameter.toFixed(2)}in`)
                 } else {
-                    console.log(`❌ 尺寸过大 - ${motor.model}: ${motorDiameter}in > ${maxDiameter.toFixed(2)}in (套管内径${casingInnerDiameter.toFixed(2)}in)`)
+                    console.log(`❌ 尺寸过大 - ${motor.model}: ${motorDiameter}in > ${maxDiameter.toFixed(2)}in`)
                 }
             } else {
-                // 如果没有尺寸数据，默认通过
                 console.log(`⚠️ 尺寸数据缺失 - ${motor.model}: 默认通过`)
                 sizeOk = true
             }
@@ -1295,16 +1330,18 @@ Rectangle {
 
         console.log("📐 外径筛选后:", sizeFiltered.length, "个")
 
-        // 5. 按功率排序（保持现有逻辑）
+        // 5. 按功率排序
         if (sizeFiltered.length > 0) {
             sizeFiltered.sort(function(a, b) {
-                var powerA = parseFloat(a.power)
-                var powerB = parseFloat(b.power)
-                var diffA = Math.abs(powerA - requiredPowerValue)
-                var diffB = Math.abs(powerB - requiredPowerValue)
+                var powerA = parseFloat(a.power) // kW
+                var powerB = parseFloat(b.power) // kW
 
-                var ratioA = powerA / requiredPowerValue
-                var ratioB = powerB / requiredPowerValue
+                // 🔥 使用kW计算差异
+                var diffA = Math.abs(powerA - requiredPowerKw)
+                var diffB = Math.abs(powerB - requiredPowerKw)
+
+                var ratioA = powerA / requiredPowerKw
+                var ratioB = powerB / requiredPowerKw
 
                 var priorityA = getPowerPriority(ratioA)
                 var priorityB = getPowerPriority(ratioB)
@@ -1319,15 +1356,17 @@ Rectangle {
             console.log("🏆 最终推荐电机:")
             for (var i = 0; i < Math.min(3, sizeFiltered.length); i++) {
                 var motor = sizeFiltered[i]
-                var ratio = (motor.power / requiredPowerValue * 100).toFixed(1)
-                console.log(`  ${i+1}. ${motor.model}: ${motor.power}HP (${ratio}% 需求功率, OD:${motor.outerDiameter}in)`)
+                var motorPowerKw = parseFloat(motor.power)
+                var motorPowerHp = motorPowerKw / 0.746  // kW转HP
+                var ratio = (motorPowerKw / requiredPowerKw * 100).toFixed(1)
+                console.log(`  ${i+1}. ${motor.model}: ${motorPowerKw}kW (${motorPowerHp.toFixed(0)}HP, ${ratio}% 需求功率, OD:${motor.outerDiameter}in)`)
             }
         } else {
             console.log("❌ 没有找到符合条件的电机")
             console.log("💡 建议检查:")
-            console.log("  - 生产套管内径:", casingInnerDiameter.toFixed(2), "英寸 (", originalMm.toFixed(1), "mm)")
-            console.log("  - 电机功率需求:", requiredPowerValue, "HP")
+            console.log("  - 需求功率:", requiredPowerValue, "HP =", requiredPowerKw.toFixed(1), "kW")
             console.log("  - 电压/频率选择:", selectedVoltage + "V/" + selectedFrequency + "Hz")
+            console.log("  - 可用电机功率范围")
         }
 
         return sizeFiltered
@@ -1351,13 +1390,18 @@ Rectangle {
 
     // 🔥 修改 calculateMotorMatchScore() 函数
 
+    // 🔥 修复 calculateMotorMatchScore 函数，确保功率比较使用相同单位
     function calculateMotorMatchScore(motor) {
         if (!motor) return 50
 
-        var score = 70  // 基础分数提高到70
-        var powerRatio = motor.power / requiredPower  // 电机功率/需求功率
+        var score = 70  // 基础分数
 
-        // 🔥 优化功率匹配评分
+        // 🔥 修复：将需求功率转换为kW进行比较
+        var requiredPowerKw = requiredPower * 0.746  // HP转kW
+        var motorPowerKw = parseFloat(motor.power)   // 电机功率（kW）
+        var powerRatio = motorPowerKw / requiredPowerKw  // 电机功率/需求功率
+
+        // 功率匹配评分
         if (powerRatio >= 1.05 && powerRatio <= 1.20) {
             score += 25  // 功率略大于需求（5%-20%）：最佳选择
         } else if (powerRatio >= 0.95 && powerRatio < 1.05) {
@@ -1376,17 +1420,17 @@ Rectangle {
             score -= 30  // 功率严重不足：不应该出现在筛选结果中
         }
 
-        // 效率加分（保持原有逻辑）
+        // 效率加分
         if (motor.efficiency && motor.efficiency >= 90) {
             score += (motor.efficiency - 90) * 2
         }
 
-        // 功率因数加分（保持原有逻辑）
+        // 功率因数加分
         if (motor.powerFactor && motor.powerFactor >= 0.85) {
             score += (motor.powerFactor - 0.85) * 50
         }
 
-        // 温度适应性（保持原有逻辑）
+        // 温度适应性
         var temperature = stepData.parameters ? parseFloat(stepData.parameters.bht) : 235
         var maxTemp = getMaxTemperature(motor.insulationClass)
         var tempMargin = maxTemp - (motor.temperatureRise || 80) - temperature
@@ -1397,14 +1441,14 @@ Rectangle {
             score -= 5   // 过度设计（轻微扣分）
         }
 
-        // 🔥 添加电压匹配加分
+        // 电压匹配加分
         if (motor.voltage && motor.voltage.includes(selectedVoltage)) {
-            score += 5  // 支持选定电压
+            score += 5
         }
 
-        // 🔥 添加频率匹配加分
+        // 频率匹配加分
         if (motor.frequency && motor.frequency.includes(selectedFrequency)) {
-            score += 5  // 支持选定频率
+            score += 5
         }
 
         return Math.max(0, Math.min(100, Math.round(score)))
@@ -1504,6 +1548,79 @@ Rectangle {
     }
     function inchesToMm(inches) {
         return inches * 25.4
+    }
+    // 🔥 =====================================
+    // 🔥 单位转换和格式化函数
+    // 🔥 =====================================
+
+    // 🔥 修复功率显示函数，确保单位转换正确
+    function formatPower(valueInKW) {
+        if (!valueInKW || valueInKW <= 0) return "N/A"
+
+        if (isMetric) {
+            // 显示千瓦
+            return valueInKW.toFixed(1) + " kW"
+        } else {
+            // 转换为马力
+            var hpValue = valueInKW / 0.746
+            return hpValue.toFixed(0) + " HP"
+        }
+    }
+
+    function formatTemperature(valueInF) {
+        if (!valueInF || valueInF <= 0) return "N/A"
+
+        if (isMetric) {
+            // 转换为摄氏度
+            var cValue = UnitUtils.fahrenheitToCelsius(valueInF)
+            return cValue.toFixed(0) + " °C"
+        } else {
+            // 保持华氏度
+            return valueInF.toFixed(0) + " °F"
+        }
+    }
+
+    function formatDiameter(valueInInches) {
+        if (!valueInInches || valueInInches <= 0) return "N/A"
+
+        if (isMetric) {
+            // 转换为毫米
+            var mmValue = valueInInches * 25.4
+            return mmValue.toFixed(0) + " mm"
+        } else {
+            // 保持英寸
+            return valueInInches.toFixed(2) + " in"
+        }
+    }
+
+    function formatLength(valueInFt) {
+        if (!valueInFt || valueInFt <= 0) return "N/A"
+
+        if (isMetric) {
+            // 转换为米
+            var mValue = valueInFt * 0.3048
+            return mValue.toFixed(1) + " m"
+        } else {
+            // 保持英尺
+            return valueInFt.toFixed(1) + " ft"
+        }
+    }
+
+    function formatWeight(valueInLbs) {
+        if (!valueInLbs || valueInLbs <= 0) return "N/A"
+
+        if (isMetric) {
+            // 转换为千克
+            var kgValue = valueInLbs * 0.453592
+            return kgValue.toFixed(0) + " kg"
+        } else {
+            // 保持磅
+            return valueInLbs.toFixed(0) + " lbs"
+        }
+    }
+    // 🔥 强制更新显示的函数
+    function updateParameterDisplays() {
+        console.log("更新Step7参数显示，当前单位制:", isMetric ? "公制" : "英制")
     }
 
 }

@@ -1,4 +1,4 @@
-# Controller/WellDataController.py
+﻿# Controller/WellDataController.py
 
 from PySide6.QtCore import QObject, Signal, Slot, Property
 from typing import List, Dict, Optional
@@ -358,3 +358,151 @@ class WellDataController(QObject):
         self._current_well_data = {}
         self._current_well_id = -1
         self.currentWellChanged.emit()
+
+    # 在 WellDataController 类中添加以下方法
+    @Slot(float, float)
+    def saveCalculatedDepths(self, pump_hanging_depth: float, perforation_depth: float):
+        """
+        保存计算得到的泵挂垂深和射孔垂深
+    
+        Args:
+            pump_hanging_depth: 泵挂垂深
+            perforation_depth: 射孔垂深
+        """
+        if self._current_well_id <= 0:
+            self.error.emit("没有选择有效的井")
+            return
+        
+        self.operationStarted.emit()
+        try:
+            # 更新井数据中的计算深度
+            update_data = {
+                'id': self._current_well_id,
+                'pump_hanging_vertical_depth': pump_hanging_depth,
+                'perforation_vertical_depth': perforation_depth
+            }
+        
+            success = self._db_service.update_well(self._current_well_id, update_data)
+            if success:
+                # 更新缓存数据
+                self._current_well_data.update({
+                    'pump_hanging_vertical_depth': pump_hanging_depth,
+                    'perforation_vertical_depth': perforation_depth
+                })
+                self.currentWellChanged.emit()
+                self.wellDataSaved.emit(True)
+                logger.info(f"保存计算深度成功: 泵挂垂深={pump_hanging_depth}, 射孔垂深={perforation_depth}")
+            else:
+                self.wellDataSaved.emit(False)
+            
+        except Exception as e:
+            error_msg = f"保存计算深度失败: {str(e)}"
+            logger.error(error_msg)
+            self.error.emit(error_msg)
+            self.wellDataSaved.emit(False)
+        finally:
+            self.operationFinished.emit()
+
+    @Slot(dict)
+    def saveCalculationResult(self, calculation_result: dict):
+        """
+        保存完整的计算结果
+    
+        Args:
+            calculation_result: 计算结果字典，包含各种计算参数
+        """
+        if self._current_well_id <= 0:
+            self.error.emit("没有选择有效的井")
+            return
+        
+        self.operationStarted.emit()
+        try:
+            # 提取关键深度数据
+            pump_hanging_depth = calculation_result.get('pump_hanging_depth', 0)
+            perforation_depth = calculation_result.get('perforation_depth', 0)
+            pump_measured_depth = calculation_result.get('pump_measured_depth', 0)
+        
+            # 更新井表中的关键深度信息
+            well_update_data = {
+                'id': self._current_well_id,
+                'pump_hanging_vertical_depth': pump_hanging_depth,
+                'perforation_vertical_depth': perforation_depth
+            }
+        
+            # 如果有测量深度，也保存
+            if pump_measured_depth > 0:
+                well_update_data['pump_depth'] = pump_measured_depth
+            
+            # 更新井数据
+            well_success = self._db_service.update_well(self._current_well_id, well_update_data)
+        
+            # 保存详细计算结果到计算结果表
+            calculation_result['well_id'] = self._current_well_id
+            calc_id = self._db_service.save_calculation_result(calculation_result)
+        
+            if well_success and calc_id:
+                # 更新缓存数据
+                self._current_well_data.update(well_update_data)
+                self.currentWellChanged.emit()
+                self.wellDataSaved.emit(True)
+                logger.info(f"保存计算结果成功: 井深度更新 + 计算记录ID={calc_id}")
+            else:
+                self.wellDataSaved.emit(False)
+            
+        except Exception as e:
+            error_msg = f"保存计算结果失败: {str(e)}"
+            logger.error(error_msg)
+            self.error.emit(error_msg)
+            self.wellDataSaved.emit(False)
+        finally:
+            self.operationFinished.emit()
+
+    @Slot(int, result='QVariant')
+    def getCompleteWellData(self, well_id: int):
+        """
+        获取完整的井数据（同步方法，直接返回结果）
+    
+        Args:
+            well_id: 井ID
+        
+        Returns:
+            包含完整信息的井数据字典
+        """
+        try:
+            if well_id <= 0:
+                return {}
+            
+            # 获取基础井数据
+            well_data = self._db_service.get_well_by_id(well_id)
+            if not well_data:
+                return {}
+
+            logger.info(f"获取完整井数据成功: 井ID={well_id}, 井名={well_data.get('well_name')}")
+            return well_data
+
+        except Exception as e:
+            error_msg = f"获取完整井数据失败: {str(e)}"
+            logger.error(error_msg)
+            return {}
+
+    @Slot(int, result='QVariant')  
+    def getWellCalculationData(self, well_id: int):
+        """
+        获取井的计算数据（简化版本）
+    
+        Args:
+            well_id: 井ID
+        
+        Returns:
+            计算结果字典
+        """
+        try:
+            if well_id <= 0:
+                return {}
+            
+            calculation_result = self._db_service.get_latest_calculation_result(well_id)
+            return calculation_result if calculation_result else {}
+        
+        except Exception as e:
+            logger.error(f"获取井计算数据失败: {e}")
+            return {}

@@ -155,8 +155,8 @@ Window {
                 Layout.fillHeight: true
                 Layout.fillWidth: true
                 color: backgroundColor
-                Layout.columnSpan: 27
-                Layout.rowSpan: 29
+                Layout.columnSpan: 10
+                Layout.rowSpan: 10
 
                 ColumnLayout {
                     anchors.left: parent.left
@@ -167,7 +167,7 @@ Window {
                     anchors.rightMargin: 20
                     anchors.topMargin: 5
                     anchors.bottomMargin: 20
-                    spacing: 30
+                    spacing: 10
 
                     // 语言选择
                     Rectangle {
@@ -255,6 +255,99 @@ Window {
                                     cursorShape: Qt.PointingHandCursor
                                     onClicked: {
                                         if (isChinese) toggleLanguage()
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    // 在语言选择区域后添加单位制选择
+                    // 单位制选择
+                    Rectangle {
+                        Layout.fillWidth: true
+                        Layout.preferredHeight: 60
+                        color: "transparent"
+
+                        RowLayout {
+                            anchors.centerIn: parent
+                            spacing: 30
+
+                            Text {
+                                text: isChinese ? "选择单位制:" : "Unit System:"
+                                font.pixelSize: 16
+                                color: textColor
+                            }
+
+                            // 公制选项
+                            RowLayout {
+                                spacing: 8
+
+                                Rectangle {
+                                    width: 20
+                                    height: 20
+                                    radius: 10
+                                    color: "transparent"
+                                    border.width: 2
+                                    border.color: primaryColor
+
+                                    Rectangle {
+                                        width: 12
+                                        height: 12
+                                        radius: 6
+                                        color: primaryColor
+                                        anchors.centerIn: parent
+                                        visible: unitSystemController.isMetric
+                                    }
+                                }
+
+                                Text {
+                                    text: isChinese ? "公制" : "Metric"
+                                    font.pixelSize: 16
+                                    color: textColor
+                                }
+
+                                MouseArea {
+                                    anchors.fill: parent
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: {
+                                        unitSystemController.isMetric = true
+                                    }
+                                }
+                            }
+
+                            // 英制选项
+                            RowLayout {
+                                spacing: 8
+
+                                Rectangle {
+                                    width: 20
+                                    height: 20
+                                    radius: 10
+                                    color: "transparent"
+                                    border.width: 2
+                                    border.color: primaryColor
+
+                                    Rectangle {
+                                        width: 12
+                                        height: 12
+                                        radius: 6
+                                        color: primaryColor
+                                        anchors.centerIn: parent
+                                        visible: !unitSystemController.isMetric
+                                    }
+                                }
+
+                                Text {
+                                    text: isChinese ? "英制" : "Imperial"
+                                    font.pixelSize: 16
+                                    color: textColor
+                                }
+
+                                MouseArea {
+                                    anchors.fill: parent
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: {
+                                        unitSystemController.isMetric = false
                                     }
                                 }
                             }

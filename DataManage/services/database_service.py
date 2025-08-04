@@ -23,7 +23,7 @@ from DataManage.models.well_trajectory import WellTrajectory, WellTrajectoryImpo
 from DataManage.models.casing import Casing, WellCalculationResult
 from DataManage.models.device import (
     Device, DeviceType, DevicePump, DeviceMotor,
-    DeviceProtector, DeviceSeparator, MotorFrequencyParam
+    DeviceProtector, DeviceSeparator, MotorFrequencyParam, LiftMethod
 )
 from DataManage.models.production_parameters import ProductionParameters, ProductionPrediction
    # 在现有导入部分添加新模型
@@ -1128,7 +1128,8 @@ class DatabaseService(QObject):
                             'model': device_data.get('model'),
                             'serial_number': serial_number,
                             'status': device_data.get('status', 'active'),
-                            'description': device_data.get('description')
+                            'description': device_data.get('description'),
+                            'lift_method': device_data.get('lift_method')
                 }
 
             new_device = Device(**base_device_data)
@@ -1226,6 +1227,94 @@ class DatabaseService(QObject):
             self.close_session(session)
 
     def get_devices(self, device_type: Optional[str] = None,
+                            status: Optional[str] = None,
+                            page: int = 1,
+                            page_size: int = 20) -> Dict[str, Any]:
+        """获取设备列表（支持分页和筛选）"""
+        session = self.get_session()
+        try:
+            query = session.query(Device).filter_by(is_deleted=False)
+        
+     
+            # 🔥 特别查看是否有SEPARATOR类型
+            separator_count = session.query(Device).filter(
+                Device.device_type == DeviceType.SEPARATOR,
+                Device.is_deleted == False
+            ).count()
+            logger.info(f"SEPARATOR类型设备数量: {separator_count}")
+        
+            # 应用筛选条件
+            if device_type:
+                try:
+                    device_type_upper = device_type.upper()
+                    if device_type_upper == 'PUMP':
+                        dt = DeviceType.PUMP
+                    elif device_type_upper == 'MOTOR':
+                        dt = DeviceType.MOTOR
+                    elif device_type_upper == 'PROTECTOR':
+                        dt = DeviceType.PROTECTOR
+                    elif device_type_upper == 'SEPARATOR':
+                        dt = DeviceType.SEPARATOR
+                    else:
+                        logger.warning(f"无效的设备类型筛选: {device_type}")
+                        dt = None
+                    if dt is not None:
+                        query = query.filter(Device.device_type == dt)
+                        logger.info(f"✅ 设备类型筛选成功: {device_type} -> {dt}")
+
+                except ValueError as e:
+                    logger.warning(f"设备类型转换失败: {device_type}, 错误: {e}")
+
+            # 状态筛选
+            if status is not None:
+                before_status_filter = query.count()
+                logger.info(f"状态筛选前设备数量: {before_status_filter}")
+            
+                query = query.filter(Device.status == status)
+                after_status_filter = query.count()
+                logger.info(f"状态筛选后设备数量 (精确匹配 '{status}'): {after_status_filter}")
+
+            # 获取总数
+            total_count = query.count()
+            logger.info(f"获取设备总数 {total_count}")
+
+            # 分页
+            offset = (page - 1) * page_size
+            devices = query.order_by(Device.created_at.desc())\
+                                      .offset(offset)\
+                                      .limit(page_size)\
+                                      .all()
+
+            # 转换为字典列表
+            device_list = []
+            for device in devices:
+                device_dict = device.to_dict()
+                device_list.append(device_dict)
+            
+            return {
+                            'devices': device_list,
+                            'total_count': total_count,
+                            'page': page,
+                            'page_size': page_size,
+                            'total_pages': (total_count + page_size - 1) // page_size
+                        }
+
+        except Exception as e:
+            error_msg = f"获取设备列表失败: {str(e)}"
+            logger.error(error_msg)
+            self.databaseError.emit(error_msg)
+            return {
+                            'devices': [],
+                            'total_count': 0,
+                            'page': 1,
+                            'page_size': page_size,
+                            'total_pages': 0
+                        }
+
+        finally:
+            self.close_session(session)
+
+    def get_devices1(self, device_type: Optional[str] = None,
                                 status: Optional[str] = None,
                                 page: int = 1,
                                 page_size: int = 20) -> Dict[str, Any]:
@@ -1237,27 +1326,91 @@ class DatabaseService(QObject):
             # 应用筛选条件
             if device_type:
                 try:
-                    dt = DeviceType(device_type)
+                    # 将传入的字符串转换为对应的枚举值
+                    device_type_upper = device_type.upper()
+                    # 检查是否为有效的设备类型
+                    if device_type_upper == 'PUMP':
+                        dt = DeviceType.PUMP
+                    elif device_type_upper == 'MOTOR':
+                        dt = DeviceType.MOTOR
+                    elif device_type_upper == 'PROTECTOR':
+                        dt = DeviceType.PROTECTOR
+                    elif device_type_upper == 'SEPARATOR':
+                        dt = DeviceType.SEPARATOR
+                    else:
+                        logger.warning(f"无效的设备类型筛选: {device_type}")
+                        # 🔥 不抛出异常，而是记录警告并继续
+                        dt = None
+                    if dt is not None:
+                        query = query.filter(Device.device_type == dt)
+                        logger.info(f"✅ 设备类型筛选成功: {device_type} -> {dt}")
+
+
+                    # dt = DeviceType(device_type)
                     # print(f"设备类型枚举转换成功: {dt} (值: {dt.value})")
                      # 查看数据库中实际的设备类型
                     # all_device_types = session.query(Device.device_type).distinct().all()
                     # print(f"数据库中存在的设备类型: {[str(dt[0]) for dt in all_device_types]}")
                 
-                    query = query.filter(Device.device_type == dt)
+                    # query = query.filter(Device.device_type == dt)
                     # after_type_filter = query.count()
                     # print(f"类型筛选后设备数量: {after_type_filter}")
                 
                 except ValueError:
-                    logger.warning(f"无效的设备类型筛选: {device_type}")
+                    # logger.warning(f"无效的设备类型筛选: {device_type}")
+                    logger.warning(f"设备类型转换失败: {device_type}, 错误: {e}")
+                    # 继续执行，不过滤设备类型
 
-            if status:
+            if status is not None:
+                # 添加调试信息：查看所有设备的状态值
+                all_statuses = session.query(Device.status).distinct().all()
+                logger.info(f"数据库中所有设备状态值: {[s[0] for s in all_statuses]}")
+            
+                # 如果传入的是'active'，但数据库中可能存储的是其他值
+                # 先尝试精确匹配
+                before_status_filter = query.count()
+                logger.info(f"状态筛选前设备数量: {before_status_filter}")
+            
                 query = query.filter(Device.status == status)
-                # after_status_filter = query.count()
-                # print(f"状态筛选后设备数量: {after_status_filter}")
+                after_status_filter = query.count()
+                logger.info(f"状态筛选后设备数量 (精确匹配 '{status}'): {after_status_filter}")
+            
+                # 🔥 如果精确匹配没有结果，尝试模糊匹配或使用默认逻辑
+                if after_status_filter == 0 and before_status_filter > 0:
+                    logger.warning(f"精确状态匹配 '{status}' 无结果，尝试其他状态值")
+                
+                    # 重新构建查询（去掉状态筛选）
+                    query = session.query(Device).filter_by(is_deleted=False)
+                    if device_type and dt is not None:
+                        query = query.filter(Device.device_type == dt)
+                
+                    # 尝试找到常见的状态值
+                    if status.lower() == 'active':
+                        # 尝试常见的激活状态值
+                        common_active_statuses = ['active', 'Active', 'ACTIVE', 'available', 'Available', 'enabled', 'Enabled']
+                        status_filter = Device.status.in_(common_active_statuses)
+                        query = query.filter(status_filter)
+                    
+                        flexible_count = query.count()
+                        logger.info(f"灵活状态匹配后设备数量: {flexible_count}")
+                    
+                        # 如果还是没有，就不筛选状态（显示所有非删除设备）
+                        if flexible_count == 0:
+                            logger.warning(f"所有状态匹配都无结果，忽略状态筛选")
+                            query = session.query(Device).filter_by(is_deleted=False)
+                            if device_type and dt is not None:
+                                query = query.filter(Device.device_type == dt)
 
             # 获取总数
             total_count = query.count()
-            # print("获取设备总数", total_count)
+            print("获取设备总数", total_count)
+            
+            # 🔥 如果仍然没有结果，输出调试信息
+            if total_count == 0:
+                logger.warning("=== 调试：查看所有设备详情 ===")
+                all_devices = session.query(Device).filter_by(is_deleted=False).all()
+                for device in all_devices[:5]:  # 只显示前5个
+                    logger.warning(f"设备 ID={device.id}: 类型={device.device_type} (类型:{type(device.device_type)}), 状态={device.status}, 型号={device.model}")
 
             # 如果没有结果，查看一些具体的设备信息
             # if total_count == 0:
@@ -1564,123 +1717,67 @@ class DatabaseService(QObject):
         finally:
             self.close_session(session)
 
-    def import_devices_from_excel(self, excel_data: List[Dict[str, Any]], device_type: str) -> Dict[str, Any]:
-        """从Excel导入设备数据"""
+    def import_devices_from_excel(self, excel_data: List[Dict], device_type: str, is_metric: bool = False):
+        """
+        从Excel数据导入设备（修复版本 - 支持所有表）
+    
+        Args:
+            excel_data: Excel数据列表
+            device_type: 设备类型
+            is_metric: 是否为公制单位
+        """
         session = self.get_session()
         success_count = 0
         error_list = []
 
         try:
             # 验证设备类型
-            try:
-                dt = DeviceType(device_type)
-            except ValueError:
-                raise ValueError(f"无效的设备类型: {device_type}")
+            # try:
+            #     dt = DeviceType(device_type.upper())
+            # except ValueError:
+            #     raise ValueError(f"无效的设备类型: {device_type}")
 
             for idx, row_data in enumerate(excel_data):
                 try:
-                    # 构建设备数据
-                    device_data = {
-                                    'device_type': device_type,
-                                    'manufacturer': row_data.get('manufacturer'),
-                                    'model': row_data.get('model'),
-                                    'serial_number': row_data.get('serial_number'),
-                                    'status': row_data.get('status', 'active'),
-                                    'description': row_data.get('description')
-                                }
+                    # 🔥 根据设备类型处理不同的数据格式
+                    if device_type.lower() == 'pump':
+                        device_data = self._process_pump_excel_data(row_data, is_metric, idx + 2)
+                    elif device_type.lower() == 'motor':
+                        device_data = self._process_motor_excel_data(row_data, is_metric, idx + 2)
+                    elif device_type.lower() == 'protector':
+                        device_data = self._process_protector_excel_data(row_data, is_metric, idx + 2)
+                    elif device_type.lower() == 'separator':
+                        device_data = self._process_separator_excel_data(row_data, is_metric, idx + 2)
+                    else:
+                        raise ValueError(f"不支持的设备类型: {device_type}")
 
-                    # 根据设备类型添加详细信息
-                    if dt == DeviceType.PUMP:
-                        device_data['pump_details'] = {
-                                        'impeller_model': row_data.get('impeller_model'),
-                                        'displacement_min': self._parse_float(row_data.get('displacement_min')),
-                                        'displacement_max': self._parse_float(row_data.get('displacement_max')),
-                                        'single_stage_head': self._parse_float(row_data.get('single_stage_head')),
-                                        'single_stage_power': self._parse_float(row_data.get('single_stage_power')),
-                                        'shaft_diameter': self._parse_float(row_data.get('shaft_diameter')),
-                                        'mounting_height': self._parse_float(row_data.get('mounting_height')),
-                                        'outside_diameter': self._parse_float(row_data.get('outside_diameter')),
-                                        'max_stages': self._parse_int(row_data.get('max_stages')),
-                                        'efficiency': self._parse_float(row_data.get('efficiency'))
-                                    }
-
-                    elif dt == DeviceType.MOTOR:
-                        # 处理电机的基本信息和频率参数
-                        device_data['motor_details'] = {
-                                        'motor_type': row_data.get('motor_type'),
-                                        'outside_diameter': self._parse_float(row_data.get('outside_diameter')),
-                                        'length': self._parse_float(row_data.get('length')),
-                                        'weight': self._parse_float(row_data.get('weight')),
-                                        'insulation_class': row_data.get('insulation_class'),
-                                        'protection_class': row_data.get('protection_class'),
-                                        'frequency_params': []
-                                    }
-
-                        # 处理50Hz参数
-                        if row_data.get('power_50hz') or row_data.get('voltage_50hz'):
-                            device_data['motor_details']['frequency_params'].append({
-                                            'frequency': 50,
-                                            'power': self._parse_float(row_data.get('power_50hz')),
-                                            'voltage': self._parse_float(row_data.get('voltage_50hz')),
-                                            'current': self._parse_float(row_data.get('current_50hz')),
-                                            'speed': self._parse_int(row_data.get('speed_50hz'))
-                                        })
-
-                        # 处理60Hz参数
-                        if row_data.get('power_60hz') or row_data.get('voltage_60hz'):
-                            device_data['motor_details']['frequency_params'].append({
-                                            'frequency': 60,
-                                            'power': self._parse_float(row_data.get('power_60hz')),
-                                            'voltage': self._parse_float(row_data.get('voltage_60hz')),
-                                            'current': self._parse_float(row_data.get('current_60hz')),
-                                            'speed': self._parse_int(row_data.get('speed_60hz'))
-                                        })
-
-                    elif dt == DeviceType.PROTECTOR:
-                        device_data['protector_details'] = {
-                                        'outer_diameter': self._parse_float(row_data.get('outer_diameter')),
-                                        'length': self._parse_float(row_data.get('length')),
-                                        'weight': self._parse_float(row_data.get('weight')),
-                                        'thrust_capacity': self._parse_float(row_data.get('thrust_capacity')),
-                                        'seal_type': row_data.get('seal_type'),
-                                        'max_temperature': self._parse_float(row_data.get('max_temperature'))
-                                    }
-
-                    elif dt == DeviceType.SEPARATOR:
-                        device_data['separator_details'] = {
-                                        'outer_diameter': self._parse_float(row_data.get('outer_diameter')),
-                                        'length': self._parse_float(row_data.get('length')),
-                                        'weight': self._parse_float(row_data.get('weight')),
-                                        'separation_efficiency': self._parse_float(row_data.get('separation_efficiency')),
-                                        'gas_handling_capacity': self._parse_float(row_data.get('gas_handling_capacity')),
-                                        'liquid_handling_capacity': self._parse_float(row_data.get('liquid_handling_capacity'))
-                                    }
-
-                    # 创建设备
-                    self.create_device(device_data)
-                    success_count += 1
+                    # 🔥 调用create_device创建设备（会自动创建相关详细表记录）
+                    device_id = self.create_device(device_data)
+                    if device_id:
+                        success_count += 1
+                        logger.info(f"导入设备成功: {device_data.get('model', '')} (ID: {device_id})")
+                    else:
+                        error_list.append({
+                            'row': idx + 2,
+                            'error': '设备创建失败'
+                        })
 
                 except Exception as e:
                     error_list.append({
-                                    'row': idx + 2,  # Excel行号（考虑标题行）
-                                    'error': str(e)
-                                })
-                    logger.error(f"导入第{idx + 2}行失败: {str(e)}")
-
-            # 发射导入完成信号
-            self.deviceImported.emit(success_count)
+                        'row': idx + 2,
+                        'error': str(e)
+                    })
+                    logger.error(f"导入第{idx + 2}行失败: {e}")
 
             return {
-                            'success_count': success_count,
-                            'error_count': len(error_list),
-                            'errors': error_list
-                        }
+                'success_count': success_count,
+                'error_count': len(error_list),
+                'errors': error_list
+            }
 
         except Exception as e:
             session.rollback()
-            error_msg = f"导入设备失败: {str(e)}"
-            logger.error(error_msg)
-            self.databaseError.emit(error_msg)
+            logger.error(f"批量导入失败: {e}")
             raise
 
         finally:
@@ -2634,7 +2731,6 @@ class DatabaseService(QObject):
             logger.error(error_msg)
             raise Exception(error_msg)
 
-
     def get_performance_prediction(self, device_id: int = None, pump_id: str = None) -> Optional[Dict[str, Any]]:
         """
         获取设备性能预测
@@ -3191,3 +3287,489 @@ class DatabaseService(QObject):
         except Exception as e:
             logger.error(f"根据型号获取设备失败: {str(e)}")
             return []
+
+    def get_devices_by_lift_method(self, device_type: str = None, lift_method: str = None, status: str = 'active'):
+        """根据举升方式获取设备 - 修复版本"""
+        session = self.get_session()  # 🔥 修复：使用正确的会话获取方法
+        try:
+            query = session.query(Device).filter(Device.is_deleted == False)
+        
+            if device_type:
+                try:
+                    device_type_enum = DeviceType(device_type.upper())  # 🔥 修复：转为大写
+                    query = query.filter(Device.device_type == device_type_enum)
+                except ValueError:
+                    logger.warning(f"无效的设备类型: {device_type}")
+        
+            if lift_method:
+                try:
+                    lift_method_enum = LiftMethod(lift_method.upper())  # 🔥 修复：转为大写
+                    query = query.filter(Device.lift_method == lift_method_enum)
+                except ValueError:
+                    logger.warning(f"无效的举升方式: {lift_method}")
+        
+            if status:
+                query = query.filter(Device.status == status)
+        
+            devices = query.all()
+        
+            device_list = []
+            for device in devices:
+                device_dict = device.to_dict()
+                device_list.append(device_dict)
+        
+            logger.info(f"查询到 {len(device_list)} 个 {lift_method} {device_type} 设备")
+        
+            return {
+                'devices': device_list,
+                'total': len(device_list)
+            }
+        
+        except Exception as e:
+            logger.error(f"按举升方式查询设备失败: {e}")
+            return {'devices': [], 'total': 0}
+        finally:
+            self.close_session(session)  # 🔥 修复：正确关闭会话
+
+    def _extract_performance_curve_data(self, row_data: Dict) -> Dict:
+        """提取性能曲线数据"""
+        curves = {
+            'flow_points': [],
+            'head_points': [],
+            'efficiency_points': [],
+            'power_points': [],
+            'best_efficiency_point': {}
+        }
+    
+        # 提取5个性能点
+        for i in range(1, 6):
+            flow_key = f'流量点{i}(m³/d)' if '流量点' in str(row_data.keys()) else f'流量点{i}(bbl/d)'
+            head_key = f'扬程点{i}(m)' if '扬程点' in str(row_data.keys()) else f'扬程点{i}(ft)'
+            eff_key = f'效率点{i}(%)'
+            power_key = f'功率点{i}(kW)' if '功率点' in str(row_data.keys()) else f'功率点{i}(HP)'
+        
+            if row_data.get(flow_key):
+                curves['flow_points'].append(float(row_data[flow_key]))
+                curves['head_points'].append(float(row_data.get(head_key, 0)))
+                curves['efficiency_points'].append(float(row_data.get(eff_key, 0)))
+                curves['power_points'].append(float(row_data.get(power_key, 0)))
+    
+        # 最优工况点
+        opt_flow_key = '最优流量(m³/d)' if '最优流量' in str(row_data.keys()) else '最优流量(bbl/d)'
+        if row_data.get(opt_flow_key):
+            curves['best_efficiency_point'] = {
+                'flow': float(row_data[opt_flow_key]),
+                'head': float(row_data.get('最优扬程(m)') or row_data.get('最优扬程(ft)') or 0),
+                'efficiency': float(row_data.get('最优效率(%)', 0)),
+                'power': float(row_data.get('最优功率(kW)') or row_data.get('最优功率(HP)') or 0)
+            }
+    
+        return curves
+
+    def _convert_units_if_needed(self, row_data: Dict, device_type: str, is_metric: bool) -> Dict:
+        """根据需要转换单位"""
+        # 如果模板是公制但系统需要英制存储，或反之，进行转换
+        # 这里的具体实现取决于系统的单位存储策略
+        if is_metric:
+            # 转换为公制单位
+            row_data['最小流量(m³/d)'] = float(row_data.get('最小流量(bbl/d)', 0)) * 0.158987
+            row_data['最大流量(m³/d)'] = float(row_data.get('最大流量(bbl/d)', 0)) * 0.158987
+            row_data['单级扬程(m)'] = float(row_data.get('单级扬程(ft)', 0)) * 0.3048
+            row_data['单级功率(kW)'] = float(row_data.get('单级功率(HP)', 0)) * 0.7457
+        else:
+            # 转换为英制单位
+            row_data['最小流量(bbl/d)'] = float(row_data.get('最小流量(m³/d)', 0)) / 0.158987
+            row_data['最大流量(bbl/d)'] = float(row_data.get('最大流量(m³/d)', 0)) / 0.158987
+            row_data['单级扬程(ft)'] = float(row_data.get('单级扬程(m)', 0)) / 0.3048
+            row_data['单级功率(HP)'] = float(row_data.get('单级功率(kW)', 0)) / 0.7457
+
+        return row_data
+
+    def _process_pump_excel_data(self, row_data: Dict, is_metric: bool, row_index: int) -> Dict:
+        """处理泵设备Excel数据"""
+        try:
+            # 🔥 统一字段映射 - 处理中英文字段名
+            field_mapping = {
+                # 基本信息映射
+                'manufacturer': ['制造商', 'Manufacturer', 'manufacturer'],
+                'model': ['型号', 'Model', 'model'],
+                'series': ['系列', 'Series', 'series'],
+                'lift_method': ['举升方式', 'Lift Method', 'lift_method'],
+                'serial_number': ['序列号', 'Serial Number', 'serial_number'],
+                'status': ['状态', 'Status', 'status'],
+                'description': ['描述', 'Description', 'description'],
+            
+                # 泵参数映射
+                'impeller_model': ['叶轮型号', 'Impeller Model', 'impeller_model'],
+                'efficiency': ['效率(%)', 'Efficiency(%)', 'efficiency'],
+                'max_stages': ['最大级数', 'Max Stages', 'max_stages'],
+            }
+        
+            # 🔥 流量、扬程、功率等需要单位转换的字段
+            if is_metric:
+                # 公制字段映射
+                unit_mapping = {
+                    'displacement_min': ['最小流量(m³/d)', 'Min Flow(m³/d)'],
+                    'displacement_max': ['最大流量(m³/d)', 'Max Flow(m³/d)'],
+                    'single_stage_head': ['单级扬程(m)', 'Single Stage Head(m)'],
+                    'single_stage_power': ['单级功率(kW)', 'Single Stage Power(kW)'],
+                    'outside_diameter': ['外径(mm)', 'Outside Diameter(mm)'],
+                    'shaft_diameter': ['轴径(mm)', 'Shaft Diameter(mm)'],
+                    'weight': ['重量(kg)', 'Weight(kg)'],
+                    'length': ['长度(mm)', 'Length(mm)']
+                }
+            else:
+                # 英制字段映射
+                unit_mapping = {
+                    'displacement_min': ['最小流量(bbl/d)', 'Min Flow(bbl/d)'],
+                    'displacement_max': ['最大流量(bbl/d)', 'Max Flow(bbl/d)'],
+                    'single_stage_head': ['单级扬程(ft)', 'Single Stage Head(ft)'],
+                    'single_stage_power': ['单级功率(HP)', 'Single Stage Power(HP)'],
+                    'outside_diameter': ['外径(in)', 'Outside Diameter(in)'],
+                    'shaft_diameter': ['轴径(in)', 'Shaft Diameter(in)'],
+                    'weight': ['重量(lbs)', 'Weight(lbs)'],
+                    'length': ['长度(in)', 'Length(in)']
+                }
+
+            # 🔥 提取基本设备信息
+            device_data = {
+                'device_type': 'pump',
+                'manufacturer': self._get_excel_value(row_data, field_mapping['manufacturer']),
+                'model': self._get_excel_value(row_data, field_mapping['model']),
+                'serial_number': (self._get_excel_value(row_data, field_mapping['serial_number']) or 
+                                f'IMP_PUMP_{int(datetime.now().timestamp())}_{row_index}'),
+                'status': self._get_excel_value(row_data, field_mapping['status']) or 'active',
+                'description': self._get_excel_value(row_data, field_mapping['description']) or '',
+                'lift_method': self._get_excel_value(row_data, field_mapping['lift_method']) or 'esp'
+            }
+
+            # 🔥 提取泵详细参数
+            pump_details = {}
+        
+            # 基本参数
+            pump_details['impeller_model'] = self._get_excel_value(row_data, field_mapping['impeller_model']) or ''
+            pump_details['efficiency'] = self._safe_float(self._get_excel_value(row_data, field_mapping['efficiency'])) or 75.0
+            pump_details['max_stages'] = self._safe_int(self._get_excel_value(row_data, field_mapping['max_stages'])) or 100
+
+            # 🔥 单位相关参数
+            for param, field_names in unit_mapping.items():
+                value = self._get_excel_value(row_data, field_names)
+                if value is not None:
+                    # 如果是英制单位且系统存储需要公制，进行转换
+                    converted_value = self._convert_pump_units(param, self._safe_float(value), is_metric)
+                    pump_details[param] = converted_value
+
+            # 🔥 处理性能曲线数据
+            pump_details['performance_curves'] = self._extract_performance_curves(row_data, is_metric)
+
+            device_data['pump_details'] = pump_details
+        
+            # 验证必要字段
+            if not device_data['manufacturer'] or not device_data['model']:
+                raise ValueError("缺少必要字段：制造商或型号")
+
+            return device_data
+
+        except Exception as e:
+            logger.error(f"处理泵Excel数据失败 (第{row_index}行): {e}")
+            raise ValueError(f"第{row_index}行数据格式错误: {e}")
+
+    def _process_motor_excel_data(self, row_data: Dict, is_metric: bool, row_index: int) -> Dict:
+        """处理电机设备Excel数据"""
+        try:
+            device_data = {
+                'device_type': 'motor',
+                'manufacturer': self._get_excel_value(row_data, ['制造商', 'Manufacturer']),
+                'model': self._get_excel_value(row_data, ['型号', 'Model']),
+                'serial_number': (self._get_excel_value(row_data, ['序列号', 'Serial Number']) or 
+                                f'IMP_MOTOR_{int(datetime.now().timestamp())}_{row_index}'),
+                'status': self._get_excel_value(row_data, ['状态', 'Status']) or 'active',
+                'description': self._get_excel_value(row_data, ['描述', 'Description']) or ''
+            }
+
+            # 电机详细参数
+            motor_details = {
+                'motor_type': self._get_excel_value(row_data, ['电机类型', 'Motor Type']) or '',
+                'insulation_class': self._get_excel_value(row_data, ['绝缘等级', 'Insulation Class']) or '',
+                'protection_class': self._get_excel_value(row_data, ['防护等级', 'Protection Class']) or '',
+            }
+
+            # 🔥 尺寸参数（根据单位制）
+            if is_metric:
+                motor_details['outside_diameter'] = self._safe_float(self._get_excel_value(row_data, ['外径(mm)', 'Outside Diameter(mm)']))
+                motor_details['length'] = self._safe_float(self._get_excel_value(row_data, ['长度(mm)', 'Length(mm)']))
+                motor_details['weight'] = self._safe_float(self._get_excel_value(row_data, ['重量(kg)', 'Weight(kg)']))
+            else:
+                # 英制转公制存储
+                od_in = self._safe_float(self._get_excel_value(row_data, ['外径(in)', 'Outside Diameter(in)']))
+                length_in = self._safe_float(self._get_excel_value(row_data, ['长度(in)', 'Length(in)']))
+                weight_lbs = self._safe_float(self._get_excel_value(row_data, ['重量(lbs)', 'Weight(lbs)']))
+            
+                motor_details['outside_diameter'] = od_in * 25.4 if od_in else None  # in to mm
+                motor_details['length'] = length_in * 25.4 if length_in else None   # in to mm
+                motor_details['weight'] = weight_lbs * 0.453592 if weight_lbs else None  # lbs to kg
+
+            # 🔥 频率参数
+            frequency_params = []
+        
+            # 50Hz参数
+            if is_metric:
+                power_50 = self._safe_float(self._get_excel_value(row_data, ['50Hz功率(kW)', '50Hz Power(kW)']))
+            else:
+                power_hp = self._safe_float(self._get_excel_value(row_data, ['50Hz功率(HP)', '50Hz Power(HP)']))
+                power_50 = power_hp * 0.746 if power_hp else None  # HP to kW
+
+            if power_50:
+                frequency_params.append({
+                    'frequency': 50,
+                    'power': power_50,
+                    'voltage': self._safe_float(self._get_excel_value(row_data, ['50Hz电压(V)', '50Hz Voltage(V)'])),
+                    'current': self._safe_float(self._get_excel_value(row_data, ['50Hz电流(A)', '50Hz Current(A)'])),
+                    'speed': self._safe_int(self._get_excel_value(row_data, ['50Hz转速(rpm)', '50Hz Speed(rpm)']))
+                })
+
+            # 60Hz参数
+            if is_metric:
+                power_60 = self._safe_float(self._get_excel_value(row_data, ['60Hz功率(kW)', '60Hz Power(kW)']))
+            else:
+                power_hp = self._safe_float(self._get_excel_value(row_data, ['60Hz功率(HP)', '60Hz Power(HP)']))
+                power_60 = power_hp * 0.746 if power_hp else None  # HP to kW
+
+            if power_60:
+                frequency_params.append({
+                    'frequency': 60,
+                    'power': power_60,
+                    'voltage': self._safe_float(self._get_excel_value(row_data, ['60Hz电压(V)', '60Hz Voltage(V)'])),
+                    'current': self._safe_float(self._get_excel_value(row_data, ['60Hz电流(A)', '60Hz Current(A)'])),
+                    'speed': self._safe_int(self._get_excel_value(row_data, ['60Hz转速(rpm)', '60Hz Speed(rpm)']))
+                })
+
+            motor_details['frequency_params'] = frequency_params
+            device_data['motor_details'] = motor_details
+
+            return device_data
+
+        except Exception as e:
+            logger.error(f"处理电机Excel数据失败 (第{row_index}行): {e}")
+            raise ValueError(f"第{row_index}行数据格式错误: {e}")
+
+    def _process_protector_excel_data(self, row_data: Dict, is_metric: bool, row_index: int) -> Dict:
+        """处理保护器设备Excel数据"""
+        try:
+            device_data = {
+                'device_type': 'protector',
+                'manufacturer': self._get_excel_value(row_data, ['制造商', 'Manufacturer']),
+                'model': self._get_excel_value(row_data, ['型号', 'Model']),
+                'serial_number': (self._get_excel_value(row_data, ['序列号', 'Serial Number']) or 
+                                f'IMP_PROTECTOR_{int(datetime.now().timestamp())}_{row_index}'),
+                'status': self._get_excel_value(row_data, ['状态', 'Status']) or 'active',
+                'description': self._get_excel_value(row_data, ['描述', 'Description']) or ''
+            }
+
+            # 保护器详细参数
+            protector_details = {
+                'seal_type': self._get_excel_value(row_data, ['密封类型', 'Seal Type']) or '',
+            }
+
+            # 🔥 尺寸和载荷参数（根据单位制）
+            if is_metric:
+                protector_details['outer_diameter'] = self._safe_float(self._get_excel_value(row_data, ['外径(mm)', 'Outer Diameter(mm)']))
+                protector_details['length'] = self._safe_float(self._get_excel_value(row_data, ['长度(mm)', 'Length(mm)']))
+                protector_details['weight'] = self._safe_float(self._get_excel_value(row_data, ['重量(kg)', 'Weight(kg)']))
+                protector_details['thrust_capacity'] = self._safe_float(self._get_excel_value(row_data, ['推力承载能力(kN)', 'Thrust Capacity(kN)']))
+                protector_details['max_temperature'] = self._safe_float(self._get_excel_value(row_data, ['最高工作温度(°C)', 'Max Temperature(°C)']))
+            else:
+                # 英制转公制
+                od_in = self._safe_float(self._get_excel_value(row_data, ['外径(in)', 'Outer Diameter(in)']))
+                length_in = self._safe_float(self._get_excel_value(row_data, ['长度(in)', 'Length(in)']))
+                weight_lbs = self._safe_float(self._get_excel_value(row_data, ['重量(lbs)', 'Weight(lbs)']))
+                thrust_lbs = self._safe_float(self._get_excel_value(row_data, ['推力承载能力(lbs)', 'Thrust Capacity(lbs)']))
+                temp_f = self._safe_float(self._get_excel_value(row_data, ['最高工作温度(°F)', 'Max Temperature(°F)']))
+            
+                protector_details['outer_diameter'] = od_in * 25.4 if od_in else None  # in to mm
+                protector_details['length'] = length_in * 25.4 if length_in else None   # in to mm
+                protector_details['weight'] = weight_lbs * 0.453592 if weight_lbs else None  # lbs to kg
+                protector_details['thrust_capacity'] = thrust_lbs * 0.004448 if thrust_lbs else None  # lbs to kN
+                protector_details['max_temperature'] = (temp_f - 32) * 5/9 if temp_f else None  # °F to °C
+
+            device_data['protector_details'] = protector_details
+            return device_data
+
+        except Exception as e:
+            logger.error(f"处理保护器Excel数据失败 (第{row_index}行): {e}")
+            raise ValueError(f"第{row_index}行数据格式错误: {e}")
+
+    def _process_separator_excel_data(self, row_data: Dict, is_metric: bool, row_index: int) -> Dict:
+        """处理分离器设备Excel数据"""
+        try:
+            device_data = {
+                'device_type': 'separator',
+                'manufacturer': self._get_excel_value(row_data, ['制造商', 'Manufacturer']),
+                'model': self._get_excel_value(row_data, ['型号', 'Model']),
+                'serial_number': (self._get_excel_value(row_data, ['序列号', 'Serial Number']) or 
+                                f'IMP_SEPARATOR_{int(datetime.now().timestamp())}_{row_index}'),
+                'status': self._get_excel_value(row_data, ['状态', 'Status']) or 'active',
+                'description': self._get_excel_value(row_data, ['描述', 'Description']) or ''
+            }
+
+            # 分离器详细参数
+            separator_details = {
+                'separation_efficiency': self._safe_float(self._get_excel_value(row_data, ['分离效率(%)', 'Separation Efficiency(%)'])) or 95.0
+            }
+
+            # 🔥 尺寸和处理能力参数（根据单位制）
+            if is_metric:
+                separator_details['outer_diameter'] = self._safe_float(self._get_excel_value(row_data, ['外径(mm)', 'Outer Diameter(mm)']))
+                separator_details['length'] = self._safe_float(self._get_excel_value(row_data, ['长度(mm)', 'Length(mm)']))
+                separator_details['weight'] = self._safe_float(self._get_excel_value(row_data, ['重量(kg)', 'Weight(kg)']))
+                separator_details['gas_handling_capacity'] = self._safe_float(self._get_excel_value(row_data, ['气体处理量(m³/d)', 'Gas Handling(m³/d)']))
+                separator_details['liquid_handling_capacity'] = self._safe_float(self._get_excel_value(row_data, ['液体处理量(m³/d)', 'Liquid Handling(m³/d)']))
+            else:
+                # 英制转公制
+                od_in = self._safe_float(self._get_excel_value(row_data, ['外径(in)', 'Outer Diameter(in)']))
+                length_in = self._safe_float(self._get_excel_value(row_data, ['长度(in)', 'Length(in)']))
+                weight_lbs = self._safe_float(self._get_excel_value(row_data, ['重量(lbs)', 'Weight(lbs)']))
+                gas_scfd = self._safe_float(self._get_excel_value(row_data, ['气体处理量(scf/d)', 'Gas Handling(scf/d)']))
+                liquid_bpd = self._safe_float(self._get_excel_value(row_data, ['液体处理量(bbl/d)', 'Liquid Handling(bbl/d)']))
+            
+                separator_details['outer_diameter'] = od_in * 25.4 if od_in else None  # in to mm
+                separator_details['length'] = length_in * 25.4 if length_in else None   # in to mm
+                separator_details['weight'] = weight_lbs * 0.453592 if weight_lbs else None  # lbs to kg
+                separator_details['gas_handling_capacity'] = gas_scfd * 0.0283168 if gas_scfd else None  # scf/d to m³/d
+                separator_details['liquid_handling_capacity'] = liquid_bpd * 0.158987 if liquid_bpd else None  # bbl/d to m³/d
+
+            device_data['separator_details'] = separator_details
+            return device_data
+
+        except Exception as e:
+            logger.error(f"处理分离器Excel数据失败 (第{row_index}行): {e}")
+            raise ValueError(f"第{row_index}行数据格式错误: {e}")
+
+    # 🔥 辅助方法
+    def _get_excel_value(self, row_data: Dict, field_names: List[str]):
+        """从Excel行数据中获取值（支持多个可能的字段名）"""
+        for field_name in field_names:
+            if field_name in row_data and row_data[field_name] is not None:
+                value = row_data[field_name]
+                # 处理空字符串和NaN
+                if value != '' and str(value).lower() != 'nan':
+                    return value
+        return None
+
+    def _safe_float(self, value):
+        """安全转换为浮点数"""
+        if value is None or value == '' or str(value).lower() == 'nan':
+            return None
+        try:
+            return float(value)
+        except (ValueError, TypeError):
+            return None
+
+    def _safe_int(self, value):
+        """安全转换为整数"""
+        if value is None or value == '' or str(value).lower() == 'nan':
+            return None
+        try:
+            return int(float(value))  # 先转float再转int，处理"100.0"这种情况
+        except (ValueError, TypeError):
+            return None
+
+    def _convert_pump_units(self, param: str, value: float, is_metric: bool) -> float:
+        """转换泵参数单位"""
+        if value is None:
+            return None
+        
+        # 如果模板已经是正确单位，直接返回
+        if is_metric:
+            return value
+    
+        # 英制转公制（系统存储为公制）
+        conversion_map = {
+            'displacement_min': lambda x: x * 0.158987,  # bbl/d to m³/d
+            'displacement_max': lambda x: x * 0.158987,  # bbl/d to m³/d
+            'single_stage_head': lambda x: x * 0.3048,   # ft to m
+            'single_stage_power': lambda x: x * 0.746,   # HP to kW
+            'outside_diameter': lambda x: x * 25.4,      # in to mm
+            'shaft_diameter': lambda x: x * 25.4,        # in to mm
+            'weight': lambda x: x * 0.453592,            # lbs to kg
+            'length': lambda x: x * 25.4,                # in to mm
+        }
+    
+        if param in conversion_map:
+            return conversion_map[param](value)
+    
+        return value
+
+    def _extract_performance_curves(self, row_data: Dict, is_metric: bool) -> Dict:
+        """提取性能曲线数据"""
+        curves = {
+            'flow_points': [],
+            'head_points': [],
+            'efficiency_points': [],
+            'power_points': [],
+            'best_efficiency_point': {}
+        }
+    
+        # 🔥 提取5个性能点
+        for i in range(1, 6):
+            if is_metric:
+                flow_key = f'流量点{i}(m³/d)'
+                head_key = f'扬程点{i}(m)'
+                power_key = f'功率点{i}(kW)'
+            else:
+                flow_key = f'流量点{i}(bbl/d)'
+                head_key = f'扬程点{i}(ft)'
+                power_key = f'功率点{i}(HP)'
+        
+            eff_key = f'效率点{i}(%)'
+        
+            flow_value = self._get_excel_value(row_data, [flow_key])
+            if flow_value:
+                flow = self._safe_float(flow_value)
+                head = self._safe_float(self._get_excel_value(row_data, [head_key])) or 0
+                efficiency = self._safe_float(self._get_excel_value(row_data, [eff_key])) or 0
+                power = self._safe_float(self._get_excel_value(row_data, [power_key])) or 0
+            
+                # 🔥 单位转换（如果需要）
+                if not is_metric:  # 英制转公制存储
+                    flow = flow * 0.158987 if flow else 0      # bbl/d to m³/d
+                    head = head * 0.3048 if head else 0        # ft to m
+                    power = power * 0.746 if power else 0      # HP to kW
+            
+                curves['flow_points'].append(flow)
+                curves['head_points'].append(head)
+                curves['efficiency_points'].append(efficiency)
+                curves['power_points'].append(power)
+    
+        # 🔥 最优工况点
+        if is_metric:
+            opt_flow_key = '最优流量(m³/d)'
+            opt_head_key = '最优扬程(m)'
+            opt_power_key = '最优功率(kW)'
+        else:
+            opt_flow_key = '最优流量(bbl/d)'
+            opt_head_key = '最优扬程(ft)'
+            opt_power_key = '最优功率(HP)'
+    
+        opt_eff_key = '最优效率(%)'
+    
+        opt_flow = self._safe_float(self._get_excel_value(row_data, [opt_flow_key]))
+        if opt_flow:
+            opt_head = self._safe_float(self._get_excel_value(row_data, [opt_head_key])) or 0
+            opt_efficiency = self._safe_float(self._get_excel_value(row_data, [opt_eff_key])) or 0
+            opt_power = self._safe_float(self._get_excel_value(row_data, [opt_power_key])) or 0
+        
+            # 🔥 单位转换
+            if not is_metric:
+                opt_flow = opt_flow * 0.158987
+                opt_head = opt_head * 0.3048
+                opt_power = opt_power * 0.746
+        
+            curves['best_efficiency_point'] = {
+                'flow': opt_flow,
+                'head': opt_head,
+                'efficiency': opt_efficiency,
+                'power': opt_power
+            }
+    
+        return curves

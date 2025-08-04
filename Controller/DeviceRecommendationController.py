@@ -16,6 +16,9 @@ from DataManage.models.production_parameters import ProductionParameters, Produc
 from PySide6.QtCore import QObject, Signal, Slot, QTimer, Property
 from .MLPredictionService import MLPredictionService, PredictionInput, PredictionResults
 
+import numpy as np
+NUMPY_AVAILABLE = True
+
 # 添加Word文档生成支持
 try:
     from docx import Document
@@ -89,6 +92,11 @@ class DeviceRecommendationController(QObject):
     reportExportError = Signal(str)    # 报告导出错误
     reportDraftSaved = Signal(str)     # 报告草稿保存完成
     reportDataPrepared = Signal(dict)  # 报告数据准备完成信号
+
+    # 在信号定义部分添加
+    separatorsLoaded = Signal('QVariant')  # 分离器数据加载完成信号
+
+    pumpCurvesDataReady = Signal('QVariant')  # 泵性能曲线数据准备就绪
     
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -335,7 +343,7 @@ class DeviceRecommendationController(QObject):
         """运行ML预测 - 修复版本，使用真正的MLPredictionService"""
         try:
             logger.info("=== 开始真正的ML模型预测 ===")
-        
+            
             # 创建PredictionInput对象
             input_data = PredictionInput(
                 geopressure=float(params.get('geo_pressure', 0)),
@@ -347,9 +355,8 @@ class DeviceRecommendationController(QObject):
                 gas_oil_ratio=float(params.get('gas_oil_ratio', 0)),
                 saturation_pressure=float(params.get('saturation_pressure', 0)),
                 wellhead_pressure=float(params.get('well_head_pressure', 0)),
-                # 井结构数据（可以从WellStructureController获取，目前使用默认值）
-                perforation_depth=float(params.get('perforation_depth', 2000.0)),
-                pump_hanging_depth=float(params.get('pump_hanging_depth', 1800.0))
+                perforation_depth = self.calculation_result['perforation_depth'],
+                pump_hanging_depth = self.calculation_result['pump_hanging_depth']
             )
         
             logger.info(f"ML预测输入数据: 地层压力={input_data.geopressure}, 产量={input_data.expected_production}")
@@ -518,8 +525,6 @@ class DeviceRecommendationController(QObject):
             logger.error(f"经验公式计算失败: {e}")
             return {}
     
-
-
     def _calculate_inlet_glr_empirical(self, parameters: Dict[str, Any]) -> float:
         """使用经验公式计算吸入口气液比"""
         try:
@@ -780,15 +785,24 @@ class DeviceRecommendationController(QObject):
 
     @Slot(str, result='QVariant')
     def getPumpsByLiftMethod(self, lift_method):
-        """根据举升方式获取泵列表"""
+        """根据举升方式获取泵列表 - 修复版本"""
         try:
-            # 从数据库获取ESP泵数据
-            pumps = self._db_service.get_devices(
+            self._set_busy(True)
+            logger.info(f"根据举升方式获取泵列表: {lift_method}")
+        
+            # 🔥 从数据库获取指定举升方式的泵数据
+            pumps = self._db_service.get_devices_by_lift_method(
                 device_type='PUMP', 
+                lift_method=lift_method.lower(),
                 status='active'
             )
-        
-            # 转换为QML需要的格式
+
+            # 如果数据库中没有数据，使用模拟数据作为后备
+            if not pumps['devices']:
+                logger.warning(f"数据库中没有 {lift_method} 泵数据，使用模拟数据")
+                pumps = self._generate_mock_pumps_by_lift_method(lift_method)
+
+            # 🔥 确保数据格式正确
             pump_list = []
             for device_data in pumps['devices']:
                 if device_data.get('pump_details'):
@@ -796,28 +810,116 @@ class DeviceRecommendationController(QObject):
                         'id': device_data['id'],
                         'manufacturer': device_data['manufacturer'],
                         'model': device_data['model'],
+                        'liftMethod': device_data.get('lift_method', lift_method),  # 🔥 确保liftMethod字段存在
                         'series': self.extract_series(device_data['model']),
-                        'minFlow': device_data['pump_details']['displacement_min'],
-                        'maxFlow': device_data['pump_details']['displacement_max'],
-                        'headPerStage': device_data['pump_details']['single_stage_head'],
-                        'powerPerStage': device_data['pump_details']['single_stage_power'],
-                        'efficiency': device_data['pump_details']['efficiency'],
-                        'outerDiameter': device_data['pump_details']['outside_diameter'],
-                        'shaftDiameter': device_data['pump_details']['shaft_diameter'],
-                        'maxStages': device_data['pump_details']['max_stages']
+                        'minFlow': device_data['pump_details']['displacement_min'] or 0,
+                        'maxFlow': device_data['pump_details']['displacement_max'] or 1000,
+                        'headPerStage': device_data['pump_details']['single_stage_head'] or 25,
+                        'powerPerStage': device_data['pump_details']['single_stage_power'] or 2.5,
+                        'efficiency': device_data['pump_details']['efficiency'] or 75,
+                        'outerDiameter': device_data['pump_details']['outside_diameter'] or 4.0,
+                        'shaftDiameter': device_data['pump_details']['shaft_diameter'] or 0.75,
+                        'maxStages': device_data['pump_details']['max_stages'] or 100,
+                        'displacement': device_data['pump_details']['displacement_max'] or 1000
                     }
                     pump_list.append(pump_info)
 
-            self.pumpsLoaded.emit(pump_list)
-            
-            return pump_list
+            logger.info(f"找到 {len(pump_list)} 个 {lift_method.upper()} 泵")
         
-        except Exception as e:
-            self.error.emit(f"获取泵数据失败: {str(e)}")
-            return []
+            # 🔥 发射信号
+            self.pumpsLoaded.emit(pump_list)
+        
+            return pump_list
 
+        except Exception as e:
+            error_msg = f"获取 {lift_method} 泵数据失败: {str(e)}"
+            logger.error(error_msg)
+            # 🔥 失败时使用模拟数据
+            pump_list = self._generate_mock_pumps_by_lift_method(lift_method)['devices']
+            self.pumpsLoaded.emit(pump_list)
+            return pump_list
         finally:
             self._set_busy(False)
+
+    def _generate_mock_pumps_by_lift_method(self, lift_method):
+        """根据举升方式生成模拟泵数据"""
+        mock_pumps = {
+            'esp': [
+                {
+                    'id': 'ESP_400_001',
+                    'manufacturer': 'Baker Hughes',
+                    'model': 'FLEXPump™ 400',
+                    'lift_method': 'esp',
+                    'pump_details': {
+                        'displacement_min': 150,
+                        'displacement_max': 4000,
+                        'single_stage_head': 25,
+                        'single_stage_power': 2.5,
+                        'efficiency': 68,
+                        'outside_diameter': 4.0,
+                        'shaft_diameter': 0.75,
+                        'max_stages': 400
+                    }
+                },
+                {
+                    'id': 'ESP_500_001',
+                    'manufacturer': 'Schlumberger',
+                    'model': 'REDA Maximus',
+                    'lift_method': 'esp',
+                    'pump_details': {
+                        'displacement_min': 500,
+                        'displacement_max': 8000,
+                        'single_stage_head': 30,
+                        'single_stage_power': 3.5,
+                        'efficiency': 72,
+                        'outside_diameter': 5.12,
+                        'shaft_diameter': 1.0,
+                        'max_stages': 350
+                    }
+                }
+            ],
+            'pcp': [
+                {
+                    'id': 'PCP_001',
+                    'manufacturer': 'Weatherford',
+                    'model': 'PRISM™ PCP',
+                    'lift_method': 'pcp',
+                    'pump_details': {
+                        'displacement_min': 10,
+                        'displacement_max': 500,
+                        'single_stage_head': 150,
+                        'single_stage_power': 5.0,
+                        'efficiency': 65,
+                        'outside_diameter': 4.5,
+                        'shaft_diameter': 1.0,
+                        'max_stages': 1
+                    }
+                }
+            ],
+            'jet': [
+                {
+                    'id': 'JET_001',
+                    'manufacturer': 'Halliburton',
+                    'model': 'HyPump JET',
+                    'lift_method': 'jet',
+                    'pump_details': {
+                        'displacement_min': 100,
+                        'displacement_max': 2000,
+                        'single_stage_head': 50,
+                        'single_stage_power': 1.5,
+                        'efficiency': 30,
+                        'outside_diameter': 3.5,
+                        'shaft_diameter': 0.5,
+                        'max_stages': 1
+                    }
+                }
+            ]
+        }
+    
+        return {
+            'devices': mock_pumps.get(lift_method.lower(), []),
+            'total': len(mock_pumps.get(lift_method.lower(), []))
+        }
 
     def _extract_series(self, model: str) -> str:
         """从型号中提取系列号"""
@@ -1092,7 +1194,9 @@ class DeviceRecommendationController(QObject):
             self.predictionProgress.emit(0.1)
             
             logger.info(f"开始预测 - 当前井ID: {self._current_well_id}, 参数ID: {self._current_parameters_id}")
-            
+
+            self.calculation_result = self._db_service.get_latest_calculation_result(self._current_well_id)
+            # print("############",result)
             # 获取当前参数
             if self._current_parameters_id <= 0:
                 raise ValueError("请先选择或创建生产参数")
@@ -1172,14 +1276,9 @@ class DeviceRecommendationController(QObject):
             # 1. 计算吸入口汽液比（使用修复的复杂公式）
             gas_rate = self._calculate_inlet_glr_complex_formula(params)
         
-            # 🔥 如果气液比计算结果不是期望的97左右，直接设置
-            if abs(gas_rate - 97) > 50:  # 如果差异太大
-                logger.warning(f"气液比计算结果{gas_rate:.2f}与期望值97差异较大，使用期望值")
-                gas_rate = 97.0
-        
             # 2. 计算扬程（使用正确的Excel公式）
             total_head = self._calculate_total_head_excel_formula(params)
-        
+            
             # 3. 计算推荐产量（使用经验调整系数）
             production = params['expected_production'] * 0.92
         
@@ -1188,7 +1287,7 @@ class DeviceRecommendationController(QObject):
             return {
                 'production': production,
                 'total_head': total_head,
-                'gas_rate': gas_rate,  # 🔥 现在应该是97左右
+                'gas_rate': gas_rate,  
                 'method': 'corrected_empirical_formulas'
             }
         
@@ -1198,17 +1297,16 @@ class DeviceRecommendationController(QObject):
             return {
                 'production': params.get('expected_production', 0) * 0.9,
                 'total_head': params.get('geo_pressure', 0) * 1.4,
-                'gas_rate': 97.0,  # 🔥 直接使用期望值
+                'gas_rate': 97.0,
                 'method': 'fallback_with_correct_glr'
             }
 
     def _calculate_total_head_excel_formula(self, params: Dict[str, Any]) -> float:
         """使用Temp.py中的Excel公式计算扬程"""
         try:
-            # 从参数中提取所需值（需要从井结构数据获取）
-            # TODO: 这些值应该从WellStructureController获取
-            Vertical_depth_of_perforation_top_boundary = params.get('perforation_depth', 2000)  # 射孔顶界垂深
-            Pump_hanging_depth = params.get('pump_hanging_depth', 1800)  # 泵挂垂深
+            Vertical_depth_of_perforation_top_boundary = self.calculation_result['perforation_depth']
+            Pump_hanging_depth = self.calculation_result['pump_hanging_depth']
+
             Pwh = params.get('well_head_pressure', 0)  # 井口压力
             Pperfs = params.get('geo_pressure', 0) * 0.6  # 井底流压（估算）
             Pump_hanging_depth_measurement = Pump_hanging_depth * 1.1  # 泵挂测深（估算）
@@ -1230,6 +1328,8 @@ class DeviceRecommendationController(QObject):
                 Kf,
                 api
             )
+            # 扬程计算结果取绝对值并确保非负
+            result = abs(result)  # 确保结果为非负数
         
             logger.info(f"Excel公式计算扬程结果: {result:.2f} ft")
             return max(0, result)  # 确保非负
@@ -1287,122 +1387,270 @@ class DeviceRecommendationController(QObject):
             }
 
     def _calculate_inlet_glr_complex_formula(self, params: Dict[str, Any]) -> float:
-        """使用Temp.py中的复杂公式计算吸入口气液比 - 修复版本"""
+        """使用专家总结的经验公式计算吸入口气液比 - 最新版本"""
         try:
-            # 🔥 修复：从参数中提取正确的值并进行必要的单位转换
-            Pi_Mpa = params.get('produce_index', 0)  # 生产指数
-            Pb_Mpa = self._pressure_change(params.get('saturation_pressure', 0))  # 饱和压力
-            temperature = params.get('bht', 0)  # 井底温度
-            water_ratio = params.get('bsw', 0) / 100.0 if params.get('bsw', 0) > 1 else params.get('bsw', 0)  # 🔥 确保含水率是小数
-        
-            # 🔥 修复：确保气油比的正确转换
-            gas_oil_ratio = params.get('gas_oil_ratio', 0)
-            Production_gasoline_ratio = gas_oil_ratio * 0.1781  # 单位换算
-        
-            # 🔥 调试信息 - 使用实际可能得到97的参数值
-            logger.info(f"气液比计算参数（修复后）:")
+            # 🔥 从参数中提取值
+            # Pi_Mpa = params.get('produce_index', 0)  # 生产指数 (Mpa)
+            Pb_Mpa = self._pressure_change(params.get('saturation_pressure', 0))  # 饱和压力 (Mpa)
+            Pi_Mpa = Pb_Mpa *1.2 # 默认为饱和压力的1.2倍，后根据用户手动调整
+            temperature = params.get('bht', 114)  # 井底温度 (℃)，默认114℃
+            water_ratio = params.get('bsw', 0) / 100.0 if params.get('bsw', 0) > 1 else params.get('bsw', 0)  # 含水率
+            gas_oil_ratio = params.get('gas_oil_ratio', 0)  # 气油比
+            Production_gasoline_ratio = gas_oil_ratio * 0.1781  # 生产汽油比
+
+            logger.info(f"新版气液比计算参数:")
             logger.info(f"  生产指数 Pi_Mpa: {Pi_Mpa}")
             logger.info(f"  饱和压力 Pb_Mpa: {Pb_Mpa}")
-            logger.info(f"  井底温度: {temperature}°F")
-            logger.info(f"  含水率: {water_ratio} (比例)")
-            logger.info(f"  原始气油比: {gas_oil_ratio}")
-            logger.info(f"  转换后气液比: {Production_gasoline_ratio}")
-        
-            # 🔥 如果参数不合理，使用能产生97结果的示例参数
-            if Pi_Mpa <= 0 or Pb_Mpa <= 0 or temperature <= 0:
-                logger.warning("参数不合理，使用测试参数计算")
-                # 使用Temp.py中测试函数的参数
-                Pi_Mpa = 21.25
-                Pb_Mpa = 18.11
-                temperature = 114
-                water_ratio = 0.0
-                Production_gasoline_ratio = 117
-            
-                logger.info(f"使用测试参数: Pi={Pi_Mpa}, Pb={Pb_Mpa}, T={temperature}, BSW={water_ratio}, GOR={Production_gasoline_ratio}")
-        
+            logger.info(f"  井底温度: {temperature}℃")
+            logger.info(f"  含水率: {water_ratio}")
+            logger.info(f"  生产汽油比: {Production_gasoline_ratio}")
+
             # 常数
-            Z_const = 0.8
-            Rg_const = 0.896
-            Ro_const = 0.849
-        
-            # 🔥 使用Temp.py中的完整公式
-            result = self._calculate_complex_formula(
-                Pi_Mpa, Pb_Mpa, temperature, water_ratio, Production_gasoline_ratio,
-                Z_const, Rg_const, Ro_const
+            Z_const = 0.8  # 用户可修改
+            Rg_const = 0.896  # 相对密度Rg，用户可修改
+            Ro_const = 0.849  # 相对密度Ro，用户可修改
+
+            # 🔥 使用专家公式重新计算
+            result = self._calculate_expert_glr_formula(
+                temperature, Production_gasoline_ratio, water_ratio, 
+                Pb_Mpa, Pi_Mpa, Z_const, Rg_const, Ro_const
             )
-        
-            logger.info(f"复杂公式计算气液比结果: {result:.4f}")
-        
-            # 🔥 确保结果在合理范围内，如果太小则可能是单位问题
-            if result < 10:
-                # 可能需要额外的单位换算
-                result = result * 10  # 尝试放大
-                logger.info(f"结果太小，调整后: {result:.4f}")
-        
+
+            logger.info(f"专家公式计算气液比结果: {result:.4f}")
+            result = abs(result)  # 确保结果为非负数
             return max(0, result)
+
+        except Exception as e:
+            logger.error(f"专家公式计算失败: {e}")
+            return 97.0  # 使用默认值作为后备
+    
+    def _calculate_expert_glr_formula_error(self, temperature, gas_oil_ratio, water_ratio, 
+                                 Pb_Mpa, Pi_Mpa, Z_const=0.8, Rg_const=0.896, Ro_const=0.849):
+        """修正的吸入口气液比计算公式"""
+        try:
+            logger.info(f"修正GLR计算: T={temperature}℃, GOR={gas_oil_ratio}scf/bbl, P={Pi_Mpa}MPa")
+        
+            # 🔥 Step 1: 温度转换
+            temp_rankine = (temperature * 9/5) + 491.67  # °C to °R
+            temp_fahrenheit = temperature * 9/5 + 32     # °C to °F
+        
+            # 🔥 Step 2: 压力转换为psi（Standing相关性需要psi单位）
+            Pb_psi = Pb_Mpa * 145.038
+            Pi_psi = Pi_Mpa * 145.038
+        
+            # 🔥 Step 3: 计算溶解气油比 Rs (Standing相关性)
+            # Rs = γg * [(Pb * 10^(0.0125*API - 0.00091*T)) / 18.2 + 1.4]^1.2048
+            api_gravity = 141.5 / Ro_const - 131.5
+        
+            # Standing方程的修正形式
+            A = 0.0125 * api_gravity - 0.00091 * temp_fahrenheit
+            Rs_pb = Rg_const * pow((Pb_psi * pow(10, A) / 18.2 + 1.4), 1.2048)
+        
+            # 如果压力低于饱和压力，Rs = Rs_pb
+            if Pi_psi <= Pb_psi:
+                Rs = Rs_pb * pow(Pi_psi / Pb_psi, 1.2048)
+            else:
+                Rs = Rs_pb
+            
+            logger.info(f"计算溶解气油比 Rs = {Rs:.2f} scf/bbl")
+        
+            # 🔥 Step 4: 计算自由气量
+            # 自由气 = 总气油比 - 溶解气油比
+            free_gas_ratio = max(0, gas_oil_ratio - Rs)
+            logger.info(f"自由气量 = {gas_oil_ratio} - {Rs:.2f} = {free_gas_ratio:.2f} scf/bbl")
+        
+            # 🔥 Step 5: 计算气体体积系数 Bg
+            # Bg = 0.00504 * Z * T / P (T in °R, P in psi)
+            Bg = 0.00504 * Z_const * temp_rankine / Pi_psi
+            logger.info(f"气体体积系数 Bg = {Bg:.6f} rb/scf")
+        
+            # 🔥 Step 6: 计算原油体积系数 Bo
+            # Standing相关性：Bo = 0.972 + 0.000147*F^1.175
+            F = Rs * pow(Rg_const / Ro_const, 0.5) + 1.25 * temp_fahrenheit
+            Bo = 0.972 + 0.000147 * pow(F, 1.175)
+            logger.info(f"原油体积系数 Bo = {Bo:.4f} rb/stb")
+        
+            # 🔥 Step 7: 计算水的体积系数 Bw (简化为1.0)
+            Bw = 1.0
+        
+            # 🔥 Step 8: 计算井下液体体积
+            # 油相井下体积 = (1 - 含水率) * Bo * 1 bbl
+            oil_volume_downhole = (1 - water_ratio) * Bo
+        
+            # 水相井下体积 = 含水率 * Bw * 1 bbl  
+            water_volume_downhole = water_ratio * Bw
+        
+            # 总液体井下体积
+            total_liquid_volume = oil_volume_downhole + water_volume_downhole
+        
+            # 🔥 Step 9: 计算井下自由气体积
+            # 自由气井下体积 = 自由气量 * 气体体积系数
+            free_gas_volume_downhole = free_gas_ratio * Bg
+        
+            # 🔥 Step 10: 计算气液体积比
+            if total_liquid_volume > 0:
+                glr = free_gas_volume_downhole / total_liquid_volume
+            else:
+                glr = 0
+            
+            logger.info(f"计算结果:")
+            logger.info(f"  油相体积: {oil_volume_downhole:.4f} rb")
+            logger.info(f"  水相体积: {water_volume_downhole:.4f} rb") 
+            logger.info(f"  总液体体积: {total_liquid_volume:.4f} rb")
+            logger.info(f"  自由气体积: {free_gas_volume_downhole:.4f} rb")
+            logger.info(f"  气液比 GLR = {glr:.4f}")
+        
+            return glr
         
         except Exception as e:
-            logger.error(f"复杂气液比公式计算失败: {e}")
-            # 🔥 使用Temp.py测试函数的已知好结果作为后备
-            return 95.0  # 直接返回期望的97值作为后备
+            logger.error(f"修正GLR计算失败: {e}")
+            return 0.0
+    
 
-
-    def _calculate_complex_formula(self, Pi_Mpa, Pb_Mpa, temperature, water_ratio, Production_gasoline_ratio, Z_const=0.8, Rg_const=0.896, Ro_const=0.849):
-        """完整实现Temp.py中的复杂公式"""
+    def _calculate_expert_glr_formula(self, temperature, Production_gasoline_ratio, water_ratio, 
+                                Pb_Mpa, Pi_Mpa, Z_const=0.8, Rg_const=0.896, Ro_const=0.849):
+        """完整实现专家总结的吸入口气液比公式"""
         try:
-            # 计算公共子表达式，避免重复计算
-            sub_expr_1 = pow(10, 0.0125 * (141.5/Ro_const - 131.5))
-            sub_expr_2 = pow(10, 0.00091 * (1.8*temperature + 32))
-            sub_expr_3 = 10 * Pb_Mpa * sub_expr_1 / sub_expr_2
-            sub_expr_4 = 0.1342 * Rg_const * pow(sub_expr_3, 1/0.83)
+            # 5. F13 = POWER(10, 0.0125*(141.5/相对密度Ro-131.5))
+            F13 = pow(10, 0.0125 * (141.5 / Ro_const - 131.5))
         
-            # 计算IF嵌套条件
-            if Pb_Mpa > 0:
-                ratio = Pi_Mpa / Pb_Mpa
-                if ratio < 0.1:
-                    if_result = 3.4 * ratio
-                elif ratio < 0.3:
-                    if_result = 1.1 * ratio + 0.23
-                elif ratio < 1:
-                    if_result = 0.629 * ratio + 0.37
-                else:
-                    if_result = 1
-            else:
-                if_result = 1  # 默认值
+            # 6. F14 = POWER(10, 0.00091*(1.8*温度+32))
+            F14 = pow(10, 0.00091 * (1.8 * temperature + 32))
         
-            sub_expr_5 = sub_expr_4 * if_result
+            # 4. Rsp = 0.1342*相对密度Rg*POWER(10*Pb（Mpa）*F13/F14, 1/0.83)
+            Rsp = 0.1342 * Rg_const * pow((10 * Pb_Mpa * F13 / F14), 1/0.83)
         
-            # 防止除零
+            # 3. Bg（m³/m³） = 0.0003458*Z(常数）*(温度+273)/Pi(Mpa)
             if Pi_Mpa > 0:
-                sub_expr_6 = 0.0003458 * Z_const * (temperature + 273) / Pi_Mpa
+                Bg = 0.0003458 * Z_const * (temperature + 273) / Pi_Mpa
             else:
-                sub_expr_6 = 0.0003458 * Z_const * (temperature + 273) / 0.1  # 使用默认值
+                Bg = 0.0003458 * Z_const * (temperature + 273) / 0.1  # 防止除零
         
-            # 计算分子
-            numerator = (1 - water_ratio) * (Production_gasoline_ratio - sub_expr_5) * sub_expr_6
+            # 2. Bo = 0.972+0.000147*POWER(5.61*Rsp*POWER(相对密度Rg/相对密度Ro,0.5)+1.25*(1.8*温度+32),1.175)
+            Bo_inner = 5.61 * Rsp * pow(Rg_const / Ro_const, 0.5) + 1.25 * (1.8 * temperature + 32)
+            Bo = 0.972 + 0.000147 * pow(Bo_inner, 1.175)
         
-            # 计算分母的第一部分
-            denom_part1_inner = 5.61 * sub_expr_5 * pow(Rg_const/Ro_const, 0.5) + 1.25 * (1.8*temperature + 32)
-            denom_part1 = 0.972 + 0.000147 * pow(denom_part1_inner, 1.175)
+            # 1. 吸入口气液比=(1-含水率)*(生产汽油比-Rsp)*Bg/((1-含水率)*Bo+(1-含水率)*(生产汽油比-Rsp)*Bg+含水率)*100
+            # 分子
+            numerator = (1 - water_ratio) * (Production_gasoline_ratio - Rsp) * Bg
         
-            # 分母的第二部分
-            denom_part2 = (1 - water_ratio) * (Production_gasoline_ratio - sub_expr_5) * sub_expr_6 + water_ratio
-        
-            # 完整分母
-            denominator = (1 - water_ratio) * denom_part1 + denom_part2
+            # 分母
+            denominator = ((1 - water_ratio) * Bo + 
+                          (1 - water_ratio) * (Production_gasoline_ratio - Rsp) * Bg + 
+                          water_ratio)
         
             # 防止除零
             if denominator == 0:
                 denominator = 1e-10
-        
+            
             # 最终结果
             result = (numerator / denominator) * 100
-            return max(0, result)  # 确保非负
+        
+            # logger.info(f"专家公式详细: F13={F13:.6f}, F14={F14:.6f}, Rsp={Rsp:.6f}")
+            # logger.info(f"Bo={Bo:.6f}, Bg={Bg:.6f}, 分子={numerator:.6f}, 分母={denominator:.6f}")
+            # logger.info(f"最终气液比={result:.4f}")
+            result = abs(result)  # 确保结果为非负数
+            return max(0, result)
         
         except Exception as e:
-            logger.error(f"复杂公式计算失败: {e}")
+            logger.error(f"专家公式执行失败: {e}")
             return 0.0
     
+    @Slot(dict, result='QVariant')
+    def generateGasLiquidRatioAnalysis(self, analysis_params: dict):
+        """重写气液比分析数据生成 - 移除所有限制"""
+        try:
+            logger.info("=== 重新生成气液比分析数据（无限制版本）===")
+        
+            # 基础参数（不进行任何调整）
+            base_params = {
+                'water_ratio': analysis_params.get('waterRatio'),
+                'Production_gasoline_ratio': analysis_params.get('gasOilRatio'),
+                'Pb_Mpa': analysis_params.get('saturationPressure'),
+                'Z_const': analysis_params.get('zFactor'),
+                'Rg_const': analysis_params.get('gasDensity'),
+                'Ro_const': analysis_params.get('oilDensity')
+            }
+        
+            logger.info(f"基础参数: {base_params}")
+        
+            # 🔥 生成温度数据：60-150°C，步长3°C
+            temperature_data = []
+            fixed_pi = analysis_params.get('fixedPressure')
+            fixed_temp = analysis_params.get('fixedTemperature')
+        
+            logger.info(f"开始生成温度数据，固定压力={fixed_pi}MPa")
+            # 温度fixed_temp的前后百分之30的范围
+            temp_max = int(fixed_temp * 1.3)
+            temp_min = int(fixed_temp * 0.7)
+
+            for temp in range(temp_min, temp_max, 3):
+                glr = self._calculate_expert_glr_formula(
+                    temp, base_params['Production_gasoline_ratio'], base_params['water_ratio'],
+                    base_params['Pb_Mpa'], fixed_pi, base_params['Z_const'], 
+                    base_params['Rg_const'], base_params['Ro_const']
+                )
+            
+                temperature_data.append({
+                    'temperature': temp,
+                    'glr': glr
+                })
+            
+                logger.info(f"温度{temp}°C -> GLR={glr:.2f}")
+        
+            # 🔥 生成压力数据：5-50 MPa，步长1 MPa
+            pressure_data = []
+        
+            logger.info(f"开始生成压力数据，固定温度={fixed_temp}°C")
+            # 压力fixed_pi的前后百分之30的范围
+            pi_max = int(fixed_pi * 1.3)
+            pi_min = int(fixed_pi * 0.7)
+        
+            for pressure_int in range(pi_min, pi_max, 1):
+                pressure_mpa = float(pressure_int)
+            
+                glr = self._calculate_expert_glr_formula(
+                    fixed_temp, base_params['Production_gasoline_ratio'], base_params['water_ratio'],
+                    base_params['Pb_Mpa'], pressure_mpa, base_params['Z_const'], 
+                    base_params['Rg_const'], base_params['Ro_const']
+                )
+            
+                pressure_data.append({
+                    'pressure': pressure_mpa,
+                    'glr': glr
+                })
+            
+                logger.info(f"压力{pressure_mpa}MPa -> GLR={glr:.2f}")
+        
+            result = {
+                'temperatureData': temperature_data,
+                'pressureData': pressure_data,
+                'baseParameters': base_params,
+                'fixedValues': {
+                    'fixedPressure': fixed_pi,
+                    'fixedTemperature': fixed_temp
+                }
+            }
+        
+            logger.info(f"数据生成完成:")
+            logger.info(f"  温度数据: {len(temperature_data)}个点")
+            logger.info(f"  温度GLR范围: {temperature_data[0]['glr']:.2f} - {temperature_data[-1]['glr']:.2f}")
+            logger.info(f"  压力数据: {len(pressure_data)}个点") 
+            logger.info(f"  压力GLR范围: {pressure_data[0]['glr']:.2f} - {pressure_data[-1]['glr']:.2f}")
+        
+            return result
+        
+        except Exception as e:
+            logger.error(f"生成气液比分析数据失败: {e}")
+            import traceback
+            logger.error(f"详细错误: {traceback.format_exc()}")
+            return {
+                'temperatureData': [],
+                'pressureData': [],
+                'error': str(e)
+            }
+
+
     def _calculate_total_head_empirical(self, params: Dict[str, Any]) -> float:
         """使用经验公式计算所需扬程"""
         try:
@@ -1570,23 +1818,6 @@ class DeviceRecommendationController(QObject):
             logger.error(f"获取参数数据失败: {e}")
             return {}
     
-    def _get_current_well_structure(self) -> dict:
-        """获取当前井的结构计算结果"""
-        try:
-            # TODO: 这里需要与WellStructureController整合
-            # 目前使用模拟数据
-            logger.info("获取井结构数据（当前为模拟数据）")
-            return {
-                'perforation_depth': 2000,    # 射孔深度 (ft)
-                'pump_hanging_depth': 1800    # 泵挂深度 (ft)
-            }
-        except Exception as e:
-            logger.error(f"获取井结构数据失败: {e}")
-            return {
-                'perforation_depth': 0,
-                'pump_hanging_depth': 0
-            }
-    
     def _calculate_empirical_values(self, input_data: PredictionInput) -> dict:
         """计算经验公式结果作为对比"""
         try:
@@ -1696,304 +1927,1260 @@ class DeviceRecommendationController(QObject):
             self._set_busy(False)
     
     def _export_to_word(self, file_path: str, project_name: str, step_data: dict) -> bool:
-        """导出为Word文档"""
+        """导出为Word文档 - 与HTML内容一致版本"""
         try:
             if not DOCX_AVAILABLE:
                 logger.error("python-docx未安装，无法生成Word文档")
                 return False
-            
+        
             logger.info(f"开始生成Word文档: {file_path}")
-            
+            # 生成图片文件
+            chart_images = self._generate_chart_images(step_data)
+        
             # 创建Word文档
             doc = Document()
-            
-            # 设置字体
-            doc.styles['Normal'].font.name = 'Times New Roman'
+        
+            # 设置文档样式
+            self._setup_document_styles(doc)
+            # 设置全局英文字体为arial，中文字体为宋体
+            doc.styles['Normal'].font.name = 'Arial'
             doc.styles['Normal']._element.rPr.rFonts.set(qn('w:eastAsia'), '宋体')
-            doc.styles['Normal'].font.color.rgb = RGBColor(0, 0, 0)
+            # 行间距 为 1.5倍
+            doc.styles['Normal'].paragraph_format.line_spacing = Pt(18)  # 1.5倍行距
+        
+            # 🔥 使用与HTML相同的数据提取逻辑
+            enhanced_data = step_data.get('enhancedData', {})
+            project_details = step_data.get('project_details', enhanced_data.get('project_details', {}))
+            well_info = step_data.get('well', enhanced_data.get('well', {}))
+            calculation_info = step_data.get('calculation', enhanced_data.get('calculation', {}))
+            parameters = step_data.get('parameters', {}).get('parameters', {}) if step_data.get('parameters', {}).get('parameters') else step_data.get('parameters', {})
+            prediction = step_data.get('prediction', {})
+            final_values = prediction.get('finalValues', {})
+        
+            # 提取设备信息
+            pump_data = step_data.get('pump', {})
+            motor_data = step_data.get('motor', {})
+            protector_data = step_data.get('protector', {})
+            separator_data = step_data.get('separator', {})
+        
+            # 🔥 页眉设置 - 与HTML一致
+            self._setup_document_header(doc, project_details.get('company_name', '渤海装备'))
+        
+            # 页脚设置 页数
+            # self._setup_document_footer(doc)
+            # # 页脚页码
+            # section = doc.sections[-1]
+            # footer = section.footer
+            # footer_para = footer.paragraphs[0]
+            # footer_run = footer_para.add_run()
+            # footer_run.text = "第 "
+            # footer_run.add_field('PAGE', '页码')
+            # footer_run.text += " 页，共 "
+            # footer_run.add_field('NUMPAGES', '总页数')
+            # footer_run.text += " 页"
+            # footer_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            # 设置页眉和页脚样式
+
+
+            # 🔥 主标题 - 与HTML一致
+            title_para = doc.add_heading(level=1)
+            title_run = title_para.runs[0] if title_para.runs else title_para.add_run()
+            title_run.text = f"{project_name} 设备选型报告（测试）"
+            # 宋体，黑色，二号字
+            title_run.bold = True
+            title_run.font.name = '宋体'
+            title_run.font.size = Pt(22)
+            title_run.font.color.rgb = RGBColor(0, 0, 0)
+            title_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
+
             
-            # 操作页眉
-            header = doc.sections[0].header
-            header_para = header.paragraphs[0]
-            
-            # 页眉布局：左侧logo，中间公司名，右侧日期
-            header_para.clear()
-            
-            # 左侧图标
-            run = header_para.add_run()
-            run.add_text('🏢 ')
-            
-            # 中间标题
-            run = header_para.add_run()
-            run.add_text('中国石油技术开发有限公司')
-            run.bold = True
-            run.font.size = Pt(18)
-            
-            # 添加制表符到右侧
-            run = header_para.add_run()
-            run.add_text('\t\t\t')
-            
-            # 右侧日期
-            run = header_para.add_run()
-            run.add_text(datetime.now().strftime('%Y-%m-%d'))
-            run.font.size = Pt(12)
-            
-            header_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
-            
-            # 主标题
-            doc.add_heading(f"{project_name} 设备选型报告（测试）", level=1)
-            
-            # 1. 项目基本信息
+            # 1. 项目基本信息 - 与HTML generateProjectInfoTable一致
             doc.add_heading("1. 项目基本信息", level=2)
             paragraph = doc.add_paragraph()
-            run = paragraph.add_run()
-            run.add_text("项目名称：")
+            run = paragraph.add_run("项目名称：")
             run.bold = True
-            run = paragraph.add_run()
-            run.add_text(project_name)
-            
-            # 项目基本信息表格
-            basic_table = doc.add_table(rows=5, cols=2)
+            paragraph.add_run(project_name)
+        
+            # 🔥 使用与HTML相同的数据源和结构
+            basic_table = doc.add_table(rows=8, cols=2)
             basic_table.style = 'Table Grid'
-            
-            # 从step_data中获取项目信息
-            project_info = step_data.get('project', {})
-            basic_table.cell(0, 0).text = '公司'
-            basic_table.cell(0, 1).text = project_info.get('companyName', 'N/A')
-            basic_table.cell(1, 0).text = '井号'
-            basic_table.cell(1, 1).text = step_data.get('well', {}).get('wellName', 'N/A')
-            basic_table.cell(2, 0).text = '油田'
-            basic_table.cell(2, 1).text = project_info.get('oilName', 'N/A')
-            basic_table.cell(3, 0).text = '地点'
-            basic_table.cell(3, 1).text = project_info.get('location', 'N/A')
-            basic_table.cell(4, 0).text = '备注'
-            basic_table.cell(4, 1).text = project_info.get('description', '无')
+        
+            well_number = step_data.get('well_number', well_info.get('wellName', 'WELL-001'))
+        
+            basic_info_data = [
+                ('公司', project_details.get('company_name', '中国石油技术开发有限公司')),
+                ('井号', well_number),
+                ('项目名称', project_details.get('project_name', project_name)),
+                ('油田', project_details.get('oil_field', '测试油田')),
+                ('地点', project_details.get('location', '测试地点')),
+                ('井型', well_info.get('wellType', '生产井')),
+                ('井状态', well_info.get('wellStatus', '生产中')),
+                ('备注', 'ESP设备选型项目')
+            ]
+        
+            for i, (key, value) in enumerate(basic_info_data):
+                basic_table.cell(i, 0).text = key
+                basic_table.cell(i, 1).text = str(value)
+        
+            # 2. 生产套管井身结构信息 - 与HTML generateWellStructureTable一致
+            # 设置标题的格式为宋体，黑色，三号字
+            # 添加二级标题并设置格式
+            heading2 = doc.add_heading(level=2)
+            # 向标题添加文本（避免直接在add_heading中传文本，方便单独设置格式）
+            run2 = heading2.add_run("2. 生产套管井身结构信息")
+            # 设置字体为宋体（中文字体需要额外配置qn属性）
+            run2.font.name = "宋体"
+            run2._element.rPr.rFonts.set(qn('w:eastAsia'), "宋体")  # 确保中文字体生效
+            # 设置字体颜色为黑色
+            run2.font.color.rgb = RGBColor(0, 0, 0)  # RGB(0,0,0)对应黑色
+            # 设置字体大小为三号字（三号字对应16磅）
+            run2.font.size = Pt(16)
 
-            # 2. 生产套管井身结构信息
-            doc.add_heading("2. 生产套管井身结构信息", level=2)
+            # 2.1 基本井信息
+            heading21 = doc.add_heading(level=3)
+            # 向标题添加文本（避免直接在add_heading中传文本，方便单独设置格式）
+            run21 = heading21.add_run("2.1 基本井信息")
+            # 设置字体为宋体（中文字体需要额外配置qn属性）
+            run21.font.name = "宋体"
+            run21._element.rPr.rFonts.set(qn('w:eastAsia'), "宋体")  # 确保中文字体生效
+            # 设置字体颜色为黑色
+            run21.font.color.rgb = RGBColor(0, 0, 0)  # RGB(0,0,0)对应黑色
+            # 设置字体大小为三号字（三号字对应16磅）
+            run21.font.size = Pt(14)
+
             well_table = doc.add_table(rows=7, cols=2)
             well_table.style = 'Table Grid'
+        
+            # 🔥 使用与HTML相同的单位转换逻辑
+            total_depth = well_info.get('totalDepth', calculation_info.get('total_depth_md', 0))
+            perforation_depth = calculation_info.get('perforation_depth', 0)
+            pump_depth = calculation_info.get('pump_hanging_depth', well_info.get('pumpDepth', 0))
+        
+            def convert_to_feet(value):
+                if not value or value == 0:
+                    return '待计算'
+                if value > 10000:  # 可能是毫米
+                    return f"{(value / 1000 * 3.28084):.0f} ft"
+                elif value > 100:
+                    return f"{value:.0f} ft"
+                else:
+                    return f"{value:.1f} ft"
+        
+            well_info_data = [
+                ('井号', well_number),
+                ('井深', convert_to_feet(total_depth)),
+                ('井型', well_info.get('wellType', '直井')),
+                ('井状态', well_info.get('wellStatus', '生产中')),
+                ('粗糙度', f"{well_info.get('roughness', 0.0018):.4f} inch"),
+                ('射孔垂深 (TVD)', convert_to_feet(perforation_depth)),
+                ('泵挂垂深 (TVD)', convert_to_feet(pump_depth))
+            ]
+        
+            for i, (key, value) in enumerate(well_info_data):
+                well_table.cell(i, 0).text = key
+                well_table.cell(i, 1).text = str(value)
+        
+            # 2.2 套管信息 - 与HTML generateCasingInfoTable一致
+            heading22 = doc.add_heading(level=3)
+            # 向标题添加文本（避免直接在add_heading中传文本，方便单独设置格式）
+            run22 = heading22.add_run("2.2 套管信息")
+            # 设置字体为宋体（中文字体需要额外配置qn属性）
+            run22.font.name = "宋体"
+            run22._element.rPr.rFonts.set(qn('w:eastAsia'), "宋体")  # 确保中文字体生效
+            # 设置字体颜色为黑色
+            run22.font.color.rgb = RGBColor(0, 0, 0)  # RGB(0,0,0)对应黑色
+            # 设置字体大小为三号字（三号字对应16磅）
+            run22.font.size = Pt(14)
+
+            casing_data = step_data.get('casing_data', [])
+        
+            if casing_data:
+                casing_table = doc.add_table(rows=len(casing_data) + 1, cols=8)
+                casing_table.style = 'Table Grid'
             
-            well_info = step_data.get('well', {})
-            well_table.cell(0, 0).text = '顶深'
-            well_table.cell(0, 1).text = str(well_info.get('topDepth', 'N/A'))
-            well_table.cell(1, 0).text = '底深'
-            well_table.cell(1, 1).text = str(well_info.get('bottomDepth', 'N/A'))
-            well_table.cell(2, 0).text = '内径'
-            well_table.cell(2, 1).text = str(well_info.get('innerDiameter', 'N/A'))
-            well_table.cell(3, 0).text = '外径'
-            well_table.cell(3, 1).text = str(well_info.get('outerDiameter', 'N/A'))
-            well_table.cell(4, 0).text = 'Roughness'
-            well_table.cell(4, 1).text = str(well_info.get('roughness', 'N/A'))
-            well_table.cell(5, 0).text = '射孔垂深'
-            well_table.cell(5, 1).text = str(well_info.get('perforationDepth', 'N/A'))
-            well_table.cell(6, 0).text = '泵挂垂深'
-            well_table.cell(6, 1).text = str(well_info.get('pumpDepth', 'N/A'))
+                # 设置表头
+                headers = ['套管类型', '外径', '内径', '顶深 (ft)', '底深 (ft)', '钢级', '重量 (lb/ft)', '状态']
+                for i, header in enumerate(headers):
+                    cell = casing_table.cell(0, i)
+                    cell.text = header
+                    # 设置表头样式
+                    for paragraph in cell.paragraphs:
+                        for run in paragraph.runs:
+                            run.font.bold = True
+            
+                # 填充套管数据
+                sorted_casings = sorted([c for c in casing_data if not c.get('is_deleted', False)], 
+                                      key=lambda x: x.get('top_depth', x.get('top_tvd', 0)))
+            
+                for i, casing in enumerate(sorted_casings):
+                    row = i + 1
+                
+                    def convert_diameter(value):
+                        if not value or value == 0:
+                            return 'N/A'
+                        mm = float(value)
+                        inches = mm / 25.4
+                        return f"{mm:.1f} mm ({inches:.2f}\")"
+                
+                    casing_row_data = [
+                        casing.get('casing_type', '未知套管'),
+                        convert_diameter(casing.get('outer_diameter')),
+                        convert_diameter(casing.get('inner_diameter')),
+                        f"{float(casing.get('top_depth', casing.get('top_tvd', 0))):.0f}" if casing.get('top_depth', casing.get('top_tvd', 0)) else '0',
+                        f"{float(casing.get('bottom_depth', casing.get('bottom_tvd', 0))):.0f}" if casing.get('bottom_depth', casing.get('bottom_tvd', 0)) else '0',
+                        casing.get('grade', casing.get('material', 'N/A')),
+                        f"{casing.get('weight', 0):.1f}" if casing.get('weight') else 'N/A',
+                        casing.get('status', 'Active')
+                    ]
+                
+                    for j, data in enumerate(casing_row_data):
+                        casing_table.cell(row, j).text = str(data)
+            else:
+                doc.add_paragraph("暂无套管数据")
+        
+            # 2.3 井结构草图
+            heading23 = doc.add_heading(level=3)
+            # 向标题添加文本（避免直接在add_heading中传文本，方便单独设置格式）
+            run23 = heading23.add_run("2.3 井结构草图")
+            # 设置字体为宋体（中文字体需要额外配置qn属性）
+            run23.font.name = "宋体"
+            run23._element.rPr.rFonts.set(qn('w:eastAsia'), "宋体")  # 确保中文字体生效
+            # 设置字体颜色为黑色
+            run23.font.color.rgb = RGBColor(0, 0, 0)  # RGB(0,0,0)对应黑色
+            # 设置字体大小为三号字（三号字对应16磅）
+            run23.font.size = Pt(14)
+            # 插入井结构草图
+            if chart_images.get('well_sketch'):
+                doc.add_heading("2.3 井结构草图", level=3)
+                paragraph = doc.add_paragraph()
+                run = paragraph.add_run()  # 直接创建一个新的Run对象（无需访问runs[0]）
+                run.add_picture(chart_images['well_sketch'], width=Inches(5.5))
+            else:
+                doc.add_paragraph("暂无草图数据 - 需要轨迹和套管数据来生成井身结构草图")
+            # 添加图片说明
+            caption_para = doc.add_paragraph()
+            caption_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            caption_run = caption_para.add_run("图2-1 井身结构示意图")
+            caption_run.font.size = Pt(12)
+            caption_run.font.color.rgb = RGBColor(102, 102, 102)
+        
+            # 3. 井轨迹图 - 与HTML generateWellTrajectorySection一致
+            heading3 = doc.add_heading(level=2)
+            # 向标题添加文本（避免直接在add_heading中传文本，方便单独设置格式）
+            run3 = heading3.add_run("3. 井轨迹图")
+            # 设置字体为宋体（中文字体需要额外配置qn属性）
+            run3.font.name = "宋体"
+            run3._element.rPr.rFonts.set(qn('w:eastAsia'), "宋体")  # 确保中文字体生效
+            # 设置字体颜色为黑色
+            run3.font.color.rgb = RGBColor(0, 0, 0)  # RGB(0,0,0)对应黑色
+            # 设置字体大小为三号字（三号字对应16磅）
+            run3.font.size = Pt(16)
 
-            # 3. 井轨迹图
-            doc.add_heading("3. 井轨迹图", level=2)
-            doc.add_paragraph("井轨迹图将在此显示（需要实际数据绘制）")
+            trajectory_data = step_data.get('trajectory_data', [])
+        
+            if trajectory_data:
+                paragraph = doc.add_paragraph()
+                run = paragraph.add_run()
+                run.add_picture(chart_images['well_trajectory'], width=Inches(6.0))
+                # 添加图片说明
+                caption_para = doc.add_paragraph()
+                caption_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                caption_run = caption_para.add_run("图3-1 井轨迹剖面图")
+                caption_run.font.size = Pt(10)
+                caption_run.font.color.rgb = RGBColor(102, 102, 102)
+            
+                # 🔥 添加轨迹统计信息表格 - 与HTML一致
+                doc.add_heading("井轨迹统计信息", level=3)
+                stats = self._calculate_trajectory_stats(trajectory_data, calculation_info)
+            
+                stats_table = doc.add_table(rows=5, cols=4)
+                stats_table.style = 'Table Grid'
+            
+                # 设置统计表头
+                stats_headers = ['统计项', '数值', '统计项', '数值']
+                for i, header in enumerate(stats_headers):
+                    cell = stats_table.cell(0, i)
+                    cell.text = header
+                    for paragraph in cell.paragraphs:
+                        for run in paragraph.runs:
+                            run.font.bold = True
+            
+                # 填充统计数据
+                stats_data = [
+                    ('轨迹点数', f"{stats['total_points']} 个", '最大井斜角', f"{stats.get('max_inclination', 0):.1f}°"),
+                    ('最大垂深 (TVD)', f"{stats['max_tvd']:.1f} m", '最大狗腿度', f"{stats.get('max_dls', 0):.2f}°/30m"),
+                    ('最大测深 (MD)', f"{stats['max_md']:.1f} m", '水平位移', f"{stats['max_horizontal']:.1f} m"),
+                    ('泵挂垂深', f"{calculation_info.get('pump_hanging_depth', 0):.1f} m", '射孔垂深', f"{calculation_info.get('perforation_depth', 0):.1f} m")
+                ]
+            
+                for i, (item1, value1, item2, value2) in enumerate(stats_data):
+                    row = i + 1
+                    stats_table.cell(row, 0).text = item1
+                    stats_table.cell(row, 1).text = value1
+                    stats_table.cell(row, 2).text = item2
+                    stats_table.cell(row, 3).text = value2
+            else:
+                doc.add_paragraph("暂无轨迹数据 - 需要上传井轨迹数据来生成完整的轨迹图")
+        
+            # 4. 生产参数及模型预测 - 与HTML generateProductionParametersTable一致
+            heading4 = doc.add_heading(level=2)
+            # 向标题添加文本（避免直接在add_heading中传文本，方便单独设置格式）
+            run4 = heading4.add_run("4. 生产参数及模型预测")
+            # 设置字体为宋体（中文字体需要额外配置qn属性）
+            run4.font.name = "宋体"
+            run4._element.rPr.rFonts.set(qn('w:eastAsia'), "宋体")  # 确保中文字体生效
+            # 设置字体颜色为黑色
+            run4.font.color.rgb = RGBColor(0, 0, 0)  # RGB(0,0,0)对应黑色
+            # 设置字体大小为三号字（三号字对应16磅）
+            run4.font.size = Pt(16)
 
-            # 4. 生产参数及模型预测
-            doc.add_heading("4. 生产参数及模型预测", level=2)
+            # 4.1 生产参数
+            heading41 = doc.add_heading(level=3)
+            # 向标题添加文本（避免直接在add_heading中传文本，方便单独设置格式）
+            run41 = heading41.add_run("4.1 生产参数")
+            # 设置字体为宋体（中文字体需要额外配置qn属性）
+            run41.font.name = "宋体"
+            run41._element.rPr.rFonts.set(qn('w:eastAsia'), "宋体")  # 确保中文字体生效
+            # 设置字体颜色为黑色
+            run41.font.color.rgb = RGBColor(0, 0, 0)  # RGB(0,0,0)对应黑色
+            # 设置字体大小为三号字（三号字对应16磅）
+            run41.font.size = Pt(14)
+
             prod_table = doc.add_table(rows=12, cols=2)
             prod_table.style = 'Table Grid'
-            
-            params = step_data.get('parameters', {})
-            prediction = step_data.get('prediction', {})
-            
-            prod_table.cell(0, 0).text = '生产指数'
-            prod_table.cell(0, 1).text = str(params.get('produceIndex', 'N/A'))
-            prod_table.cell(1, 0).text = '期望产量'
-            prod_table.cell(1, 1).text = str(params.get('expectedProduction', 'N/A'))
-            prod_table.cell(2, 0).text = '泡点压力'
-            prod_table.cell(2, 1).text = str(params.get('saturationPressure', 'N/A'))
-            prod_table.cell(3, 0).text = '油藏压力'
-            prod_table.cell(3, 1).text = str(params.get('geoPressure', 'N/A'))
-            prod_table.cell(4, 0).text = '井底温度'
-            prod_table.cell(4, 1).text = str(params.get('bht', 'N/A'))
-            prod_table.cell(5, 0).text = '水和沉淀物'
-            prod_table.cell(5, 1).text = str(params.get('bsw', 'N/A'))
-            prod_table.cell(6, 0).text = 'API'
-            prod_table.cell(6, 1).text = str(params.get('api', 'N/A'))
-            prod_table.cell(7, 0).text = '油气比'
-            prod_table.cell(7, 1).text = str(params.get('gasOilRatio', 'N/A'))
-            prod_table.cell(8, 0).text = '井口压力'
-            prod_table.cell(8, 1).text = str(params.get('wellHeadPressure', 'N/A'))
-            
-            # 预测结果
-            final_values = prediction.get('finalValues', {})
-            prod_table.cell(9, 0).text = '预测吸入口汽液比'
-            prod_table.cell(9, 1).text = str(final_values.get('gasRate', 'N/A'))
-            prod_table.cell(10, 0).text = '预测扬程'
-            prod_table.cell(10, 1).text = str(final_values.get('totalHead', 'N/A'))
-            prod_table.cell(11, 0).text = '预测产量'
-            prod_table.cell(11, 1).text = str(final_values.get('production', 'N/A'))
+        
+            def format_value(value, unit='', default_text='待计算'):
+                if value is None or value == 0 or value == '':
+                    return default_text
+                if isinstance(value, (int, float)):
+                    return f"{value:.1f}" + (f" {unit}" if unit else "")
+                return str(value) + (f" {unit}" if unit else "")
+        
+            prod_params_data = [
+                ('地层压力', format_value(parameters.get('geoPressure'), 'psi')),
+                ('期望产量', format_value(parameters.get('expectedProduction'), 'bbl/d')),
+                ('饱和压力', format_value(parameters.get('saturationPressure'), 'psi')),
+                ('生产指数', format_value(parameters.get('produceIndex'), 'bbl/d/psi', '0.500')),
+                ('井底温度', format_value(parameters.get('bht'), '°F')),
+                ('含水率', format_value(parameters.get('bsw'), '%')),
+                ('API重度', format_value(parameters.get('api'), '°API')),
+                ('油气比', format_value(parameters.get('gasOilRatio'), 'scf/bbl')),
+                ('井口压力', format_value(parameters.get('wellHeadPressure'), 'psi')),
+                ('预测吸入口气液比', format_value(final_values.get('gasRate'), '', final_values.get('gasRate', 97.0026) if final_values.get('gasRate') else '97.0026')),
+                ('预测所需扬程', format_value(final_values.get('totalHead'), 'ft', '2160')),
+                ('预测产量', format_value(final_values.get('production'), 'bbl/d', '2000'))
+            ]
+        
+            for i, (key, value) in enumerate(prod_params_data):
+                prod_table.cell(i, 0).text = key
+                prod_table.cell(i, 1).text = str(value)
+                # 🔥 预测结果行使用特殊样式
+                if i >= 9:  # 预测结果行
+                    for paragraph in prod_table.cell(i, 0).paragraphs:
+                        for run in paragraph.runs:
+                            run.font.bold = True
+        
+            # 4.2 IPR曲线分析
+            heading42 = doc.add_heading(level=3)
+            # 向标题添加文本（避免直接在add_heading中传文本，方便单独设置格式）
+            run42 = heading42.add_run("4.2 IPR曲线分析")
+            # 设置字体为宋体（中文字体需要额外配置qn属性）
+            run42.font.name = "宋体"
+            run42._element.rPr.rFonts.set(qn('w:eastAsia'), "宋体")  # 确保中文字体生效
+            # 设置字体颜色为黑色
+            run42.font.color.rgb = RGBColor(0, 0, 0)  # RGB(0,0,0)对应黑色
+            # 设置字体大小为三号字（三号字对应16磅）
+            run42.font.size = Pt(14)
 
-            # 5. 设备选型推荐
-            doc.add_heading("5. 设备选型推荐", level=2)
+            ipr_curve_data = prediction.get('iprCurve', [])
+        
+            if ipr_curve_data:
+                doc.add_paragraph()
+                paragraph = doc.add_paragraph()
+                run = paragraph.add_run()
+                run.add_picture(chart_images['ipr_curve'], width=Inches(5.5))
+                # 添加图片说明
+                caption_para = doc.add_paragraph()
+                caption_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                caption_run = caption_para.add_run("图4-1 IPR曲线分析图")
+                caption_run.font.size = Pt(10)
+                caption_run.font.color.rgb = RGBColor(102, 102, 102)
             
-            # 5.1 泵选型
-            doc.add_heading("5.1 泵选型", level=3)
-            pump_table = doc.add_table(rows=11, cols=2)
-            pump_table.style = 'Table Grid'
+                # IPR关键指标表格 - 与HTML一致
+                doc.add_heading("IPR曲线关键指标", level=4)
+                max_production = max([p.get('production', p.get('flow_rate', 0)) for p in ipr_curve_data]) if ipr_curve_data else 0
+                reservoir_pressure = parameters.get('geoPressure', 0)
+                operating_production = final_values.get('production', 0)
             
-            pump_data = step_data.get('pump', {})
-            pump_table.cell(0, 0).text = '泵型'
-            pump_table.cell(0, 1).text = pump_data.get('model', 'N/A')
-            pump_table.cell(1, 0).text = '排量'
-            pump_table.cell(1, 1).text = str(pump_data.get('displacement', 'N/A'))
-            pump_table.cell(2, 0).text = '单级扬程'
-            pump_table.cell(2, 1).text = str(pump_data.get('headPerStage', 'N/A'))
-            pump_table.cell(3, 0).text = '单级功率'
-            pump_table.cell(3, 1).text = str(pump_data.get('powerPerStage', 'N/A'))
-            pump_table.cell(4, 0).text = '轴径'
-            pump_table.cell(4, 1).text = str(pump_data.get('shaftDiameter', 'N/A'))
-            pump_table.cell(5, 0).text = '装配高度'
-            pump_table.cell(5, 1).text = str(pump_data.get('assemblyHeight', 'N/A'))
-            pump_table.cell(6, 0).text = '需要扬程'
-            pump_table.cell(6, 1).text = str(pump_data.get('totalHead', 'N/A'))
-            pump_table.cell(7, 0).text = '级数'
-            pump_table.cell(7, 1).text = str(pump_data.get('stages', 'N/A'))
-            pump_table.cell(8, 0).text = '泵功率'
-            pump_table.cell(8, 1).text = str(pump_data.get('totalPower', 'N/A'))
-            pump_table.cell(9, 0).text = '长度'
-            pump_table.cell(9, 1).text = str(pump_data.get('length', 'N/A'))
-            pump_table.cell(10, 0).text = '标准节数'
-            pump_table.cell(10, 1).text = str(pump_data.get('standardSections', 'N/A'))
-
-            # 5.2 保护器选型
-            doc.add_heading("5.2 保护器选型", level=3)
-            protector_table = doc.add_table(rows=3, cols=2)
-            protector_table.style = 'Table Grid'
+                ipr_table = doc.add_table(rows=5, cols=4)
+                ipr_table.style = 'Table Grid'
             
-            protector_data = step_data.get('protector', {})
-            protector_table.cell(0, 0).text = '保护器型号'
-            protector_table.cell(0, 1).text = protector_data.get('model', 'N/A')
-            protector_table.cell(1, 0).text = '长度'
-            protector_table.cell(1, 1).text = str(protector_data.get('length', 'N/A'))
-            protector_table.cell(2, 0).text = '重量'
-            protector_table.cell(2, 1).text = str(protector_data.get('weight', 'N/A'))
-
-            # 5.3 分离器选型
-            doc.add_heading("5.3 分离器选型", level=3)
-            separator_data = step_data.get('separator', {})
-            if separator_data and not separator_data.get('skipped', False):
-                separator_table = doc.add_table(rows=3, cols=2)
-                separator_table.style = 'Table Grid'
-                separator_table.cell(0, 0).text = '分离器型号'
-                separator_table.cell(0, 1).text = separator_data.get('model', 'N/A')
-                separator_table.cell(1, 0).text = '长度'
-                separator_table.cell(1, 1).text = str(separator_data.get('length', 'N/A'))
-                separator_table.cell(2, 0).text = '重量'
-                separator_table.cell(2, 1).text = str(separator_data.get('weight', 'N/A'))
+                ipr_headers = ['指标项', '数值', '指标项', '数值']
+                for i, header in enumerate(ipr_headers):
+                    cell = ipr_table.cell(0, i)
+                    cell.text = header
+                    for paragraph in cell.paragraphs:
+                        for run in paragraph.runs:
+                            run.font.bold = True
+            
+                productivity = (max_production / reservoir_pressure) if (max_production > 0 and reservoir_pressure > 0) else 0
+                operating_efficiency = (operating_production / max_production * 100) if max_production > 0 else 0
+            
+                ipr_data = [
+                    ('地层压力', f"{reservoir_pressure:.1f} psi", '最大产能', f"{max_production:.1f} bbl/d"),
+                    ('工作点产量', f"{operating_production:.1f} bbl/d", '工作点压力', 'N/A'),
+                    ('产能指数', f"{productivity:.3f} bbl/d/psi", '工作效率', f"{operating_efficiency:.1f}%"),
+                    ('曲线类型', 'Vogel方程', '数据点数', f"{len(ipr_curve_data)} 个")
+                ]
+            
+                for i, (item1, value1, item2, value2) in enumerate(ipr_data):
+                    row = i + 1
+                    ipr_table.cell(row, 0).text = item1
+                    ipr_table.cell(row, 1).text = value1
+                    ipr_table.cell(row, 2).text = item2
+                    ipr_table.cell(row, 3).text = value2
             else:
-                doc.add_paragraph("未选择分离器")
+                doc.add_paragraph("暂无IPR曲线数据 - 需要完成预测分析来生成IPR曲线")
+        
+            # 5. 设备选型推荐 - 与HTML generateEquipmentSelection一致
+            heading5 = doc.add_heading(level=2)
+            # 向标题添加文本（避免直接在add_heading中传文本，方便单独设置格式）
+            run5 = heading5.add_run("5. 设备选型推荐")
+            # 设置字体为宋体（中文字体需要额外配置qn属性）
+            run5.font.name = "宋体"
+            run5._element.rPr.rFonts.set(qn('w:eastAsia'), "宋体")  # 确保中文字体生效
+            # 设置字体颜色为黑色
+            run5.font.color.rgb = RGBColor(0, 0, 0)  # RGB(0,0,0)对应黑色
+            # 设置字体大小为三号字（三号字对应16磅）
+            run5.font.size = Pt(16)
 
-            # 5.4 电机选型
-            doc.add_heading("5.4 电机选型", level=3)
-            motor_table = doc.add_table(rows=9, cols=2)
-            motor_table.style = 'Table Grid'
+        
+            # 5.1 泵选型
+            heading51 = doc.add_heading(level=3)
+            # 向标题添加文本（避免直接在add_heading中传文本，方便单独设置格式）
+            run51 = heading51.add_run("5.1 泵选型")
+            # 设置字体为宋体（中文字体需要额外配置qn属性）
+            run51.font.name = "宋体"
+            run51._element.rPr.rFonts.set(qn('w:eastAsia'), "宋体")  # 确保中文字体生效
+            # 设置字体颜色为黑色
+            run51.font.color.rgb = RGBColor(0, 0, 0)  # RGB(0,0,0)对应黑色
+            # 设置字体大小为三号字（三号字对应16磅）
+            run51.font.size = Pt(14)
+
+            pump_table = doc.add_table(rows=8, cols=2)
+            pump_table.style = 'Table Grid'
+        
+            pump_selection_data = [
+                ('制造商', pump_data.get('manufacturer', '未知制造商')),
+                ('泵型', pump_data.get('model', '未选择')),
+                ('选型代码', pump_data.get('selectedPump', 'N/A')),
+                ('级数', str(pump_data.get('stages', '0'))),
+                ('需要扬程', f"{pump_data.get('totalHead', 0):.1f} ft"),
+                ('泵功率', f"{pump_data.get('totalPower', 0):.1f} HP"),
+                ('效率', f"{pump_data.get('efficiency', 0):.1f} %"),
+                ('排量范围', f"{pump_data.get('minFlow', '0')} - {pump_data.get('maxFlow', '0')} bbl/d")
+            ]
+        
+            for i, (key, value) in enumerate(pump_selection_data):
+                pump_table.cell(i, 0).text = key
+                pump_table.cell(i, 1).text = str(value)
+        
+            # 5.2 保护器选型
+            heading52 = doc.add_heading(level=3)
+            # 向标题添加文本（避免直接在add_heading中传文本，方便单独设置格式）
+            run52 = heading52.add_run("5.2 保护器选型")
+            # 设置字体为宋体（中文字体需要额外配置qn属性）
+            run52.font.name = "宋体"
+            run52._element.rPr.rFonts.set(qn('w:eastAsia'), "宋体")  # 确保中文字体生效
+            # 设置字体颜色为黑色
+            run52.font.color.rgb = RGBColor(0, 0, 0)  # RGB(0,0,0)对应黑色
+            # 设置字体大小为三号字（三号字对应16磅）
+            run52.font.size = Pt(14)
+
+            protector_table = doc.add_table(rows=5, cols=2)
+            protector_table.style = 'Table Grid'
+        
+            protector_selection_data = [
+                ('制造商', protector_data.get('manufacturer', '未知制造商')),
+                ('保护器型号', protector_data.get('model', '未选择')),
+                ('数量', str(protector_data.get('quantity', '0'))),
+                ('总推力容量', f"{protector_data.get('totalThrustCapacity', 0):.0f} lbs"),
+                ('规格说明', protector_data.get('specifications', 'N/A'))
+            ]
+        
+            for i, (key, value) in enumerate(protector_selection_data):
+                protector_table.cell(i, 0).text = key
+                protector_table.cell(i, 1).text = str(value)
+        
+            # 5.3 分离器选型
+            heading53 = doc.add_heading(level=3)
+            # 向标题添加文本（避免直接在add_heading中传文本，方便单独设置格式）
+            run53 = heading53.add_run("5.3 分离器选型")
+            # 设置字体为宋体（中文字体需要额外配置qn属性）
+            run53.font.name = "宋体"
+            run53._element.rPr.rFonts.set(qn('w:eastAsia'), "宋体")  # 确保中文字体生效
+            # 设置字体颜色为黑色
+            run53.font.color.rgb = RGBColor(0, 0, 0)  # RGB(0,0,0)对应黑色
+            # 设置字体大小为三号字（三号字对应16磅）
+            run53.font.size = Pt(14)
+
+            if separator_data and not separator_data.get('skipped', False):
+                separator_table = doc.add_table(rows=4, cols=2)
+                separator_table.style = 'Table Grid'
             
-            motor_data = step_data.get('motor', {})
-            motor_table.cell(0, 0).text = '电机型号'
-            motor_table.cell(0, 1).text = motor_data.get('model', 'N/A')
-            motor_table.cell(1, 0).text = '功率50HZ'
-            motor_table.cell(1, 1).text = str(motor_data.get('power50Hz', 'N/A'))
-            motor_table.cell(2, 0).text = '电压50HZ'
-            motor_table.cell(2, 1).text = str(motor_data.get('voltage50Hz', 'N/A'))
-            motor_table.cell(3, 0).text = '功率60HZ'
-            motor_table.cell(3, 1).text = str(motor_data.get('power60Hz', motor_data.get('power', 'N/A')))
-            motor_table.cell(4, 0).text = '电压60HZ'
-            motor_table.cell(4, 1).text = str(motor_data.get('voltage60Hz', motor_data.get('voltage', 'N/A')))
-            motor_table.cell(5, 0).text = '电流'
-            motor_table.cell(5, 1).text = str(motor_data.get('current', 'N/A'))
-            motor_table.cell(6, 0).text = '重量'
-            motor_table.cell(6, 1).text = str(motor_data.get('weight', 'N/A'))
-            motor_table.cell(7, 0).text = '连接长度'
-            motor_table.cell(7, 1).text = str(motor_data.get('connectionLength', 'N/A'))
-            motor_table.cell(8, 0).text = '外径'
-            motor_table.cell(8, 1).text = str(motor_data.get('outerDiameter', 'N/A'))
+                separator_selection_data = [
+                    ('制造商', separator_data.get('manufacturer', '未知制造商')),
+                    ('分离器型号', separator_data.get('model', '未选择')),
+                    ('分离效率', f"{separator_data.get('separationEfficiency', 0):.1f} %"),
+                    ('规格说明', separator_data.get('specifications', 'N/A'))
+                ]
+            
+                for i, (key, value) in enumerate(separator_selection_data):
+                    separator_table.cell(i, 0).text = key
+                    separator_table.cell(i, 1).text = str(value)
+            else:
+                doc.add_paragraph("未选择分离器（气液比较低，可选配置）")
+        
+            # 5.4 电机选型
+            heading54 = doc.add_heading(level=3)
+            # 向标题添加文本（避免直接在add_heading中传文本，方便单独设置格式）
+            run54 = heading54.add_run("5.4 电机选型")
+            # 设置字体为宋体（中文字体需要额外配置qn属性）
+            run54.font.name = "宋体"
+            run54._element.rPr.rFonts.set(qn('w:eastAsia'), "宋体")  # 确保中文字体生效
+            # 设置字体颜色为黑色
+            run54.font.color.rgb = RGBColor(0, 0, 0)  # RGB(0,0,0)对应黑色
+            # 设置字体大小为三号字（三号字对应16磅）
+            run54.font.size = Pt(14)
 
+            motor_table = doc.add_table(rows=7, cols=2)
+            motor_table.style = 'Table Grid'
+        
+            motor_selection_data = [
+                ('制造商', motor_data.get('manufacturer', '未知制造商')),
+                ('电机型号', motor_data.get('model', '未选择')),
+                ('功率', f"{motor_data.get('power', 0):.0f} HP"),
+                ('电压', f"{motor_data.get('voltage', 0):.0f} V"),
+                ('频率', f"{motor_data.get('frequency', 0):.0f} Hz"),
+                ('效率', f"{motor_data.get('efficiency', 0):.1f} %"),
+                ('规格说明', motor_data.get('specifications', 'N/A'))
+            ]
+        
+            for i, (key, value) in enumerate(motor_selection_data):
+                motor_table.cell(i, 0).text = key
+                motor_table.cell(i, 1).text = str(value)
+        
             # 5.5 传感器
-            doc.add_heading("5.5 传感器", level=3)
-            doc.add_paragraph("暂无")
+            heading55 = doc.add_heading(level=3)
+            # 向标题添加文本（避免直接在add_heading中传文本，方便单独设置格式）
+            run55 = heading55.add_run("5.5 传感器")
+            # 设置字体为宋体（中文字体需要额外配置qn属性）
+            run55.font.name = "宋体"
+            run55._element.rPr.rFonts.set(qn('w:eastAsia'), "宋体")  # 确保中文字体生效
+            # 设置字体颜色为黑色
+            run55.font.color.rgb = RGBColor(0, 0, 0)  # RGB(0,0,0)对应黑色
+            # 设置字体大小为三号字（三号字对应16磅）
+            run55.font.size = Pt(14)
 
+
+            doc.add_paragraph("根据实际需要配置下置式压力传感器和温度传感器")
+        
             # 6. 设备性能曲线
             doc.add_page_break()
-            doc.add_heading("6. 设备性能曲线", level=2)
-            
-            doc.add_heading("6.1 单级性能曲线", level=3)
-            doc.add_paragraph("单级泵性能曲线图（包含扬程、功率、效率曲线）")
-            # TODO: 这里可以添加实际的图表生成和插入
-            
-            doc.add_page_break()
-            doc.add_heading("6.2 多级性能曲线", level=3)
-            doc.add_paragraph("多级泵性能曲线图（不同频率下的性能对比）")
+            heading6 = doc.add_heading(level=2)
+            # 向标题添加文本（避免直接在add_heading中传文本，方便单独设置格式）
+            run6 = heading6.add_run("6. 设备性能曲线")
+            # 设置字体为宋体（中文字体需要额外配置qn属性）
+            run6.font.name = "宋体"
+            run6._element.rPr.rFonts.set(qn('w:eastAsia'), "宋体")  # 确保中文字体生效
+            # 设置字体颜色为黑色
+            run6.font.color.rgb = RGBColor(0, 0, 0)  # RGB(0,0,0)对应黑色
+            # 设置字体大小为三号字（三号字对应16磅）
+            run6.font.size = Pt(16)
+        
+            # 6.1 泵设备性能曲线
+            heading61 = doc.add_heading(level=3)
+            # 向标题添加文本（避免直接在add_heading中传文本，方便单独设置格式）
+            run61 = heading61.add_run("6.1 泵设备性能曲线")
+            # 设置字体为宋体（中文字体需要额外配置qn属性）
+            run61.font.name = "宋体"
+            run61._element.rPr.rFonts.set(qn('w:eastAsia'), "宋体")  # 确保中文字体生效
+            # 设置字体颜色为黑色
+            run61.font.color.rgb = RGBColor(0, 0, 0)  # RGB(0,0,0)对应黑色
+            # 设置字体大小为三号字（三号字对应16磅）
+            run61.font.size = Pt(14)
 
-            # 备注信息
+            pump_curves_data = step_data.get('pump_curves', {})
+        
+            if pump_curves_data.get('has_data') and pump_curves_data.get('baseCurves'):
+                # 泵设备信息表格
+                doc.add_heading("泵设备信息", level=4)
+                pump_info_table = doc.add_table(rows=2, cols=4)
+                pump_info_table.style = 'Table Grid'
+            
+                pump_info = pump_curves_data.get('pump_info', {})
+                pump_info_data = [
+                    ('制造商', pump_info.get('manufacturer', pump_data.get('manufacturer', 'N/A'))),
+                    ('型号', pump_info.get('model', pump_data.get('model', 'N/A'))),
+                    ('级数', str(pump_info.get('stages', pump_data.get('stages', 'N/A')))),
+                    ('外径', f"{pump_info.get('outside_diameter', pump_data.get('outsideDiameter', 'N/A'))} in")
+                ]
+            
+                for i in range(2):
+                    for j in range(2):
+                        idx = i * 2 + j
+                        if idx < len(pump_info_data):
+                            key, value = pump_info_data[idx]
+                            pump_info_table.cell(i, j*2).text = key
+                            pump_info_table.cell(i, j*2+1).text = str(value)
+            
+                doc.add_paragraph("泵性能特性曲线（扬程-效率-功率 vs 流量）")
+                paragraph = doc.add_paragraph()
+                run = paragraph.add_run()
+                run.add_picture(chart_images['pump_curves'], width=Inches(5.5))
+                # 添加图片说明
+                caption_para = doc.add_paragraph()
+                caption_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                caption_run = caption_para.add_run("图6-1 泵性能特性曲线")
+                caption_run.font.size = Pt(10)
+                caption_run.font.color.rgb = RGBColor(102, 102, 102)
+            
+                # 性能参数汇总表格
+                doc.add_heading("性能参数汇总", level=4)
+                curves = pump_curves_data.get('baseCurves', {})
+                if curves.get('flow'):
+                    max_efficiency = max(curves.get('efficiency', [0]))
+                    max_head = max(curves.get('head', [0]))
+                    max_power = max(curves.get('power', [0]))
+                    min_flow = min(curves.get('flow', [0]))
+                    max_flow = max(curves.get('flow', [0]))
+                    operating_point = pump_curves_data.get('operatingPoints', [{}])[0]
+                
+                    perf_table = doc.add_table(rows=5, cols=4)
+                    perf_table.style = 'Table Grid'
+                
+                    perf_headers = ['参数项目', '数值', '参数项目', '数值']
+                    for i, header in enumerate(perf_headers):
+                        cell = perf_table.cell(0, i)
+                        cell.text = header
+                        for paragraph in cell.paragraphs:
+                            for run in paragraph.runs:
+                                run.font.bold = True
+                
+                    perf_data = [
+                        ('流量范围', f"{min_flow:.0f} - {max_flow:.0f} bbl/d", '最大扬程', f"{max_head:.0f} ft"),
+                        ('最高效率', f"{max_efficiency:.1f} %", '最大功率', f"{max_power:.0f} HP"),
+                        ('最优工况流量', f"{operating_point.get('flow', 0):.0f} bbl/d", '最优工况扬程', f"{operating_point.get('head', 0):.0f} ft"),
+                        ('最优工况效率', f"{operating_point.get('efficiency', 0):.1f} %", '最优工况功率', f"{operating_point.get('power', 0):.0f} HP")
+                    ]
+                
+                    for i, (item1, value1, item2, value2) in enumerate(perf_data):
+                        row = i + 1
+                        perf_table.cell(row, 0).text = item1
+                        perf_table.cell(row, 1).text = value1
+                        perf_table.cell(row, 2).text = item2
+                        perf_table.cell(row, 3).text = value2
+            else:
+                doc.add_paragraph("暂无性能曲线数据 - 需要选择泵设备来生成性能曲线")
+        
+            # 6.2 工况点分析
+            heading62 = doc.add_heading(level=3)
+            # 向标题添加文本（避免直接在add_heading中传文本，方便单独设置格式）
+            run62 = heading62.add_run("6.2 工况点分析")
+            # 设置字体为宋体（中文字体需要额外配置qn属性）
+            run62.font.name = "宋体"
+            run62._element.rPr.rFonts.set(qn('w:eastAsia'), "宋体")  # 确保中文字体生效
+            # 设置字体颜色为黑色
+            run62.font.color.rgb = RGBColor(0, 0, 0)  # RGB(0,0,0)对应黑色
+            # 设置字体大小为三号字（三号字对应16磅）
+            run62.font.size = Pt(14)
+
+            if pump_curves_data.get('has_data'):
+                target_flow = final_values.get('production', 0)
+                operating_point = pump_curves_data.get('operatingPoints', [{}])[0]
+            
+                workpoint_table = doc.add_table(rows=4, cols=4)
+                workpoint_table.style = 'Table Grid'
+            
+                workpoint_headers = ['工况参数', '设计值', '最优值', '匹配度']
+                for i, header in enumerate(workpoint_headers):
+                    cell = workpoint_table.cell(0, i)
+                    cell.text = header
+                    for paragraph in cell.paragraphs:
+                        for run in paragraph.runs:
+                            run.font.bold = True
+            
+                def get_matching_percentage(actual, optimal):
+                    if not actual or not optimal:
+                        return 'N/A'
+                    ratio = abs(actual - optimal) / optimal
+                    percentage = max(0, 100 - ratio * 100)
+                    return f"{percentage:.0f}%"
+            
+                workpoint_data = [
+                    ('产量', f"{target_flow:.0f} bbl/d", f"{operating_point.get('flow', 0):.0f} bbl/d", 
+                     get_matching_percentage(target_flow, operating_point.get('flow', 0))),
+                    ('扬程', f"{final_values.get('totalHead', 0):.0f} ft", f"{operating_point.get('head', 0):.0f} ft",
+                     get_matching_percentage(final_values.get('totalHead', 0), operating_point.get('head', 0))),
+                    ('效率', '预估 75%', f"{operating_point.get('efficiency', 0):.1f} %", '良好')
+                ]
+            
+                for i, (param, design, optimal, match) in enumerate(workpoint_data):
+                    row = i + 1
+                    workpoint_table.cell(row, 0).text = param
+                    workpoint_table.cell(row, 1).text = design
+                    workpoint_table.cell(row, 2).text = optimal
+                    workpoint_table.cell(row, 3).text = match
+            else:
+                doc.add_paragraph("暂无工况点分析数据")
+        
+            # 备注信息 - 与HTML一致
+            doc.add_paragraph()
             doc.add_paragraph("备注:")
             doc.add_paragraph("公司将提供地面设备，如SDT/GENSET、SUT、接线盒、地面电力电缆、井口和井口电源连接器。")
             doc.add_paragraph("供应商将提供安装附件，如VSD、O形圈、连接螺栓、垫圈、带帽螺钉、电机油、电缆带、电缆拼接器材料、渡线器、扶正器、止回阀、排放头和备件。")
-
-            # 7. 总结
+        
+            # 7. 总结 - 与HTML generateSummaryTable一致
             doc.add_page_break()
-            doc.add_heading("7. 总结", level=2)
-            
-            # 总结表格（18行4列）
+            heading7 = doc.add_heading(level=2)
+            # 向标题添加文本（避免直接在add_heading中传文本，方便单独设置格式）
+            run7 = heading7.add_run("7. 总结")
+            # 设置字体为宋体（中文字体需要额外配置qn属性）
+            run7.font.name = "宋体"
+            run7._element.rPr.rFonts.set(qn('w:eastAsia'), "宋体")  # 确保中文字体生效
+            # 设置字体颜色为黑色
+            run7.font.color.rgb = RGBColor(0, 0, 0)  # RGB(0,0,0)对应黑色
+            # 设置字体大小为三号字（三号字对应16磅）
+            run7.font.size = Pt(16)
+        
             summary_table = doc.add_table(rows=18, cols=4)
             summary_table.style = 'Table Grid'
-            
+        
             # 设置表头
             header_cells = summary_table.rows[0].cells
             header_cells[0].text = 'EQUIPMENT'
             header_cells[1].text = 'DESCRIPTION'
             header_cells[2].text = 'OD[IN]'
             header_cells[3].text = 'LENGTH[FT]'
-            
+        
             # 设置表头样式
             for cell in header_cells:
                 for paragraph in cell.paragraphs:
                     for run in paragraph.runs:
                         run.font.bold = True
                         run.font.color.rgb = RGBColor(255, 192, 0)
-            
-            # 填充表格内容
-            equipment_rows = [
-                ('Step Down Transformer / GENSET', '', '-', '-'),
-                ('VSD', '', '-', '-'),
+        
+            # 🔥 与HTML完全一致的设备清单
+            equipment_rows_en = [
+                ('Step Down Transformer / GENSET', 'Provided by company', '-', '-'),
+                ('VSD', 'Variable Speed Drive', '-', '-'),
                 ('Step Up Transformer', 'Provided by company', '-', '-'),
-                ('Power Cable', '', '-', '-'),
-                ('Motor Lead Extension', '', '-', '-'),
-                ('Sensor Discharge Pressure', '', '', ''),
-                ('Pump Discharge Head', '', '', ''),
-                ('Separator', '', '', ''),
-                ('Upper Pump', pump_data.get('model', ''), '', ''),
-                ('Lower Pump', pump_data.get('model', ''), '', ''),
-                ('Separator', separator_data.get('model', '') if separator_data and not separator_data.get('skipped') else '', '', ''),
-                ('Upper Protector', protector_data.get('model', ''), '', ''),
-                ('Lower Protector', protector_data.get('model', ''), '', ''),
-                ('Motor', motor_data.get('model', ''), '', ''),
-                ('Sensor', '', '', ''),
-                ('Centralizer', '', '', ''),
-                ('', '', 'Total', '')
+                ('Power Cable', 'ESP Power Cable', '-', '-'),
+                ('Motor Lead Extension', 'MLE', '-', '-'),
+                ('Sensor', 'Downhole Sensor', '-', '-'),
+                ('Pump Discharge Head', 'Check Valve', '-', '-'),
+                ('Upper Pump', pump_data.get('model', 'TBD'), '-', '-'),
+                ('Lower Pump', pump_data.get('model', 'TBD'), '-', '-'),
+                ('Separator', separator_data.get('model', 'TBD') if (separator_data and not separator_data.get('skipped')) else 'N/A', '-', '-'),
+                ('Upper Protector', protector_data.get('model', 'TBD'), '-', '-'),
+                ('Lower Protector', protector_data.get('model', 'TBD'), '-', '-'),
+                ('Motor', motor_data.get('model', 'TBD'), '-', '-'),
+                ('Sensor', 'Pressure & Temperature', '-', '-'),
+                ('Centralizer', 'Pump Centralizer', '-', '-'),
+                ('', '', 'Total System', ''),
+                ('', '', '-', '-')
             ]
-            
+            # 转换成中文表
+            equipment_rows = [
+               ('降压变压器/发电机组', '供应商', '-', '-'),
+                ('变频器', '变频调速装置', '-', '-'),
+                ('升压变压器', '供应商', '-', '-'),
+                ('电力电缆', 'ESP电力电缆', '-', '-'),
+                ('电缆延长线', 'MLE', '-', '-'),
+                ('传感器', '下置式传感器', '-', '-'),
+                ('泵排放头', '止回阀', '-', '-'),
+                ('上部泵', pump_data.get('model', '待定'), '-', '-'),
+                ('下部泵', pump_data.get('model', '待定'), '-', '-'),
+                ('分离器', separator_data.get('model', '待定') if (separator_data and not separator_data.get('skipped')) else 'N/A', '-', '-'),
+                ('上部保护器', protector_data.get('model', '待定'), '-', '-'),
+                ('下部保护器', protector_data.get('model', '待定'), '-', '-'),
+                ('电机', motor_data.get('model', '待定'), '-', '-'),
+                ('传感器', '压力和温度传感器', '-', '-'),
+                ('扶正器', '泵扶正器', '-', '-'),
+                ('设备总计', '', '', ''),
+            ]
+        
             for i, (equipment, description, od, length) in enumerate(equipment_rows):
                 row = summary_table.rows[i + 1]
                 row.cells[0].text = equipment
                 row.cells[1].text = description
                 row.cells[2].text = od
                 row.cells[3].text = length
-
+        
+            # 报告尾部 - 与HTML一致
+            # footer_para = doc.add_paragraph()
+            # footer_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            # footer_run = footer_para.add_run("本报告由油井设备智能管理系统自动生成\n")
+            # footer_run.font.size = Pt(10)
+            # footer_run.font.color.rgb = RGBColor(102, 102, 102)
+        
             # 保存文档
             doc.save(file_path)
             logger.info(f"Word文档保存成功: {file_path}")
             return True
-            
+        
         except Exception as e:
             logger.error(f"Word文档生成失败: {str(e)}")
+            import traceback
+            logger.error(f"详细错误: {traceback.format_exc()}")
             return False
+
+    def _setup_document_styles(self, doc):
+        """设置文档样式"""
+        # 设置正文字体
+        style = doc.styles['Normal']
+        style.font.name = 'Times New Roman'
+        style._element.rPr.rFonts.set(qn('w:eastAsia'), '宋体')
+        style.font.color.rgb = RGBColor(0, 0, 0)
+        style.font.size = Pt(11)
+
+    def _setup_document_header(self, doc, company_name):
+        """设置文档页眉"""
+        header = doc.sections[0].header
+        header_para = header.paragraphs[0]
+        header_para.clear()
+    
+        # 左侧图标
+        run = header_para.add_run('🏢 ')
+    
+        # 中间公司名
+        run = header_para.add_run(company_name)
+        run.bold = True
+        run.font.size = Pt(14)
+    
+        # 添加制表符到右侧
+        run = header_para.add_run('\t\t\t')
+    
+        # 右侧日期
+        run = header_para.add_run(datetime.now().strftime('%Y-%m-%d'))
+        run.font.size = Pt(10)
+    
+        header_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    
+    def _generate_chart_images(self, step_data: dict) -> dict:
+        """生成图表图片文件"""
+        import matplotlib.pyplot as plt
+        import tempfile
+        import os
+        # 中文字体兼容
+        import matplotlib
+        matplotlib.rcParams['font.sans-serif'] = ['SimHei']  # 设置中文字体
+
+
+        chart_images = {}
+        temp_dir = tempfile.mkdtemp()
+    
+        try:
+            # 1. 生成井结构草图
+            if step_data.get('well_sketch') and step_data.get('casing_data'):
+                well_sketch_path = os.path.join(temp_dir, 'well_sketch.png')
+                self._create_well_sketch_image(step_data, well_sketch_path)
+                chart_images['well_sketch'] = well_sketch_path
+            
+            # 2. 🔥 新增：生成井轨迹图
+            trajectory_data = step_data.get('trajectory_data', [])
+            if trajectory_data and len(trajectory_data) > 0:
+                trajectory_path = os.path.join(temp_dir, 'well_trajectory.png')
+                self._create_well_trajectory_image(trajectory_data, step_data, trajectory_path)
+                chart_images['well_trajectory'] = trajectory_path
+
+            # 2. 生成IPR曲线图
+            ipr_data = step_data.get('prediction', {}).get('iprCurve', [])
+            if ipr_data:
+                ipr_path = os.path.join(temp_dir, 'ipr_curve.png')
+                self._create_ipr_curve_image(ipr_data, step_data, ipr_path)
+                chart_images['ipr_curve'] = ipr_path
+        
+            # 3. 生成泵性能曲线图
+            pump_curves = step_data.get('pump_curves', {})
+            if pump_curves.get('has_data'):
+                pump_path = os.path.join(temp_dir, 'pump_curves.png')
+                self._create_pump_curves_image(pump_curves, pump_path)
+                chart_images['pump_curves'] = pump_path
+        
+        except Exception as e:
+            logger.error(f"生成图表图片失败: {e}")
+    
+        return chart_images
+
+    def _create_well_trajectory_image(self, trajectory_data: list, step_data: dict, output_path: str):
+        """创建井轨迹图"""
+        import matplotlib.pyplot as plt
+        import numpy as np
+
+        if not trajectory_data or len(trajectory_data) == 0:
+            logger.warning("无轨迹数据，无法生成井轨迹图")
+            return
+
+        fig, ax = plt.subplots(1, 1, figsize=(10, 7))
+
+        try:
+            # 提取轨迹数据
+            tvd_values = []
+            horizontal_displacement = []
+            md_values = []
+        
+            # 计算水平位移
+            cumulative_horizontal = 0
+        
+            for i, point in enumerate(trajectory_data):
+                tvd = point.get('tvd', 0)
+                md = point.get('md', 0)
+            
+                if i > 0:
+                    # 计算水平增量
+                    prev_tvd = trajectory_data[i-1].get('tvd', 0)
+                    prev_md = trajectory_data[i-1].get('md', 0)
+                
+                    delta_md = md - prev_md
+                    delta_tvd = tvd - prev_tvd
+                
+                    # 使用勾股定理计算水平增量
+                    if delta_md > delta_tvd:
+                        delta_horizontal = np.sqrt(delta_md**2 - delta_tvd**2)
+                        cumulative_horizontal += delta_horizontal
+            
+                tvd_values.append(tvd)
+                horizontal_displacement.append(cumulative_horizontal)
+                md_values.append(md)
+
+            # 🔥 绘制井轨迹
+            ax.plot(horizontal_displacement, tvd_values, 'b-', linewidth=3, 
+                   label='井轨迹', marker='o', markersize=3, alpha=0.7)
+
+            # 🔥 标记关键深度点
+            calc_info = step_data.get('calculation', {})
+        
+            # 标记泵挂深度
+            pump_depth = calc_info.get('pump_hanging_depth', 0)
+            if pump_depth > 0:
+                # 找到对应的水平位移
+                pump_horizontal = self._find_horizontal_at_depth(trajectory_data, pump_depth)
+                ax.scatter([pump_horizontal], [pump_depth], c='red', s=100, 
+                          marker='s', label='泵挂深度', zorder=5)
+                ax.annotate(f'泵挂: {pump_depth:.0f}m', 
+                           xy=(pump_horizontal, pump_depth),
+                           xytext=(pump_horizontal + 50, pump_depth - 100),
+                           fontsize=10, fontweight='bold', color='red',
+                           arrowprops=dict(arrowstyle='->', color='red', lw=1.5))
+
+            # 标记射孔深度
+            perf_depth = calc_info.get('perforation_depth', 0)
+            if perf_depth > 0:
+                perf_horizontal = self._find_horizontal_at_depth(trajectory_data, perf_depth)
+                ax.scatter([perf_horizontal], [perf_depth], c='green', s=100, 
+                          marker='^', label='射孔深度', zorder=5)
+                ax.annotate(f'射孔: {perf_depth:.0f}m', 
+                           xy=(perf_horizontal, perf_depth),
+                           xytext=(perf_horizontal + 50, perf_depth + 100),
+                           fontsize=10, fontweight='bold', color='green',
+                           arrowprops=dict(arrowstyle='->', color='green', lw=1.5))
+
+            # 🔥 绘制井口
+            ax.scatter([0], [0], c='orange', s=150, marker='*', 
+                      label='井口', zorder=6)
+            ax.annotate('井口', xy=(0, 0), xytext=(20, -50),
+                       fontsize=12, fontweight='bold', color='orange')
+
+            # 🔥 设置坐标轴
+            ax.set_xlabel('水平位移 (m)', fontsize=12)
+            ax.set_ylabel('垂直深度 (m)', fontsize=12)
+            ax.set_title('井轨迹剖面图', fontsize=16, fontweight='bold')
+        
+            # Y轴反向（深度向下）
+            ax.invert_yaxis()
+        
+            # 网格和图例
+            ax.grid(True, alpha=0.3, linestyle='--')
+            ax.legend(loc='upper right', fontsize=10)
+
+            # 🔥 添加统计信息文本框
+            stats = self._calculate_trajectory_stats(trajectory_data, calc_info)
+            stats_text = f"""轨迹统计信息:
+    • 总测深: {stats['max_md']:.0f} m
+    • 最大垂深: {stats['max_tvd']:.0f} m  
+    • 最大水平位移: {stats['max_horizontal']:.0f} m
+    • 最大井斜角: {stats.get('max_inclination', 0):.1f}°
+    • 轨迹点数: {stats['total_points']} 个"""
+
+            ax.text(0.02, 0.98, stats_text, transform=ax.transAxes, 
+                   fontsize=9, verticalalignment='top',
+                   bbox=dict(boxstyle='round,pad=0.5', facecolor='lightblue', alpha=0.8))
+
+            # 🔥 设置合适的坐标轴比例
+            ax.set_aspect('equal', adjustable='box')
+        
+            # 🔥 优化保存参数
+            plt.tight_layout(pad=1.0)  # 减少边距
+            
+            # 保存图片
+            plt.savefig(output_path, dpi=300, bbox_inches='tight', 
+                       facecolor='white', edgecolor='none',pad_inches=0.1)
+            plt.close()
+        
+            logger.info(f"井轨迹图生成成功: {output_path}")
+
+        except Exception as e:
+            logger.error(f"生成井轨迹图失败: {e}")
+            plt.close()
+
+    def _find_horizontal_at_depth(self, trajectory_data: list, target_depth: float) -> float:
+        """根据垂深查找对应的水平位移"""
+        if not trajectory_data:
+            return 0
+    
+        cumulative_horizontal = 0
+    
+        for i, point in enumerate(trajectory_data):
+            tvd = point.get('tvd', 0)
+        
+            # 计算累积水平位移
+            if i > 0:
+                prev_tvd = trajectory_data[i-1].get('tvd', 0)
+                prev_md = trajectory_data[i-1].get('md', 0)
+                curr_md = point.get('md', 0)
+            
+                delta_md = curr_md - prev_md
+                delta_tvd = tvd - prev_tvd
+            
+                if delta_md > delta_tvd:
+                    delta_horizontal = np.sqrt(delta_md**2 - delta_tvd**2)
+                    cumulative_horizontal += delta_horizontal
+        
+            # 如果找到目标深度附近的点
+            if abs(tvd - target_depth) < 10:  # 10米的容差
+                return cumulative_horizontal
+    
+        # 如果没找到精确匹配，返回最后的水平位移
+        return cumulative_horizontal
+
+    def _create_well_sketch_image(self, step_data: dict, output_path: str):
+        """创建井结构草图"""
+        import matplotlib.pyplot as plt
+        import matplotlib.patches as patches
+    
+        fig, ax = plt.subplots(1, 1, figsize=(6, 9))
+    
+        # 获取数据
+        casing_data = step_data.get('casing_data', [])
+        calc_info = step_data.get('calculation', {})
+    
+        # 绘制套管
+        for casing in casing_data:
+            if casing.get('is_deleted'):
+                continue
+            
+            top_depth = casing.get('top_depth', 0)
+            bottom_depth = casing.get('bottom_depth', 1000)
+            outer_diameter = casing.get('outer_diameter', 177.8) / 25.4  # 转换为英寸
+            inner_diameter = casing.get('inner_diameter', 152.4) / 25.4
+        
+            # 绘制套管外壁
+            rect_outer = patches.Rectangle((-outer_diameter/2, -bottom_depth), 
+                                         outer_diameter, bottom_depth - top_depth,
+                                         linewidth=1, edgecolor='black', 
+                                         facecolor='lightgray', alpha=0.7)
+            ax.add_patch(rect_outer)
+        
+            # 绘制套管内壁（井眼）
+            rect_inner = patches.Rectangle((-inner_diameter/2, -bottom_depth), 
+                                         inner_diameter, bottom_depth - top_depth,
+                                         linewidth=1, edgecolor='black', 
+                                         facecolor='white')
+            ax.add_patch(rect_inner)
+        
+            # 添加标签
+            ax.text(outer_diameter/2 + 0.5, -top_depth - 50, 
+                   f"{casing.get('casing_type', 'Casing')}\n{outer_diameter:.1f}\"",
+                   fontsize=8, ha='left')
+    
+        # 标记重要深度
+        pump_depth = calc_info.get('pump_hanging_depth', 0)
+        perf_depth = calc_info.get('perforation_depth', 0)
+    
+        if pump_depth > 0:
+            ax.axhline(y=-pump_depth, color='red', linestyle='--', linewidth=2)
+            ax.text(0, -pump_depth + 20, f'泵挂深度: {pump_depth:.0f}m', 
+                   ha='center', fontweight='bold', color='red')
+    
+        if perf_depth > 0:
+            ax.axhline(y=-perf_depth, color='green', linestyle='--', linewidth=2)
+            ax.text(0, -perf_depth + 20, f'射孔深度: {perf_depth:.0f}m', 
+                   ha='center', fontweight='bold', color='green')
+    
+        # 设置坐标轴
+        ax.set_xlabel('水平距离 (in)')
+        ax.set_ylabel('深度 (m)')
+        ax.set_title('井身结构示意图', fontsize=14, fontweight='bold')
+        ax.grid(True, alpha=0.3)
+        ax.invert_yaxis()  # Y轴反向，深度向下
+    
+        plt.tight_layout()
+        plt.savefig(output_path, dpi=300, bbox_inches='tight',
+               pad_inches=0.1)
+        plt.close()
+
+    def _create_ipr_curve_image(self, ipr_data: list, step_data: dict, output_path: str):
+        """创建IPR曲线图"""
+        import matplotlib.pyplot as plt
+    
+        if not ipr_data:
+            return
+    
+        fig, ax = plt.subplots(1, 1, figsize=(8, 6))
+    
+        # 提取数据
+        production = [p.get('production', p.get('flow_rate', 0)) for p in ipr_data]
+        pressure = [p.get('pressure', p.get('wellhead_pressure', 0)) for p in ipr_data]
+    
+        # 绘制IPR曲线
+        ax.plot(production, pressure, 'b-', linewidth=3, label='IPR曲线')
+        ax.scatter(production, pressure, c='blue', s=20, alpha=0.6)
+    
+        # 标记工作点
+        final_values = step_data.get('prediction', {}).get('finalValues', {})
+        if final_values.get('production'):
+            op_prod = final_values['production']
+            # 找到对应的压力
+            op_pressure = 0
+            for p in ipr_data:
+                prod = p.get('production', p.get('flow_rate', 0))
+                if abs(prod - op_prod) < abs(production[0] - op_prod):
+                    op_pressure = p.get('pressure', p.get('wellhead_pressure', 0))
+        
+            if op_pressure > 0:
+                ax.scatter([op_prod], [op_pressure], c='red', s=100, 
+                          marker='o', label='工作点', zorder=5)
+    
+        ax.set_xlabel('产量 (bbl/d)')
+        ax.set_ylabel('井底流压 (psi)')
+        ax.set_title('IPR曲线分析图', fontsize=14, fontweight='bold')
+        ax.grid(True, alpha=0.3)
+        ax.legend()
+    
+        plt.tight_layout(pad=1.0)
+        plt.savefig(output_path, dpi=300, bbox_inches='tight',
+               pad_inches=0.1)
+        plt.close()
+
+    def _create_pump_curves_image(self, pump_curves: dict, output_path: str):
+        """创建泵性能曲线图"""
+        import matplotlib.pyplot as plt
+    
+        curves = pump_curves.get('baseCurves', {})
+        if not curves.get('flow'):
+            return
+    
+        fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 8), sharex=True)
+    
+        flows = curves['flow']
+        heads = curves['head']
+        efficiencies = curves['efficiency']
+        powers = curves['power']
+    
+        # 上图：扬程和效率
+        color1 = 'tab:blue'
+        ax1.set_ylabel('扬程 (ft)', color=color1)
+        line1 = ax1.plot(flows, heads, color=color1, linewidth=3, label='扬程')
+        ax1.tick_params(axis='y', labelcolor=color1)
+    
+        ax1_twin = ax1.twinx()
+        color2 = 'tab:green'
+        ax1_twin.set_ylabel('效率 (%)', color=color2)
+        line2 = ax1_twin.plot(flows, efficiencies, color=color2, linewidth=3, label='效率')
+        ax1_twin.tick_params(axis='y', labelcolor=color2)
+    
+        # 下图：功率
+        color3 = 'tab:orange'
+        ax2.set_ylabel('功率 (HP)', color=color3)
+        ax2.plot(flows, powers, color=color3, linewidth=3, label='功率')
+        ax2.tick_params(axis='y', labelcolor=color3)
+        ax2.set_xlabel('流量 (bbl/d)')
+    
+        # 标记最优工况点
+        operating_points = pump_curves.get('operatingPoints', [])
+        if operating_points:
+            bep = operating_points[0]
+            bep_flow = bep.get('flow', 0)
+            bep_head = bep.get('head', 0)
+            bep_eff = bep.get('efficiency', 0)
+            bep_power = bep.get('power', 0)
+        
+            ax1.scatter([bep_flow], [bep_head], c='red', s=100, marker='*', zorder=5)
+            ax1_twin.scatter([bep_flow], [bep_eff], c='red', s=100, marker='*', zorder=5)
+            ax2.scatter([bep_flow], [bep_power], c='red', s=100, marker='*', zorder=5)
+    
+        ax1.set_title('泵性能特性曲线', fontsize=14, fontweight='bold')
+        ax1.grid(True, alpha=0.3)
+        ax2.grid(True, alpha=0.3)
+    
+        plt.tight_layout()
+        plt.savefig(output_path, dpi=300, bbox_inches='tight')
+        plt.close()
+
+    def _cleanup_temp_images(self, chart_images: dict):
+        """清理临时图片文件"""
+        import os
+        for image_path in chart_images.values():
+            try:
+                if os.path.exists(image_path):
+                    os.remove(image_path)
+            except Exception as e:
+                logger.warning(f"清理临时文件失败: {e}")
+
+
+    def _calculate_trajectory_stats(self, trajectory_data, calc_info):
+        """计算轨迹统计数据"""
+        if not trajectory_data:
+            return {
+                'total_points': 0,
+                'max_tvd': 0,
+                'max_md': 0,
+                'max_inclination': 0,
+                'max_dls': 0,
+                'max_horizontal': 0
+            }
+    
+        tvd_values = [d.get('tvd', 0) for d in trajectory_data if d.get('tvd', 0) > 0]
+        md_values = [d.get('md', 0) for d in trajectory_data if d.get('md', 0) > 0]
+        inc_values = [d.get('inclination', 0) for d in trajectory_data]
+        dls_values = [d.get('dls', 0) for d in trajectory_data]
+    
+        # 计算最大水平位移
+        max_horizontal = 0
+        cum_horizontal = 0
+        for i in range(1, len(trajectory_data)):
+            prev_tvd = trajectory_data[i-1].get('tvd', 0)
+            curr_tvd = trajectory_data[i].get('tvd', 0)
+            prev_md = trajectory_data[i-1].get('md', 0)
+            curr_md = trajectory_data[i].get('md', 0)
+        
+            delta_md = curr_md - prev_md
+            delta_tvd = curr_tvd - prev_tvd
+        
+            # 计算水平增量
+            delta_horizontal = (delta_md ** 2 - delta_tvd ** 2) ** 0.5 if delta_md ** 2 > delta_tvd ** 2 else 0
+            cum_horizontal += delta_horizontal
+            max_horizontal = max(max_horizontal, cum_horizontal)
+    
+        return {
+            'total_points': len(trajectory_data),
+            'max_tvd': max(tvd_values) if tvd_values else 0,
+            'max_md': max(md_values) if md_values else 0,
+            'max_inclination': max(inc_values) if inc_values else calc_info.get('max_inclination', 0),
+            'max_dls': max(dls_values) if dls_values else calc_info.get('max_dls', 0),
+            'max_horizontal': max_horizontal
+        }
 
     def _export_to_excel(self, file_path: str, project_name: str, step_data: dict) -> bool:
         """导出为Excel文档"""
@@ -2540,3 +3727,278 @@ class DeviceRecommendationController(QObject):
         except Exception as e:
             logger.error(f"生成数据完整性报告失败: {e}")
             return {'overall_completeness': 0}
+
+
+    # 在现有的DeviceRecommendationController类中添加以下方法
+
+    @Slot('QVariant')
+    def loadPumpPerformanceCurves(self, step_data):
+        """加载选中泵的性能曲线数据"""
+        try:
+            print("=== 开始加载泵性能曲线数据 ===")
+        
+            # 从stepData中获取泵信息
+            pump_info = step_data.get('pump', {})
+            pump_model = pump_info.get('model', '')
+            pump_id = pump_info.get('id', 0)
+        
+            print(f"泵型号: {pump_model}, 泵ID: {pump_id}")
+        
+            # 获取DeviceController实例
+            device_controller = None
+            # 尝试从QML上下文中获取deviceController
+            # 这里需要确保deviceController已经在main.py中注册
+        
+            curves_data = None
+        
+            # 如果有泵ID，直接获取
+            if pump_id and pump_id > 0:
+                # 这里需要调用DeviceController的方法
+                # 暂时生成模拟数据
+                curves_data = self._generateMockPumpCurves(pump_info)
+            elif pump_model:
+                # 根据型号生成数据
+                curves_data = self._generateMockPumpCurvesByModel(pump_model)
+            else:
+                # 使用默认泵参数
+                curves_data = self._generateMockPumpCurves({})
+            
+            print(f"生成的曲线数据: {curves_data is not None}")
+        
+            # 发送数据到QML
+            if curves_data:
+                self.pumpCurvesDataReady.emit(curves_data)
+            else:
+                self.pumpCurvesDataReady.emit({'has_data': False, 'error': 'no_data'})
+            
+        except Exception as e:
+            print(f"加载泵性能曲线失败: {str(e)}")
+            self.pumpCurvesDataReady.emit({'has_data': False, 'error': str(e)})
+
+    def _generateMockPumpCurves(self, pump_info):
+        """生成模拟泵性能曲线数据"""
+        import numpy as np
+    
+        # 使用泵信息中的参数，如果没有则使用默认值
+        single_stage_head = pump_info.get('singleStageHead', 12.0)
+        single_stage_power = pump_info.get('singleStagePower', 2.5)
+        efficiency = pump_info.get('efficiency', 75.0)
+        min_flow = pump_info.get('minFlow', 100)
+        max_flow = pump_info.get('maxFlow', 2000)
+        stages = pump_info.get('stages', 87)
+    
+        # 生成流量点
+        flow_points = np.linspace(min_flow, max_flow, 25)
+    
+        # 计算多级泵的性能（乘以级数）
+        total_head_per_stage = single_stage_head
+        total_power_per_stage = single_stage_power
+    
+        # 生成性能曲线
+        flow_normalized = flow_points / max_flow
+    
+        head_curve = []
+        efficiency_curve = []
+        power_curve = []
+    
+        for f_norm in flow_normalized:
+            # 扬程曲线（多级）
+            head_coeff = 1.0 - 0.25 * (f_norm ** 2)
+            single_head = total_head_per_stage * head_coeff
+            total_head = single_head * stages
+            head_curve.append(max(total_head, 0))
+        
+            # 效率曲线
+            if f_norm < 0.2:
+                eff = efficiency * (0.4 + 3 * f_norm)
+            elif f_norm <= 0.8:
+                eff = efficiency * (0.85 + 0.15 * np.cos(np.pi * (f_norm - 0.5)))
+            else:
+                eff = efficiency * (1.0 - 0.4 * (f_norm - 0.8))
+            efficiency_curve.append(max(min(eff, 95), 10))
+        
+            # 功率曲线（多级）
+            power_factor = 0.3 + 0.7 * f_norm + 0.2 * (f_norm ** 2)
+            total_power = total_power_per_stage * stages * power_factor
+            power_curve.append(total_power)
+    
+        return {
+            'has_data': True,
+            'pump_info': {
+                'manufacturer': pump_info.get('manufacturer', 'Centrilift'),
+                'model': pump_info.get('model', 'GN4000'),
+                'stages': stages,
+                'outside_diameter': pump_info.get('outsideDiameter', 5.62)
+            },
+            'baseCurves': {
+                'flow': flow_points.tolist(),
+                'head': head_curve,
+                'efficiency': efficiency_curve,
+                'power': power_curve
+            },
+            'operatingPoints': [
+                {
+                    'flow': max_flow * 0.7,
+                    'head': total_head_per_stage * stages * 0.85,
+                    'efficiency': efficiency,
+                    'power': total_power_per_stage * stages * 0.8,
+                    'label': 'BEP'
+                }
+            ],
+            'performanceZones': {
+                'optimal': {
+                    'minFlow': max_flow * 0.6,
+                    'maxFlow': max_flow * 0.8
+                },
+                'acceptable': {
+                    'minFlow': max_flow * 0.4,
+                    'maxFlow': max_flow * 0.9
+                }
+            }
+        }
+
+    def _generateMockPumpCurvesByModel(self, pump_model):
+        """根据泵型号生成模拟数据"""
+        # 根据不同型号设置不同的参数
+        model_params = {
+            'GN4000': {
+                'singleStageHead': 12.5,
+                'singleStagePower': 2.8,
+                'efficiency': 78,
+                'minFlow': 150,
+                'maxFlow': 2200,
+                'stages': 87
+            },
+            'GN5500': {
+                'singleStageHead': 15.0,
+                'singleStagePower': 3.2,
+                'efficiency': 80,
+                'minFlow': 200,
+                'maxFlow': 2500,
+                'stages': 75
+            }
+        }
+    
+        # 查找匹配的型号参数
+        params = model_params.get(pump_model, model_params['GN4000'])
+        params['model'] = pump_model
+    
+        return self._generateMockPumpCurves(params)
+
+    @Slot(result='QVariant')
+    def getSeparatorsByType(self):
+        """获取分离器列表 - 移除后备方案"""
+        try:
+            self._set_busy(True)
+            logger.info("=== 开始加载分离器数据（仅从数据库）===")
+            
+            # 🔥 只从数据库获取，不使用后备方案
+            separators = self._db_service.get_devices(
+                device_type='SEPARATOR', 
+                status='active'
+            )
+            
+            logger.info(f"查询分离器数据返回: {len(separators.get('devices', []))}个设备")
+            
+            devices = separators.get('devices', [])
+            if not devices:
+                # 🔥 没有数据时发射错误信号，不提供后备数据
+                error_msg = "数据库中没有找到分离器数据，请联系管理员添加设备"
+                logger.warning(error_msg)
+                self.error.emit(error_msg)
+                return []
+            
+            # 转换为QML需要的格式
+            separator_list = []
+            for device_data in devices:
+                separator_details = device_data.get('separator_details')
+                
+                if separator_details:
+                    separator_info = {
+                        'id': device_data['id'],
+                        'manufacturer': device_data['manufacturer'],
+                        'model': device_data['model'],
+                        'series': self._extract_separator_series(device_data['model']),
+                        'separationEfficiency': separator_details.get('separation_efficiency', 0),
+                        'gasHandlingCapacity': separator_details.get('gas_handling_capacity', 0),
+                        'liquidHandlingCapacity': separator_details.get('liquid_handling_capacity', 0),
+                        'outerDiameter': separator_details.get('outer_diameter', 0),
+                        'length': separator_details.get('length', 0),
+                        'weight': separator_details.get('weight', 0),
+                        'maxPressure': separator_details.get('max_pressure', 5000),
+                        'description': device_data.get('description', ''),
+                        'isNoSeparator': False
+                    }
+                    separator_list.append(separator_info)
+                    logger.info(f"添加分离器到列表: {separator_info['manufacturer']} {separator_info['model']}")
+                else:
+                    logger.warning(f"设备 {device_data.get('id')} 没有分离器详情")
+
+            if not separator_list:
+                error_msg = "数据库中的分离器数据不完整，请检查设备详情配置"
+                logger.error(error_msg)
+                self.error.emit(error_msg)
+                return []
+
+            logger.info(f"✅ 从数据库成功加载分离器数据: {len(separator_list)}个")
+            
+            # 🔥 发射成功信号
+            self.separatorsLoaded.emit(separator_list)
+            
+            return separator_list
+            
+        except Exception as e:
+            error_msg = f"获取分离器数据失败: {str(e)}"
+            logger.error(error_msg)
+            self.error.emit(error_msg)
+            return []
+        finally:
+            self._set_busy(False)
+
+    def _extract_separator_series(self, model: str) -> str:
+        """从分离器型号中提取系列号"""
+        try:
+            import re
+            # 提取常见的系列标识
+            if 'CENesis' in model:
+                return 'CENesis'
+            elif 'Vortex' in model:
+                return 'Vortex'
+            elif 'DualFlow' in model:
+                return 'DualFlow'
+            elif 'TURBO' in model:
+                return 'TURBO'
+            else:
+                # 尝试提取数字系列
+                series_match = re.search(r'(\d{3,4})', model)
+                return series_match.group(1) if series_match else 'Standard'
+        except:
+            return 'Standard'
+
+    def extract_series(self, model: str) -> str:
+        """从型号中提取系列号 - 修复版本"""
+        try:
+            # 提取数字系列
+            import re
+            series_match = re.search(r'(\d{3,4})', model)
+            if series_match:
+                return series_match.group(1)
+        
+            # 提取字母系列
+            if 'FLEXPump' in model:
+                return '400'
+            elif 'REDA' in model:
+                return '500'
+            elif 'RCH' in model:
+                return '600'
+            elif 'GN' in model:
+                # 提取GN后面的数字
+                gn_match = re.search(r'GN(\d+)', model)
+                if gn_match:
+                    return gn_match.group(1)
+                return '4000'
+            else:
+                return '400'  # 默认值
+        except Exception as e:
+            logger.error(f"提取系列号失败: {e}")
+            return '400'

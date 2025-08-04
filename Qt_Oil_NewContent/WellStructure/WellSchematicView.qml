@@ -1,6 +1,7 @@
-import QtQuick
+﻿import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
+import "../Common/Utils/UnitUtils.js" as UnitUtils
 
 Item {
     id: root
@@ -9,6 +10,13 @@ Item {
     property var sketchData: null
     property real drawingScale: 1.0
     property var transformParams: ({})
+    // 🔥 添加单位制属性
+    property bool isMetric: false
+    // 🔥 监听单位制变化
+    onIsMetricChanged: {
+        console.log("WellSchematicView单位制切换为:", isMetric ? "公制" : "英制")
+        updateDisplayUnits()
+    }
 
     // 工程图风格的颜色定义
     readonly property color wellLineColor: "#2196F3"
@@ -67,13 +75,17 @@ Item {
                 }
 
                 Text {
-                    text: isChineseMode ? "深度: 英尺(ft)" : "Depth: feet(ft)"
+                    text: isChineseMode ?
+                        `深度: ${getDepthUnitText()} (MD)` :
+                        `Depth: ${getDepthUnitText()} (MD)`
                     font.pixelSize: 9
                     color: depthTextColor
                 }
 
                 Text {
-                    text: isChineseMode ? "直径: 英寸(in)" : "Diameter: inches(in)"
+                    text: isChineseMode ?
+                        `直径: ${getDiameterUnitText()}` :
+                        `Diameter: ${getDiameterUnitText()}`
                     font.pixelSize: 9
                     color: depthTextColor
                 }
@@ -90,6 +102,89 @@ Item {
                     color: depthTextColor
                 }
             }
+        }
+    }
+
+    // 🔥 =====================================
+    // 🔥 单位转换和格式化函数
+    // 🔥 =====================================
+
+    function formatDepthValue(value, sourceUnit) {
+        if (!value || value <= 0) return 0
+
+        var convertedValue = value
+
+        if (sourceUnit === "ft") {
+            // 源数据是英尺
+            if (isMetric) {
+                convertedValue = UnitUtils.feetToMeters(value)
+            } else {
+                convertedValue = value
+            }
+        } else if (sourceUnit === "m") {
+            // 源数据是米
+            if (isMetric) {
+                convertedValue = value
+            } else {
+                convertedValue = UnitUtils.metersToFeet(value)
+            }
+        }
+
+        return convertedValue
+    }
+
+    function formatDiameterValue(value, sourceUnit) {
+        if (!value || value <= 0) return 0
+
+        var convertedValue = value
+
+        if (sourceUnit === "in") {
+            // 源数据是英寸
+            if (isMetric) {
+                convertedValue = UnitUtils.inchesToMm(value)
+            } else {
+                convertedValue = value
+            }
+        } else if (sourceUnit === "mm") {
+            // 源数据是毫米
+            if (isMetric) {
+                convertedValue = value
+            } else {
+                convertedValue = UnitUtils.mmToInches(value)
+            }
+        }
+
+        return convertedValue
+    }
+
+    function getDepthUnit() {
+        return isMetric ? "m" : "ft"
+    }
+
+    function getDiameterUnit() {
+        return isMetric ? "mm" : "in"
+    }
+
+    function getDepthUnitText() {
+        if (isChineseMode) {
+            return isMetric ? "米(m)" : "英尺(ft)"
+        } else {
+            return isMetric ? "meters(m)" : "feet(ft)"
+        }
+    }
+
+    function getDiameterUnitText() {
+        if (isChineseMode) {
+            return isMetric ? "毫米(mm)" : "英寸(in)"
+        } else {
+            return isMetric ? "millimeters(mm)" : "inches(in)"
+        }
+    }
+
+    function updateDisplayUnits() {
+        console.log("更新井身示意图显示单位")
+        if (canvas) {
+            canvas.requestPaint()
         }
     }
 
@@ -140,11 +235,16 @@ Item {
         var drawingWidth = canvas.width - 2 * margin
         var drawingHeight = canvas.height - 2 * margin
 
-        var maxDepth = sketchData.dimensions.max_depth || 10000
-        var maxHorizontal = sketchData.dimensions.max_horizontal || 100
+        // 🔥 修改：使用测深(MD)而不是垂深进行绘制
+        var maxMDOriginal = sketchData.dimensions.max_md || sketchData.dimensions.max_depth || 10000
+        var maxMD = formatDepthValue(maxMDOriginal, "ft")  // 假设原始数据是英尺
+        // console.log(JSON.stringify(sketchData))
+
+        var maxHorizontalOriginal = sketchData.dimensions.max_horizontal || 100
+        var maxHorizontal = formatDiameterValue(maxHorizontalOriginal, "in")  // 假设原始数据是英寸
 
         // 计算缩放比例
-        var verticalScale = drawingHeight / (maxDepth * 1.1) // 增加10%边距
+        var verticalScale = drawingHeight / (maxMD * 1.1) // 增加10%边距
         var horizontalScale = Math.min(drawingWidth / 400, 1.0) // 限制水平缩放
 
         // 应用用户设置的绘图比例
@@ -155,7 +255,8 @@ Item {
             margin: margin,
             verticalScale: verticalScale,
             horizontalScale: horizontalScale,
-            maxDepth: maxDepth,
+            maxMD: maxMD,  // 🔥 修改：使用测深
+            maxMDOriginal: maxMDOriginal,  // 🔥 保存原始值用于计算
             maxHorizontal: maxHorizontal,
             centerX: canvas.width / 2
         }
@@ -165,8 +266,8 @@ Item {
         if (!root.transformParams || Object.keys(root.transformParams).length === 0) return
 
         var params = root.transformParams
-        var maxDepth = params.maxDepth
-        var stepSize = calculateDepthStep(maxDepth)
+        var maxMD = params.maxMD  // 🔥 修改：使用测深
+        var stepSize = calculateDepthStep(maxMD)
 
         ctx.strokeStyle = gridColor
         ctx.fillStyle = depthTextColor
@@ -175,8 +276,8 @@ Item {
         ctx.textAlign = "right"
 
         // 绘制深度标尺
-        for (var depth = 0; depth <= maxDepth; depth += stepSize) {
-            var y = params.margin + (depth / maxDepth) * (canvas.height - 2 * params.margin)
+        for (var depth = 0; depth <= maxMD; depth += stepSize) {
+            var y = params.margin + (depth / maxMD) * (canvas.height - 2 * params.margin)
 
             // 刻度线
             ctx.beginPath()
@@ -184,8 +285,9 @@ Item {
             ctx.lineTo(params.margin - 10, y)
             ctx.stroke()
 
-            // 深度标签
-            ctx.fillText(depth + " ft", params.margin - 25, y + 3)
+            // 🔥 深度标签 - 显示测深(MD)和单位
+            var depthText = depth.toFixed(0) + " " + getDepthUnit()
+            ctx.fillText(depthText, params.margin - 25, y + 3)
         }
 
         ctx.textAlign = "left" // 重置对齐方式
@@ -222,7 +324,8 @@ Item {
         // 井口标注
         ctx.fillStyle = textColor
         ctx.font = "10px Arial"
-        ctx.fillText("Wellhead", centerX + 50, wellheadY - 10)
+        var wellheadText = isChineseMode ? "井口" : "Wellhead"
+        ctx.fillText(wellheadText, centerX + 50, wellheadY - 10)
     }
 
     function drawWellAxis(ctx) {
@@ -241,11 +344,12 @@ Item {
         ctx.stroke()
     }
 
+    // 🔥 重要修改：套管绘制逻辑优化
     function drawCasingsClean(ctx) {
         if (!sketchData || !sketchData.casings || !root.transformParams || Object.keys(root.transformParams).length === 0) return
 
         var params = root.transformParams
-        var maxDepth = params.maxDepth
+        var maxMD = params.maxMD  // 🔥 修改：使用测深
         var centerX = params.centerX
 
         // 按外径从大到小排序
@@ -253,25 +357,59 @@ Item {
             return b.outer_diameter - a.outer_diameter
         })
 
-        // 计算最大套管外径用于比例计算
-        var maxCasingOD = Math.max.apply(Math, casings.map(function(c) { return c.outer_diameter }))
+        // 🔥 重要改进：计算套管直径比例，增强视觉差异
+        var maxCasingODOriginal = Math.max.apply(Math, casings.map(function(c) { return c.outer_diameter }))
+        var minCasingODOriginal = Math.min.apply(Math, casings.map(function(c) { return c.outer_diameter }))
+        
+        var maxCasingOD = formatDiameterValue(maxCasingODOriginal, "in")
+        var minCasingOD = formatDiameterValue(minCasingODOriginal, "in")
+
+        // 🔥 增强直径差异显示 - 使用非线性缩放
+        var diameterRange = maxCasingOD - minCasingOD
+        var baseWidth = 120  // 🔥 增加基础宽度
+        var maxDisplayWidth = 80  // 🔥 增加最大显示宽度
+        var minDisplayWidth = 30  // 🔥 设置最小显示宽度
 
         for (var i = 0; i < casings.length; i++) {
             var casing = casings[i]
 
-            // 计算套管在画布上的位置
-            var topY = params.margin + (casing.top_depth / maxDepth) * (canvas.height - 2 * params.margin)
-            var bottomY = params.margin + (casing.bottom_depth / maxDepth) * (canvas.height - 2 * params.margin)
+            // 🔥 修改：使用测深计算位置，支持轨迹数据
+            var topMD, bottomMD
+            
+            if (casing.top_md !== undefined && casing.bottom_md !== undefined) {
+                // 如果有测深数据，直接使用
+                topMD = formatDepthValue(casing.top_md, "ft")
+                bottomMD = formatDepthValue(casing.bottom_md, "ft")
+            } else {
+                // 如果没有测深数据，使用垂深作为近似值
+                topMD = formatDepthValue(casing.top_depth, "ft")
+                bottomMD = formatDepthValue(casing.bottom_depth, "ft")
+            }
 
-            // 计算套管宽度（按实际比例但限制最大值）
-            var baseWidth = 100 // 基础宽度
-            var outerWidth = Math.min(baseWidth * (casing.outer_diameter / maxCasingOD), 60)
-            var innerWidth = Math.min(baseWidth * (casing.inner_diameter / maxCasingOD), 55)
+            var topY = params.margin + (topMD / maxMD) * (canvas.height - 2 * params.margin)
+            var bottomY = params.margin + (bottomMD / maxMD) * (canvas.height - 2 * params.margin)
 
-            // 确保最小宽度
-            outerWidth = Math.max(outerWidth, 20)
-            innerWidth = Math.max(innerWidth, 15)
-            if (innerWidth >= outerWidth) innerWidth = outerWidth - 3
+            // 🔥 改进的套管宽度计算 - 非线性缩放增强差异
+            var outerDiameterConverted = formatDiameterValue(casing.outer_diameter, "in")
+            var innerDiameterConverted = formatDiameterValue(casing.inner_diameter, "in")
+            
+            // 🔥 使用指数函数增强直径差异
+            var normalizedOD = (outerDiameterConverted - minCasingOD) / (diameterRange || 1)
+            var normalizedID = (innerDiameterConverted - minCasingOD) / (diameterRange || 1)
+            
+            // 🔥 应用指数缩放增强视觉差异
+            var scaleFactor = 1.5  // 指数因子，可调整
+            var scaledOD = Math.pow(normalizedOD, 1/scaleFactor)
+            var scaledID = Math.pow(normalizedID, 1/scaleFactor)
+            
+            var outerWidth = minDisplayWidth + (maxDisplayWidth - minDisplayWidth) * scaledOD
+            var innerWidth = minDisplayWidth + (maxDisplayWidth - minDisplayWidth) * scaledID
+            
+            // 确保最小差值
+            if (outerWidth - innerWidth < 8) {
+                innerWidth = outerWidth - 8
+            }
+            if (innerWidth < 15) innerWidth = 15
 
             var wallThickness = (outerWidth - innerWidth) / 2
 
@@ -293,9 +431,8 @@ Item {
                 drawCasingShoe(ctx, centerX, bottomY, outerWidth)
             }
 
-            // 🔥 修改：在套管中间位置绘制标注
-            var midY = topY + (bottomY - topY) / 2
-            drawCasingLabelAtCenter(ctx, casing, centerX, midY, outerWidth)
+            // 🔥 重要修改：将套管信息显示在右下方，传递bottomMD参数
+            drawCasingLabelAtBottomRight(ctx, casing, centerX, bottomY, outerWidth, i, bottomMD)
         }
     }
 
@@ -314,49 +451,88 @@ Item {
         ctx.stroke()
     }
 
-    function drawCasingLabelAtCenter(ctx, casing, centerX, midY, casingWidth) {
+    // 🔥 修复：在函数参数中添加bottomMD参数
+    function drawCasingLabelAtBottomRight(ctx, casing, centerX, bottomY, casingWidth, casingIndex, bottomMD) {
         var typeName = getCasingTypeName(casing.type)
-        var sizeText = casing.casing_size || (casing.outer_diameter.toFixed(1) + "\"")
 
-        // 计算标签位置（在套管右侧，避免重叠）
-        var labelX = centerX + casingWidth/2 + 15
-        var labelY = midY
+        // 🔥 显示转换后的套管尺寸
+        var outerDiameterConverted = formatDiameterValue(casing.outer_diameter, "in")
+        var innerDiameterConverted = formatDiameterValue(casing.inner_diameter, "in")
+        
+        // 🔥 格式化尺寸文本，显示外径x壁厚格式
+        var wallThickness = (outerDiameterConverted - innerDiameterConverted) / 2
+        var sizeText = outerDiameterConverted.toFixed(isMetric ? 0 : 1) + "×" + 
+                      wallThickness.toFixed(isMetric ? 0 : 1) + getDiameterUnit()
 
-        // 标签背景
-        ctx.fillStyle = "rgba(255, 255, 255, 0.95)"
+        // 🔥 计算标签位置 - 位于套管右下方
+        var labelOffsetX = casingWidth/2 + 20 + (casingIndex * 10)  // 🔥 错开标签避免重叠
+        var labelOffsetY = 15 + (casingIndex * 25)  // 🔥 垂直错开
+        
+        var labelX = centerX + labelOffsetX
+        var labelY = bottomY + labelOffsetY
+
+        // 🔥 确保标签不超出画布边界
+        var maxX = canvas.width - 150
+        var maxY = canvas.height - 50
+        if (labelX > maxX) labelX = maxX
+        if (labelY > maxY) labelY = maxY - (casingIndex * 25)
+
+        // 🔥 绘制引线（从套管底部右侧到标签）
         ctx.strokeStyle = getCasingBorderColor(casing.type)
         ctx.lineWidth = 1
-
-        ctx.font = "10px Arial"
-        var maxTextWidth = Math.max(
-            ctx.measureText(typeName).width,
-            ctx.measureText(sizeText).width
-        )
-        var labelWidth = maxTextWidth + 8
-        var labelHeight = 22
-
-        // 绘制标签框
-        ctx.fillRect(labelX, labelY - labelHeight/2, labelWidth, labelHeight)
-        ctx.strokeRect(labelX, labelY - labelHeight/2, labelWidth, labelHeight)
-
-        // 连接线（从套管到标签）
-        ctx.strokeStyle = getCasingBorderColor(casing.type)
-        ctx.lineWidth = 0.8
-        ctx.setLineDash([2, 2])
+        ctx.setLineDash([3, 3])
+        
+        var connectionX = centerX + casingWidth/2
+        var connectionY = bottomY
+        
         ctx.beginPath()
-        ctx.moveTo(centerX + casingWidth/2, labelY)
-        ctx.lineTo(labelX, labelY)
+        ctx.moveTo(connectionX, connectionY)
+        ctx.lineTo(connectionX + 10, connectionY + 5)  // 第一段
+        ctx.lineTo(labelX - 5, labelY - 10)  // 第二段
         ctx.stroke()
         ctx.setLineDash([])
 
-        // 标签文本
-        ctx.fillStyle = textColor
+        // 🔥 绘制标签背景框
         ctx.font = "9px Arial"
-        ctx.fillText(typeName, labelX + 4, labelY - 3)
+        var typeTextWidth = ctx.measureText(typeName).width
+        var sizeTextWidth = ctx.measureText(sizeText).width
+        var maxTextWidth = Math.max(typeTextWidth, sizeTextWidth)
+        
+        var labelWidth = maxTextWidth + 12
+        var labelHeight = 28
+
+        // 背景框
+        ctx.fillStyle = "rgba(255, 255, 255, 0.95)"
+        ctx.strokeStyle = getCasingBorderColor(casing.type)
+        ctx.lineWidth = 1
+        ctx.fillRect(labelX, labelY - labelHeight, labelWidth, labelHeight)
+        ctx.strokeRect(labelX, labelY - labelHeight, labelWidth, labelHeight)
+
+        // 🔥 在背景框左侧添加颜色条
+        ctx.fillStyle = getCasingColor(casing.type)
+        ctx.fillRect(labelX, labelY - labelHeight, 4, labelHeight)
+
+        // 🔥 绘制标签文本
+        ctx.fillStyle = textColor
+        ctx.textAlign = "left"
+        ctx.textBaseline = "top"
+        
+        // 套管类型
+        ctx.font = "bold 9px Arial"
+        ctx.fillText(typeName, labelX + 8, labelY - labelHeight + 4)
+        
+        // 尺寸信息
         ctx.font = "8px Arial"
-        ctx.fillText(sizeText, labelX + 4, labelY + 7)
+        ctx.fillText(sizeText, labelX + 8, labelY - labelHeight + 16)
+
+        // 🔥 修复：现在bottomMD参数已正确传递
+        var depthText = bottomMD.toFixed(0) + getDepthUnit()
+        ctx.font = "7px Arial"
+        ctx.fillStyle = "#666"
+        ctx.fillText(depthText, labelX + 8, labelY - 6)
     }
 
+    // 🔥 修改井底绘制，使用测深显示
     function drawWellBottom(ctx) {
         if (!sketchData || !sketchData.dimensions || !root.transformParams || Object.keys(root.transformParams).length === 0) return
 
@@ -374,22 +550,46 @@ Item {
         ctx.fill()
         ctx.stroke()
 
-        // 井底深度标注
+        // 🔥 井底深度标注 - 显示测深和垂深
         ctx.fillStyle = textColor
         ctx.font = "10px Arial"
-        var depthText = "TD @ " + sketchData.dimensions.max_depth.toFixed(0) + " ft MD / " + sketchData.dimensions.max_depth.toFixed(0) + " ft TVD"
+        ctx.textAlign = "left"
+        
+        var maxMDConverted = formatDepthValue(sketchData.dimensions.max_md || sketchData.dimensions.max_depth, "ft")
+        var maxTVDConverted = formatDepthValue(sketchData.dimensions.max_tvd || sketchData.dimensions.max_depth, "ft")
+
+        // 🔥 修改显示格式，明确标注MD和TVD
+        var depthText = `TD @ ${maxMDConverted.toFixed(0)} ${getDepthUnit()} MD`
         ctx.fillText(depthText, centerX + 15, bottomY + 5)
+        
+        // 如果有垂深数据且与测深不同，则显示垂深
+        if (Math.abs(maxMDConverted - maxTVDConverted) > 1) {
+            var tvdText = `${maxTVDConverted.toFixed(0)} ${getDepthUnit()} TVD`
+            ctx.font = "9px Arial"
+            ctx.fillText(tvdText, centerX + 15, bottomY + 18)
+        }
 
         // 井斜角标注
         ctx.font = "9px Arial"
-        ctx.fillText("6.3° Inclination", centerX + 15, bottomY + 18)
+        var inclinationText = isChineseMode ? "井斜角 6.3°" : "6.3° Inclination"
+        ctx.fillText(inclinationText, centerX + 15, bottomY + 31)
     }
 
+    // 🔥 修改深度步长计算，适应不同单位制
     function calculateDepthStep(maxDepth) {
-        if (maxDepth <= 1000) return 100
-        if (maxDepth <= 5000) return 500
-        if (maxDepth <= 10000) return 1000
-        return 2000
+        if (isMetric) {
+            // 公制步长
+            if (maxDepth <= 300) return 30      // 30m
+            if (maxDepth <= 1500) return 150    // 150m
+            if (maxDepth <= 3000) return 300    // 300m
+            return 600                          // 600m
+        } else {
+            // 英制步长
+            if (maxDepth <= 1000) return 100    // 100ft
+            if (maxDepth <= 5000) return 500    // 500ft
+            if (maxDepth <= 10000) return 1000  // 1000ft
+            return 2000                         // 2000ft
+        }
     }
 
     function getCasingColor(type) {
@@ -415,14 +615,20 @@ Item {
     function getCasingTypeName(type) {
         if (isChineseMode) {
             var names = {
-                "conductor": "技术套管",
+                "conductor": "导管",
                 "surface": "表层套管",
                 "intermediate": "技术套管",
                 "production": "生产套管"
             }
             return names[type] || "套管"
         } else {
-            return type.charAt(0).toUpperCase() + type.slice(1) + " Casing"
+            var names = {
+                "conductor": "Conductor",
+                "surface": "Surface",
+                "intermediate": "Intermediate",
+                "production": "Production"
+            }
+            return names[type] || "Casing"
         }
     }
 

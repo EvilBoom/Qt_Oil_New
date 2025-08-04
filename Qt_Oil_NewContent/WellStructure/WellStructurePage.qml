@@ -8,6 +8,10 @@ import "."
 // 导入 Components 子目录的组件
 import "Components"
 
+// 🔥 导入通用组件和工具
+import "../Common/Components" as CommonComponents
+import "../Common/Utils/UnitUtils.js" as UnitUtils
+
 Rectangle {
     id: root
     color: "#f5f7fa"
@@ -20,6 +24,21 @@ Rectangle {
     property var trajectoryData: []
     property var casingData: []
     property var calculationResult: null
+    // 🔥 添加单位制属性
+    property bool isMetric: unitSystemController ? unitSystemController.isMetric : false
+
+    // 🔥 监听单位制变化
+    Connections {
+        target: unitSystemController
+        enabled: unitSystemController !== null
+
+        function onUnitSystemChanged(isMetric) {
+            root.isMetric = isMetric
+            console.log("WellStructure中单位制切换为:", isMetric ? "公制" : "英制")
+            // 强制更新所有显示
+            updateDisplayUnits()
+        }
+    }
 
     // 组件加载时初始化
     Component.onCompleted: {
@@ -257,10 +276,11 @@ Rectangle {
                         Layout.fillHeight: true
                         currentIndex: dataTabBar.currentIndex
 
-                        // 轨迹数据视图
+                        // 🔥 修改轨迹数据视图，传递单位制属性
                         WellTrajectoryDataView {
                             id: trajectoryView
                             isChineseMode: root.isChineseMode
+                            isMetric: root.isMetric  // 🔥 传递单位制属性
                         }
 
                         // 套管列表
@@ -285,6 +305,7 @@ Rectangle {
                                             enabled: currentWellId > 0
                                             onClicked: {
                                                 casingEditDialog.wellId = currentWellId
+                                                casingEditDialog.isMetric = root.isMetric  // 🔥 传递单位制
                                                 casingEditDialog.openForNew()
                                             }
                                         }
@@ -316,6 +337,7 @@ Rectangle {
 
                                             onEditClicked: function(casingData) {
                                                 casingEditDialog.wellId = currentWellId
+                                                casingEditDialog.isMetric = root.isMetric  // 🔥 传递单位制
                                                 casingEditDialog.openForEdit(casingData)
                                             }
 
@@ -359,9 +381,17 @@ Rectangle {
                             Label {
                                 text: {
                                     if (calculationResult) {
+                                        // 🔥 修复：根据数据源单位进行正确转换
+                                        var pumpDepth = parseFloat(calculationResult.pump_hanging_depth || 0)
+                                        var perfDepth = parseFloat(calculationResult.perforation_depth || 0)
+
+                                        // 假设从后端返回的数据是英尺（需要根据实际情况调整）
+                                        var pumpDepthDisplay = formatDepthValue(pumpDepth, "ft")
+                                        var perfDepthDisplay = formatDepthValue(perfDepth, "ft")
+
                                         return isChineseMode ?
-                                            `泵挂: ${calculationResult.pump_hanging_depth}m | 射孔: ${calculationResult.perforation_depth}m` :
-                                            `Pump: ${calculationResult.pump_hanging_depth}m | Perf: ${calculationResult.perforation_depth}m`
+                                            `泵挂: ${pumpDepthDisplay} | 射孔: ${perfDepthDisplay}` :
+                                            `Pump: ${pumpDepthDisplay} | Perf: ${perfDepthDisplay}`
                                     }
                                     return ""
                                 }
@@ -383,6 +413,7 @@ Rectangle {
                     id: sketchView
                     anchors.fill: parent
                     isChineseMode: root.isChineseMode
+                    isMetric: root.isMetric  // 🔥 传递单位制属性
                 }
             }
         }
@@ -391,27 +422,43 @@ Rectangle {
     // Excel导入对话框
     ExcelImportDialog {
         id: excelImportDialog
-        wellId: currentWellId
+        wellId: currentWellId  // 🔥 确保传递的是有效的wellId
         wellName: currentWellName
         isChineseMode: root.isChineseMode
+        isMetric: root.isMetric  // 🔥 传递单位制属性
+        // 🔥 添加调试信息
+        onOpened: {
+            console.log("🔧 ExcelImportDialog打开调试信息:")
+            console.log("- currentWellId:", currentWellId)
+            console.log("- currentWellName:", currentWellName)
+            console.log("- 传递的wellId:", wellId)
+            console.log("- 传递的wellName:", wellName)
+        }
     }
 
     // 套管编辑对话框
     CasingEditDialog {
         id: casingEditDialog
         isChineseMode: root.isChineseMode
+        isMetric: root.isMetric  // 🔥 传递单位制属性
     }
 
     // 计算结果对话框
     CalculationResultDialog {
         id: calculationResultDialog
         isChineseMode: root.isChineseMode
+        isMetric: root.isMetric  // 🔥 传递单位制属性
+        Component.onCompleted: {
+            // 设置控制器引用
+            setControllers(wellStructureController, wellController)
+        }
     }
 
     // 轨迹图表对话框
     WellTrajectoryChart {
         id: trajectoryChartDialog
         isChineseMode: root.isChineseMode
+        isMetric: root.isMetric  // 🔥 传递单位制属性
     }
 
     // 删除确认对话框
@@ -481,77 +528,97 @@ Rectangle {
         }
     }
 
-    // // 单位显示组
-    // Rectangle {
-    //     Layout.preferredWidth: 200
-    //     Layout.preferredHeight: 35
-    //     border.color: "#e0e0e0"
-    //     border.width: 1
-    //     radius: 4
-    //     color: "#f8f9fa"
+    // 🔥 =====================================
+    // 🔥 单位转换和格式化函数
+    // 🔥 =====================================
 
-    //     Row {
-    //         anchors.centerIn: parent
-    //         spacing: 10
+    function formatDepthValue(value, sourceUnit) {
+        if (!value || value <= 0) return "-"
 
-    //         Text {
-    //             text: isChineseMode ? "单位:" : "Units:"
-    //             font.pixelSize: 12
-    //             color: "#666"
-    //             anchors.verticalCenter: parent.verticalCenter
-    //         }
+        var convertedValue = value
+        var targetUnit = ""
 
-    //         Text {
-    //             text: isChineseMode ? "深度: 英尺(ft)" : "Depth: feet(ft)"
-    //             font.pixelSize: 11
-    //             color: "#2196F3"
-    //             anchors.verticalCenter: parent.verticalCenter
-    //         }
+        if (sourceUnit === "ft") {
+            // 源数据是英尺
+            if (isMetric) {
+                convertedValue = UnitUtils.feetToMeters(value)
+                targetUnit = "m"
+            } else {
+                convertedValue = value
+                targetUnit = "ft"
+            }
+        } else if (sourceUnit === "m") {
+            // 源数据是米
+            if (isMetric) {
+                convertedValue = value
+                targetUnit = "m"
+            } else {
+                convertedValue = UnitUtils.metersToFeet(value)
+                targetUnit = "ft"
+            }
+        }
 
-    //         Text {
-    //             text: "|"
-    //             color: "#ccc"
-    //             anchors.verticalCenter: parent.verticalCenter
-    //         }
+        return convertedValue.toFixed(1) + " " + targetUnit
+    }
 
-    //         Text {
-    //             text: isChineseMode ? "直径: 英寸(in)" : "Diameter: inches(in)"
-    //             font.pixelSize: 11
-    //             color: "#2196F3"
-    //             anchors.verticalCenter: parent.verticalCenter
-    //         }
-    //     }
-    // }
+    function formatDiameterValue(value, sourceUnit) {
+        if (!value || value <= 0) return "-"
 
-    // // 比例调整控制
-    // Row {
-    //     spacing: 5
+        var convertedValue = value
+        var targetUnit = ""
 
-    //     Label {
-    //         text: isChineseMode ? "绘图比例:" : "Scale:"
-    //         anchors.verticalCenter: parent.verticalCenter
-    //         font.pixelSize: 12
-    //     }
+        if (sourceUnit === "mm") {
+            // 源数据是毫米
+            if (isMetric) {
+                convertedValue = value
+                targetUnit = "mm"
+            } else {
+                convertedValue = UnitUtils.mmToInches(value)
+                targetUnit = "in"
+            }
+        } else if (sourceUnit === "in") {
+            // 源数据是英寸
+            if (isMetric) {
+                convertedValue = UnitUtils.inchesToMm(value)
+                targetUnit = "mm"
+            } else {
+                convertedValue = value
+                targetUnit = "in"
+            }
+        }
 
-    //     SpinBox {
-    //         id: scaleSpinBox
-    //         from: 50
-    //         to: 200
-    //         value: 100
-    //         stepSize: 10
+        return convertedValue.toFixed(sourceUnit === "mm" ? 0 : 2) + " " + targetUnit
+    }
 
-    //         textFromValue: function(value, locale) {
-    //             return value + "%"
-    //         }
+    function getDepthUnit() {
+        return isMetric ? "m" : "ft"
+    }
 
-    //         onValueChanged: {
-    //             // 通知草图视图更新比例
-    //             if (sketchView) {
-    //                 sketchView.setDrawingScale(value / 100.0)
-    //             }
-    //         }
-    //     }
-    // }
+    function getDiameterUnit() {
+        return isMetric ? "mm" : "in"
+    }
+
+    function getAngleUnit() {
+        return "°"  // 角度单位通常不变
+    }
+    function updateDisplayUnits() {
+        // 强制更新所有子组件的显示
+        console.log("更新WellStructure显示单位")
+
+        // 更新轨迹数据显示
+        if (trajectoryView && trajectoryView.updateDisplayUnits) {
+            trajectoryView.updateDisplayUnits()
+        }
+
+        // 更新套管列表显示
+        updateCasingList()
+
+        // 更新图表显示
+        if (sketchView && sketchView.updateDisplayUnits) {
+            sketchView.updateDisplayUnits()
+        }
+    }
+
 
     // 辅助函数
     function loadWellList() {
@@ -602,6 +669,11 @@ Rectangle {
     function exportFullReport() {
         // TODO: 实现完整报告导出
         showMessage(isChineseMode ? "功能开发中..." : "Function under development...")
+    }
+
+    // 当计算完成时
+    function onCalculationCompleted(result) {
+        calculationDialog.showResult(result)
     }
 
     // 连接井控制器获取井列表
