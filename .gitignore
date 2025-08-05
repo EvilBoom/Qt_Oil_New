@@ -8,3 +8,8 @@
 *.db
 data/*.db
 *.pyc
+# 将以下内容加入.gitignore
+__pycache__/
+*.pyc
+*.db
+data/
