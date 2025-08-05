@@ -17,43 +17,21 @@ Rectangle {
 
     // 组件加载时初始化
     Component.onCompleted: {
-
-        console.log("========================================")
-        console.log("=== DeviceManagementPage 初始化开始 ===")
-        console.log("========================================")
-
-        console.log("页面属性:")
-        console.log("  - isChineseMode:", isChineseMode)
-        console.log("  - root.width:", root.width)
-        console.log("  - root.height:", root.height)
-
-        // 检查 deviceController 是否存在
-        console.log("控制器检查:")
-        console.log("  - typeof deviceController:", typeof deviceController)
-        console.log("  - deviceController 存在:", typeof deviceController !== 'undefined')
-
-        if (typeof deviceController !== 'undefined') {
-            console.log("deviceController 详细信息:")
+        console.log("DeviceManagementPage initializing...")
+        console.log("deviceController type:", typeof deviceController)
+        if (typeof deviceController !== 'undefined' && deviceController !== null) {
+            console.log("DeviceController found, loading devices...")
             try {
-                console.log("  - loading:", deviceController.loading)
-                console.log("  - deviceListModel:", deviceController.deviceListModel)
-                console.log("  - totalCount:", deviceController.totalCount)
-                console.log("  - currentPage:", deviceController.currentPage)
-                console.log("  - totalPages:", deviceController.totalPages)
-
-                console.log("开始调用 loadDevices()...")
                 deviceController.loadDevices()
-
-                console.log("开始调用 loadStatistics()...")
                 deviceController.loadStatistics()
-
-                console.log("设备控制器初始化完成")
-            } catch (e) {
-                console.error("访问 deviceController 时出错:", e)
+                console.log("DeviceController methods called successfully")
+            } catch (error) {
+                console.error("Error calling deviceController methods:", error)
+                showMessage("设备控制器初始化失败: " + error.message, true)
             }
         } else {
-            console.error("❌ DeviceController 未在上下文中找到")
-            showMessage(isChineseMode ? "设备控制器未初始化" : "Device controller not initialized", true)
+            console.error("DeviceController not found in context")
+            showMessage(root.isChineseMode ? "设备控制器未初始化" : "Device controller not initialized", true)
         }
 
         console.log("=== DeviceManagementPage 初始化完成 ===")
@@ -100,7 +78,7 @@ Rectangle {
 
                 // 标题
                 Label {
-                    text: isChineseMode ? "设备数据库管理" : "Equipment Database Management"
+                    text: root.isChineseMode ? "设备数据库管理" : "Equipment Database Management"
                     font.pixelSize: 20
                     font.bold: true
                     color: "#333"
@@ -114,23 +92,23 @@ Rectangle {
 
                     // 批量操作切换按钮
                     Button {
-                        text: batchSelectionMode ?
-                              (isChineseMode ? "取消批量" : "Cancel Batch") :
-                              (isChineseMode ? "批量操作" : "Batch Operation")
+                        text: root.batchSelectionMode ?
+                              (root.isChineseMode ? "取消批量" : "Cancel Batch") :
+                              (root.isChineseMode ? "批量操作" : "Batch Operation")
                         flat: true
 
                         onClicked: {
-                            batchSelectionMode = !batchSelectionMode
-                            if (!batchSelectionMode) {
-                                selectedDeviceIds = []
+                            root.batchSelectionMode = !root.batchSelectionMode
+                            if (!root.batchSelectionMode) {
+                                root.selectedDeviceIds = []
                             }
                         }
                     }
 
                     // 批量删除按钮
                     Button {
-                        text: isChineseMode ? "批量删除" : "Batch Delete"
-                        visible: batchSelectionMode && selectedDeviceIds.length > 0
+                        text: root.isChineseMode ? "批量删除" : "Batch Delete"
+                        visible: root.batchSelectionMode && root.selectedDeviceIds.length > 0
                         flat: true
                         Material.foreground: Material.Red
 
@@ -141,7 +119,7 @@ Rectangle {
 
                     // 导入按钮
                     Button {
-                        text: isChineseMode ? "📥 导入" : "📥 Import"
+                        text: root.isChineseMode ? "📥 导入" : "📥 Import"
                         flat: true
 
                         onClicked: {
@@ -151,7 +129,7 @@ Rectangle {
 
                     // 导出按钮
                     Button {
-                        text: isChineseMode ? "📤 导出" : "📤 Export"
+                        text: root.isChineseMode ? "📤 导出" : "📤 Export"
                         flat: true
 
                         onClicked: {
@@ -161,7 +139,7 @@ Rectangle {
 
                     // 添加设备按钮
                     Button {
-                        text: isChineseMode ? "➕ 添加设备" : "➕ Add Device"
+                        text: root.isChineseMode ? "➕ 添加设备" : "➕ Add Device"
                         highlighted: true
                         // 定制按钮背景为蓝色
                         background: Rectangle {
@@ -260,7 +238,7 @@ Rectangle {
                         Layout.margins: 10
 
                         // model: deviceController ? deviceController.deviceListModel : null
-                        model: deviceController.deviceListModel
+                        model: typeof deviceController !== 'undefined' ? deviceController.deviceListModel : null
                         isChineseMode: root.isChineseMode
                         batchSelectionMode: root.batchSelectionMode
                         selectedIds: root.selectedDeviceIds
@@ -268,17 +246,17 @@ Rectangle {
                         onDeviceClicked: function(deviceId) {
                             // 查看model的状态
                             console.log("这里是onDeviceClicked的deviceId", deviceId)
-                            if (batchSelectionMode) {
+                            if (root.batchSelectionMode) {
                                 // 批量选择模式下，切换选中状态
-                                var index = selectedDeviceIds.indexOf(deviceId)
-                                console.log("ERROR 202 Toggling device selection:", deviceId, "Current selection:", selectedDeviceIds)
+                                var index = root.selectedDeviceIds.indexOf(deviceId)
+                                console.log("ERROR 202 Toggling device selection:", deviceId, "Current selection:", root.selectedDeviceIds)
                                 if (index === -1) {
-                                    selectedDeviceIds.push(deviceId)
+                                    root.selectedDeviceIds.push(deviceId)
                                 } else {
-                                    selectedDeviceIds.splice(index, 1)
+                                    root.selectedDeviceIds.splice(index, 1)
                                 }
                                 // 触发更新
-                                selectedDeviceIds = selectedDeviceIds.slice()
+                                root.selectedDeviceIds = root.selectedDeviceIds.slice()
                             } else {
                                 // 普通模式下，查看详情
                                 if (deviceController) {

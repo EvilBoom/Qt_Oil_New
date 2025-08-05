@@ -10,14 +10,16 @@ qt6_add_resources(${CMAKE_PROJECT_NAME} MainResource
     PREFIX "/qt/qml"
     VERSION 1.0
     FILES 
-        "drafts/report_draft_20250712_144151.json"
         ".vs/PythonSettings.json"
+        ".vs/VSWorkspaceState.json"
         ".vs/ProjectSettings.json"
         ".vs/VSWorkspaceState.json"
         ".vs/Qt_Oil_New/v17/DocumentLayout.json"
         ".vs/Qt_Oil_New/v17/DocumentLayout.backup.json"
+        "drafts/report_draft_20250712_144151.json"
 )
 
 target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE
     Qt_Oil_NewContentplugin
+    ContinuousLearning_componentsplugin
     Qt_Oil_Newplugin)

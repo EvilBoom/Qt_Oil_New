@@ -53,6 +53,17 @@ Dialog {
     modal: true
     standardButtons: Dialog.Ok | Dialog.Cancel
 
+    // 信号处理程序
+    onAccepted: {
+        if (!root.model || root.model.trim() === "") {
+            console.log(root.isChineseMode ? "请输入设备型号" : "Please enter device model")
+            root.open()
+            return
+        }
+
+        root.formDataJson = createJsonData()
+    }
+
     // 初始化数据
     Component.onCompleted: {
         if (deviceData) {
@@ -195,20 +206,83 @@ Dialog {
 
             ScrollView {
                 anchors.fill: parent
-                contentWidth: availableWidth
+                clip: true
 
-                Item {
-                    implicitHeight: paramContent.height
-                    implicitWidth: parent.width
+                ColumnLayout {
+                    id: paramContent
+                    width: parent.parent.width
+                    spacing: 10
 
+                    // 泵参数
+                    GridLayout {
+                        visible: deviceType === "pump"
+                        columns: 2
+                        columnSpacing: 20
+                        rowSpacing: 10
+                        Layout.fillWidth: true
+
+                        Label {
+                            text: isChineseMode ? "叶轮型号：" : "Impeller Model:"
+                            Layout.alignment: Qt.AlignRight
+                        }
+                        TextField {
+                            Layout.fillWidth: true
+                            text: impellerModel
+                            onTextChanged: impellerModel = text
+                        }
+
+                        Label {
+                            text: isChineseMode ? "最小排量 (m³/d)：" : "Min Displacement (m³/d):"
+                            Layout.alignment: Qt.AlignRight
+                        }
+                        TextField {
+                            Layout.fillWidth: true
+                            text: displacementMin > 0 ? displacementMin.toString() : ""
+                            validator: DoubleValidator { bottom: 0 }
+                            onTextChanged: displacementMin = parseFloat(text) || 0
+                        }
+
+                        Label {
+                            text: isChineseMode ? "最大排量 (m³/d)：" : "Max Displacement (m³/d):"
+                            Layout.alignment: Qt.AlignRight
+                        }
+                        TextField {
+                            Layout.fillWidth: true
+                            text: displacementMax > 0 ? displacementMax.toString() : ""
+                            validator: DoubleValidator { bottom: 0 }
+                            onTextChanged: displacementMax = parseFloat(text) || 0
+                        }
+
+                        Label {
+                            text: isChineseMode ? "单级扬程 (m)：" : "Single Stage Head (m):"
+                            Layout.alignment: Qt.AlignRight
+                        }
+                        TextField {
+                            Layout.fillWidth: true
+                            text: singleStageHead > 0 ? singleStageHead.toString() : ""
+                            validator: DoubleValidator { bottom: 0 }
+                            onTextChanged: singleStageHead = parseFloat(text) || 0
+                        }
+
+                        Label {
+                            text: isChineseMode ? "单级功率 (kW)：" : "Single Stage Power (kW):"
+                            Layout.alignment: Qt.AlignRight
+                        }
+                        TextField {
+                            Layout.fillWidth: true
+                            text: singleStagePower > 0 ? singleStagePower.toString() : ""
+                            validator: DoubleValidator { bottom: 0 }
+                            onTextChanged: singleStagePower = parseFloat(text) || 0
+                        }
+                    }
+
+                    // 电机参数
                     ColumnLayout {
-                        id: paramContent
-                        width: parent.width
+                        visible: deviceType === "motor"
                         spacing: 10
+                        Layout.fillWidth: true
 
-                        // 泵参数
                         GridLayout {
-                            visible: deviceType === "pump"
                             columns: 2
                             columnSpacing: 20
                             rowSpacing: 10
@@ -238,272 +312,194 @@ Dialog {
                             }
 
                             Label {
-                                text: isChineseMode ? "叶轮型号：" : "Impeller Model:"
+                                text: isChineseMode ? "电机类型：" : "Motor Type:"
                                 Layout.alignment: Qt.AlignRight
                             }
                             TextField {
                                 Layout.fillWidth: true
-                                text: impellerModel
-                                onTextChanged: impellerModel = text
+                                text: motorType
+                                onTextChanged: motorType = text
                             }
 
                             Label {
-                                text: isChineseMode ? "最小排量 (m³/d)：" : "Min Displacement (m³/d):"
+                                text: isChineseMode ? "外径 (mm)：" : "Outside Diameter (mm):"
                                 Layout.alignment: Qt.AlignRight
                             }
                             TextField {
                                 Layout.fillWidth: true
-                                text: displacementMin > 0 ? displacementMin.toString() : ""
+                                text: outsideDiameter > 0 ? outsideDiameter.toString() : ""
                                 validator: DoubleValidator { bottom: 0 }
-                                onTextChanged: displacementMin = parseFloat(text) || 0
+                                onTextChanged: outsideDiameter = parseFloat(text) || 0
                             }
 
                             Label {
-                                text: isChineseMode ? "最大排量 (m³/d)：" : "Max Displacement (m³/d):"
+                                text: isChineseMode ? "长度 (mm)：" : "Length (mm):"
                                 Layout.alignment: Qt.AlignRight
                             }
                             TextField {
                                 Layout.fillWidth: true
-                                text: displacementMax > 0 ? displacementMax.toString() : ""
+                                text: motorLength > 0 ? motorLength.toString() : ""
                                 validator: DoubleValidator { bottom: 0 }
-                                onTextChanged: displacementMax = parseFloat(text) || 0
-                            }
-
-                            Label {
-                                text: isChineseMode ? "单级扬程 (m)：" : "Single Stage Head (m):"
-                                Layout.alignment: Qt.AlignRight
-                            }
-                            TextField {
-                                Layout.fillWidth: true
-                                text: singleStageHead > 0 ? singleStageHead.toString() : ""
-                                validator: DoubleValidator { bottom: 0 }
-                                onTextChanged: singleStageHead = parseFloat(text) || 0
-                            }
-
-                            Label {
-                                text: isChineseMode ? "单级功率 (kW)：" : "Single Stage Power (kW):"
-                                Layout.alignment: Qt.AlignRight
-                            }
-                            TextField {
-                                Layout.fillWidth: true
-                                text: singleStagePower > 0 ? singleStagePower.toString() : ""
-                                validator: DoubleValidator { bottom: 0 }
-                                onTextChanged: singleStagePower = parseFloat(text) || 0
+                                onTextChanged: motorLength = parseFloat(text) || 0
                             }
                         }
 
-                        // 电机参数
-                        ColumnLayout {
-                            visible: deviceType === "motor"
-                            spacing: 10
+                        GroupBox {
+                            title: isChineseMode ? "频率参数" : "Frequency Parameters"
                             Layout.fillWidth: true
 
-                            GridLayout {
-                                columns: 2
-                                columnSpacing: 20
-                                rowSpacing: 10
-                                Layout.fillWidth: true
+                            ColumnLayout {
+                                spacing: 10
+                                anchors.fill: parent
 
-                                Label {
-                                    text: isChineseMode ? "电机类型：" : "Motor Type:"
-                                    Layout.alignment: Qt.AlignRight
-                                }
-                                TextField {
+                                // 50Hz
+                                Rectangle {
                                     Layout.fillWidth: true
-                                    text: motorType
-                                    onTextChanged: motorType = text
-                                }
+                                    Layout.preferredHeight: 80
+                                    color: "#f0f0f0"
+                                    radius: 4
 
-                                Label {
-                                    text: isChineseMode ? "外径 (mm)：" : "Outside Diameter (mm):"
-                                    Layout.alignment: Qt.AlignRight
-                                }
-                                TextField {
-                                    Layout.fillWidth: true
-                                    text: outsideDiameter > 0 ? outsideDiameter.toString() : ""
-                                    validator: DoubleValidator { bottom: 0 }
-                                    onTextChanged: outsideDiameter = parseFloat(text) || 0
-                                }
+                                    GridLayout {
+                                        anchors.fill: parent
+                                        anchors.margins: 10
+                                        columns: 4
 
-                                Label {
-                                    text: isChineseMode ? "长度 (mm)：" : "Length (mm):"
-                                    Layout.alignment: Qt.AlignRight
-                                }
-                                TextField {
-                                    Layout.fillWidth: true
-                                    text: motorLength > 0 ? motorLength.toString() : ""
-                                    validator: DoubleValidator { bottom: 0 }
-                                    onTextChanged: motorLength = parseFloat(text) || 0
-                                }
-                            }
+                                        Label {
+                                            text: "50Hz"
+                                            font.bold: true
+                                        }
 
-                            GroupBox {
-                                title: isChineseMode ? "频率参数" : "Frequency Parameters"
-                                Layout.fillWidth: true
+                                        Label { text: isChineseMode ? "功率(kW):" : "Power(kW):" }
+                                        TextField {
+                                            Layout.fillWidth: true
+                                            text: hz50Power > 0 ? hz50Power.toString() : ""
+                                            validator: DoubleValidator { bottom: 0 }
+                                            onTextChanged: hz50Power = parseFloat(text) || 0
+                                        }
 
-                                ColumnLayout {
-                                    spacing: 10
-                                    anchors.fill: parent
-
-                                    // 50Hz
-                                    Rectangle {
-                                        Layout.fillWidth: true
-                                        height: 80
-                                        color: "#f0f0f0"
-                                        radius: 4
-
-                                        GridLayout {
-                                            anchors.fill: parent
-                                            anchors.margins: 10
-                                            columns: 4
-
-                                            Label {
-                                                text: "50Hz"
-                                                font.bold: true
-                                            }
-
-                                            Label { text: isChineseMode ? "功率(kW):" : "Power(kW):" }
-                                            TextField {
-                                                Layout.fillWidth: true
-                                                text: hz50Power > 0 ? hz50Power.toString() : ""
-                                                validator: DoubleValidator { bottom: 0 }
-                                                onTextChanged: hz50Power = parseFloat(text) || 0
-                                            }
-
-                                            Label { text: isChineseMode ? "电压(V):" : "Voltage(V):" }
-                                            TextField {
-                                                Layout.fillWidth: true
-                                                text: hz50Voltage > 0 ? hz50Voltage.toString() : ""
-                                                validator: DoubleValidator { bottom: 0 }
-                                                onTextChanged: hz50Voltage = parseFloat(text) || 0
-                                            }
+                                        Label { text: isChineseMode ? "电压(V):" : "Voltage(V):" }
+                                        TextField {
+                                            Layout.fillWidth: true
+                                            text: hz50Voltage > 0 ? hz50Voltage.toString() : ""
+                                            validator: DoubleValidator { bottom: 0 }
+                                            onTextChanged: hz50Voltage = parseFloat(text) || 0
                                         }
                                     }
+                                }
 
-                                    // 60Hz
-                                    Rectangle {
-                                        Layout.fillWidth: true
-                                        height: 80
-                                        color: "#f0f0f0"
-                                        radius: 4
+                                // 60Hz
+                                Rectangle {
+                                    Layout.fillWidth: true
+                                    Layout.preferredHeight: 80
+                                    color: "#f0f0f0"
+                                    radius: 4
 
-                                        GridLayout {
-                                            anchors.fill: parent
-                                            anchors.margins: 10
-                                            columns: 4
+                                    GridLayout {
+                                        anchors.fill: parent
+                                        anchors.margins: 10
+                                        columns: 4
 
-                                            Label {
-                                                text: "60Hz"
-                                                font.bold: true
-                                            }
+                                        Label {
+                                            text: "60Hz"
+                                            font.bold: true
+                                        }
 
-                                            Label { text: isChineseMode ? "功率(kW):" : "Power(kW):" }
-                                            TextField {
-                                                Layout.fillWidth: true
-                                                text: hz60Power > 0 ? hz60Power.toString() : ""
-                                                validator: DoubleValidator { bottom: 0 }
-                                                onTextChanged: hz60Power = parseFloat(text) || 0
-                                            }
+                                        Label { text: isChineseMode ? "功率(kW):" : "Power(kW):" }
+                                        TextField {
+                                            Layout.fillWidth: true
+                                            text: hz60Power > 0 ? hz60Power.toString() : ""
+                                            validator: DoubleValidator { bottom: 0 }
+                                            onTextChanged: hz60Power = parseFloat(text) || 0
+                                        }
 
-                                            Label { text: isChineseMode ? "电压(V):" : "Voltage(V):" }
-                                            TextField {
-                                                Layout.fillWidth: true
-                                                text: hz60Voltage > 0 ? hz60Voltage.toString() : ""
-                                                validator: DoubleValidator { bottom: 0 }
-                                                onTextChanged: hz60Voltage = parseFloat(text) || 0
-                                            }
+                                        Label { text: isChineseMode ? "电压(V):" : "Voltage(V):" }
+                                        TextField {
+                                            Layout.fillWidth: true
+                                            text: hz60Voltage > 0 ? hz60Voltage.toString() : ""
+                                            validator: DoubleValidator { bottom: 0 }
+                                            onTextChanged: hz60Voltage = parseFloat(text) || 0
                                         }
                                     }
                                 }
                             }
                         }
+                    }
 
-                        // 保护器参数
-                        GridLayout {
-                            visible: deviceType === "protector"
-                            columns: 2
-                            columnSpacing: 20
-                            rowSpacing: 10
+                    // 保护器参数
+                    GridLayout {
+                        visible: deviceType === "protector"
+                        columns: 2
+                        columnSpacing: 20
+                        rowSpacing: 10
+                        Layout.fillWidth: true
+
+                        Label {
+                            text: isChineseMode ? "外径 (mm)：" : "Outer Diameter (mm):"
+                            Layout.alignment: Qt.AlignRight
+                        }
+                        TextField {
                             Layout.fillWidth: true
-
-                            Label {
-                                text: isChineseMode ? "外径 (mm)：" : "Outer Diameter (mm):"
-                                Layout.alignment: Qt.AlignRight
-                            }
-                            TextField {
-                                Layout.fillWidth: true
-                                text: outerDiameter > 0 ? outerDiameter.toString() : ""
-                                validator: DoubleValidator { bottom: 0 }
-                                onTextChanged: outerDiameter = parseFloat(text) || 0
-                            }
-
-                            Label {
-                                text: isChineseMode ? "推力承载 (kN)：" : "Thrust Capacity (kN):"
-                                Layout.alignment: Qt.AlignRight
-                            }
-                            TextField {
-                                Layout.fillWidth: true
-                                text: thrustCapacity > 0 ? thrustCapacity.toString() : ""
-                                validator: DoubleValidator { bottom: 0 }
-                                onTextChanged: thrustCapacity = parseFloat(text) || 0
-                            }
-
-                            Label {
-                                text: isChineseMode ? "密封类型：" : "Seal Type:"
-                                Layout.alignment: Qt.AlignRight
-                            }
-                            TextField {
-                                Layout.fillWidth: true
-                                text: sealType
-                                onTextChanged: sealType = text
-                            }
+                            text: outerDiameter > 0 ? outerDiameter.toString() : ""
+                            validator: DoubleValidator { bottom: 0 }
+                            onTextChanged: outerDiameter = parseFloat(text) || 0
                         }
 
-                        // 分离器参数
-                        GridLayout {
-                            visible: deviceType === "separator"
-                            columns: 2
-                            columnSpacing: 20
-                            rowSpacing: 10
+                        Label {
+                            text: isChineseMode ? "推力承载 (kN)：" : "Thrust Capacity (kN):"
+                            Layout.alignment: Qt.AlignRight
+                        }
+                        TextField {
                             Layout.fillWidth: true
+                            text: thrustCapacity > 0 ? thrustCapacity.toString() : ""
+                            validator: DoubleValidator { bottom: 0 }
+                            onTextChanged: thrustCapacity = parseFloat(text) || 0
+                        }
 
-                            Label {
-                                text: isChineseMode ? "分离效率 (%)：" : "Separation Efficiency (%):"
-                                Layout.alignment: Qt.AlignRight
-                            }
-                            TextField {
-                                Layout.fillWidth: true
-                                text: separationEfficiency > 0 ? separationEfficiency.toString() : ""
-                                validator: DoubleValidator { bottom: 0; top: 100 }
-                                onTextChanged: separationEfficiency = parseFloat(text) || 0
-                            }
+                        Label {
+                            text: isChineseMode ? "密封类型：" : "Seal Type:"
+                            Layout.alignment: Qt.AlignRight
+                        }
+                        TextField {
+                            Layout.fillWidth: true
+                            text: sealType
+                            onTextChanged: sealType = text
+                        }
+                    }
 
-                            Label {
-                                text: isChineseMode ? "气体处理能力 (m³/d)：" : "Gas Handling (m³/d):"
-                                Layout.alignment: Qt.AlignRight
-                            }
-                            TextField {
-                                Layout.fillWidth: true
-                                text: gasHandlingCapacity > 0 ? gasHandlingCapacity.toString() : ""
-                                validator: DoubleValidator { bottom: 0 }
-                                onTextChanged: gasHandlingCapacity = parseFloat(text) || 0
-                            }
+                    // 分离器参数
+                    GridLayout {
+                        visible: deviceType === "separator"
+                        columns: 2
+                        columnSpacing: 20
+                        rowSpacing: 10
+                        Layout.fillWidth: true
+
+                        Label {
+                            text: isChineseMode ? "分离效率 (%)：" : "Separation Efficiency (%):"
+                            Layout.alignment: Qt.AlignRight
+                        }
+                        TextField {
+                            Layout.fillWidth: true
+                            text: separationEfficiency > 0 ? separationEfficiency.toString() : ""
+                            validator: DoubleValidator { bottom: 0; top: 100 }
+                            onTextChanged: separationEfficiency = parseFloat(text) || 0
+                        }
+
+                        Label {
+                            text: isChineseMode ? "气体处理能力 (m³/d)：" : "Gas Handling (m³/d):"
+                            Layout.alignment: Qt.AlignRight
+                        }
+                        TextField {
+                            Layout.fillWidth: true
+                            text: gasHandlingCapacity > 0 ? gasHandlingCapacity.toString() : ""
+                            validator: DoubleValidator { bottom: 0 }
+                            onTextChanged: gasHandlingCapacity = parseFloat(text) || 0
                         }
                     }
                 }
             }
         }
-    }
-
-    onAccepted: {
-        if (!model || model.trim() === "") {
-            console.log(isChineseMode ? "请输入设备型号" : "Please enter device model")
-            open()
-            return
-        }
-
-        formDataJson = createJsonData()
-    }
+    } // contentItem 结束
 
     // 辅助函数
     function loadDeviceData() {
@@ -553,6 +549,7 @@ Dialog {
             gasHandlingCapacity = deviceData.separator_details.gas_handling_capacity || 0
         }
     }
+
     // 监听 deviceData 变化
     onDeviceDataChanged: {
         if (deviceData) {
@@ -633,5 +630,39 @@ Dialog {
         }
 
         return JSON.stringify(data)
+    }
+
+    function resetForm() {
+        deviceType = "pump"
+        manufacturer = ""
+        model = ""
+        serialNumber = ""
+        status = "active"
+        description = ""
+        
+        // 重置泵参数
+        impellerModel = ""
+        displacementMin = 0
+        displacementMax = 0
+        singleStageHead = 0
+        singleStagePower = 0
+        
+        // 重置电机参数
+        motorType = ""
+        outsideDiameter = 0
+        motorLength = 0
+        hz50Power = 0
+        hz50Voltage = 0
+        hz60Power = 0
+        hz60Voltage = 0
+        
+        // 重置保护器参数
+        outerDiameter = 0
+        thrustCapacity = 0
+        sealType = ""
+        
+        // 重置分离器参数
+        separationEfficiency = 0
+        gasHandlingCapacity = 0
     }
 }
