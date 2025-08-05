@@ -1,331 +1,74 @@
-﻿# 使用公式计算吸入口气液比
-at_pumb_results_fromat = calculate_complex_formula(
-            Pi_Mpa=self.ProduceIndex,
-            Pb_Mpa=pressureChange(self.SaturationPressure),
-            tempature=self.BHT,                               #TODO 使用什么温度进行计算  现在BHT是井底温度
-            water_ratio=self.BSW,
-            Production_gasoline_ratio=self.GasOilRatio*0.1781     # 单位换算
-            )
-# 使用公式计算扬程
-lift_results_format = excel_formula(
-            Vertical_depth_of_perforation_top_boundary=PerforationVerticalDepth,
-            Pump_hanging_depth=Pump_hanging_depth,                       # 泵挂垂深
-            Pwh=self.WellHeadPressure,
-            Pperfs=self.Pperfs,                                   # 井底流压
-            Pump_hanging_depth_measurement=PumpHangingVerticalDepth,           # 泵挂测深
-            water_ratio=self.BSW,
-            api=self.API
-        )
-def excel_if(condition, true_value, false_value):
-    """Excel IF函数的Python实现"""
-    return true_value if condition else false_value
-
-def calculate_complex_formula(Pi_Mpa, Pb_Mpa, tempature, water_ratio,Production_gasoline_ratio ,Z_const=0.8, Rg_const=0.896, Ro_const=0.849):
-    """
-    将Excel复杂公式转换为Python函数
-    Pi_Mpa,           产油指数？
-    Z_const,           常数
-    Pb_Mpa,           泡点压力
-    Rg_const,          相对水密度  常数
-    Ro_const,          相对油密度  常数
-    tempature,          温度
-    water_ratio,         含水率
-    Production_gasoline_ratio   生产气液比
-    参数:
-    Pi_Mpa, Z_const, Pb_Mpa, Rg_const, Ro_const, tempature, water_ratio, Production_gasoline_ratio: 输入参数
-    
-    返回:
-    计算结果
-    """
-    
-    # 计算公共子表达式，避免重复计算
-    # 子表达式1: pow(10, 0.0125*(141.5/Ro_const-131.5))
-    sub_expr_1 = pow(10, 0.0125 * (141.5/Ro_const - 131.5))
-    
-    # 子表达式2: pow(10, 0.00091*(1.8*tempature+32))
-    sub_expr_2 = pow(10, 0.00091 * (1.8*tempature + 32))
-    
-    # 子表达式3: 10*Pb_Mpa*sub_expr_1/sub_expr_2
-    sub_expr_3 = 10 * Pb_Mpa * sub_expr_1 / sub_expr_2
-    
-    # 子表达式4: 0.1342*Rg_const*pow(sub_expr_3, 1/0.83)
-    sub_expr_4 = 0.1342 * Rg_const * pow(sub_expr_3, 1/0.83)
-    
-    # 计算IF嵌套条件
-    ratio = Pi_Mpa / Pb_Mpa
-    if ratio < 0.1:
-        if_result = 3.4 * ratio
-    elif ratio < 0.3:
-        if_result = 1.1 * ratio + 0.23
-    elif ratio < 1:
-        if_result = 0.629 * ratio + 0.37
-    else:
-        if_result = 1
-    
-    # 子表达式5: sub_expr_4 * if_result
-    sub_expr_5 = sub_expr_4 * if_result
-    
-    # 子表达式6: 0.0003458*Z_const*(tempature+273)/Pi_Mpa
-    sub_expr_6 = 0.0003458 * Z_const * (tempature + 273) / Pi_Mpa
-    
-    # 计算分子
-    numerator = (1 - water_ratio) * (Production_gasoline_ratio - sub_expr_5) * sub_expr_6
-    
-    # 计算分母的第一部分
-    # 5.61*(sub_expr_5)*pow(Rg_const/Ro_const, 0.5) + 1.25*(1.8*tempature+32)
-    denom_part1_inner = 5.61 * sub_expr_5 * pow(Rg_const/Ro_const, 0.5) + 1.25 * (1.8*tempature + 32)
-    
-    # 0.972 + 0.000147*pow(denom_part1_inner, 1.175)
-    denom_part1 = 0.972 + 0.000147 * pow(denom_part1_inner, 1.175)
-    
-    # 分母的第二部分
-    denom_part2 = (1 - water_ratio) * (Production_gasoline_ratio - sub_expr_5) * sub_expr_6 + water_ratio
-    
-    # 完整分母
-    denominator = (1 - water_ratio) * denom_part1 + denom_part2
-    
-    # 最终结果
-    result = (numerator / denominator) * 100
-    
-    return result
-
-# 使用示例和测试函数
-def test_formula():
-    """测试函数，提供示例用法"""    
-    result = calculate_complex_formula(
-        Pi_Mpa=21.25, Pb_Mpa=18.11, tempature=114, water_ratio=0,Production_gasoline_ratio=117
-    )
-    print(f"计算结果: {result}")
-    return result
-
-import numpy as np
-from typing import Union, List
-
-class MeanAbsolutePercentageError:
-    """
-    纯Python实现的平均绝对百分比误差(MAPE)
-    不依赖torch和torchmetrics
-    """
-    def __init__(self):
-        pass
-    
-    def __call__(self, predict: Union[np.ndarray, List], target: Union[np.ndarray, List]) -> float:
-        """
-        计算MAPE
-        
-        参数:
-        predict: 预测值
-        target: 真实值
-        
-        返回:
-        MAPE值 (0-100的百分比)
-        """
-        predict = np.array(predict, dtype=float)
-        target = np.array(target, dtype=float)
-        
-        # 避免除零
-        mask = target != 0
-        if not np.any(mask):
-            return 0.0  # 所有目标值都为0
-        
-        # 计算MAPE，只考虑非零目标值
-        mape = np.mean(np.abs((target[mask] - predict[mask]) / target[mask])) * 100
-        return mape
-
-
-class CustomMAPE:
-    """
-    自定义MAPE类，处理目标值为0的情况
-    """
-    def __init__(self, label_mean: float = 0.0):
-        self.mape_ = MeanAbsolutePercentageError()
-        self.label_mean = label_mean
-    
-    def __call__(self, predict: Union[np.ndarray, List], 
-                 target: Union[np.ndarray, List], 
-                 label_mean: Union[float, None] = None) -> float:
-        """
-        计算自定义MAPE
-        
-        参数:
-        predict: 预测值
-        target: 真实值
-        label_mean: 用于替换0值的均值，如果为None则使用初始化时的值
-        
-        返回:
-        MAPE值
-        """
-        predict = np.array(predict, dtype=float)
-        target = np.array(target, dtype=float).copy()  # 复制以避免修改原数组
-        
-        # 确定用于替换的均值
-        replacement_mean = label_mean if label_mean is not None else self.label_mean
-        
-        # 将目标值中的0替换为均值
-        target[target == 0] = replacement_mean
-        
-        return self.mape_(predict, target)
-
-
-# 辅助函数，模拟torch.mean的行为
-def calculate_mean(data: Union[np.ndarray, List]) -> float:
-    """计算数组均值"""
-    return float(np.mean(data))
-
-
-def select_greate_value(model_value,formal_value, max_error=15):
-    cmape = CustomMAPE((model_value+formal_value)/2)
-    error_value = cmape(model_value,formal_value)
-    return error_value,model_value if error_value<max_error else formal_value
-
-    
-
-
-if __name__ == "__main__":
-    # 测试数据
-    pre = np.array([1, 1, 0, 2, 3.0])
-    target = np.array([0, 1, 0, 2, 4.0])
-    mean_ = calculate_mean(target)
-    
-    print(f"预测值: {pre}")
-    print(f"真实值: {target}")
-    print(f"目标值均值: {mean_}")
-    
-    # 使用自定义MAPE
-    cmape = CustomMAPE(mean_)
-    result = cmape(pre, target)
-    
-    print(f"自定义MAPE结果: {result:.4f}%")
-    
-    # 对比：标准MAPE（忽略0值）
-    standard_mape = MeanAbsolutePercentageError()
-    standard_result = standard_mape(pre, target)
-    print(f"标准MAPE结果（忽略0值）: {standard_result:.4f}%")
-    
-    # 测试不同的label_mean值
-    print("\n测试不同的label_mean值:")
-    for test_mean in [0, 0.5, 1.0, mean_]:
-        cmape_test = CustomMAPE(test_mean)
-        result_test = cmape_test(pre, target)
-        print(f"label_mean={test_mean:.2f}: MAPE={result_test:.4f}%")
-    
-    # 边界情况测试
-    print("\n边界情况测试:")
-    
-    # 所有目标值都为0
-    target_all_zero = np.array([0, 0, 0, 0, 0])
-    predict_test = np.array([1, 2, 3, 4, 5])
-    cmape_edge = CustomMAPE(1.0)
-    result_edge = cmape_edge(predict_test, target_all_zero)
-    print(f"所有目标值为0: MAPE={result_edge:.4f}%")
-    
-    # 完全匹配的情况
-    perfect_predict = np.array([1, 1, 2, 2, 4])
-    perfect_target = np.array([1, 1, 2, 2, 4])
-    result_perfect = standard_mape(perfect_predict, perfect_target)
-    print(f"完全匹配: MAPE={result_perfect:.4f}%")
-
-def excel_formula(
-    Vertical_depth_of_perforation_top_boundary,
-    Pump_hanging_depth,
-    Pwh,
-    Pperfs,
-    Pump_hanging_depth_measurement,
-    water_ratio,
-    Kf=0.017,
-    api=18.5
-    ):
-    """
-    将Excel公式 $R$9+($R$17-(Pperfs-$S$14))*2.31/$S$12+$R$18*$R$19 转换为Python函数
-    Vertical_depth_of_perforation_top_boundary    射孔顶界垂深
-    Pump_hanging_depth                泵挂垂深 
-    Pwh                       井口压力 
-    Pperfs                      井底流压 
-    pfi                        井液相对密度
-    Kf                        油管摩擦系数  常数？
-    Pump_hanging_depth_measurement          泵挂测深
-    water_ratio                    含水率
-    api                        原油相对密度  常数
-    Pwf_Pi                       
-    
-    返回:
-    计算结果
-    """
-    pfi=water_ratio+(1-water_ratio)*141.5/(131.5+api)
-    Pwf_Pi = 0.433*(Vertical_depth_of_perforation_top_boundary-Pump_hanging_depth)*pfi
-    result = Pump_hanging_depth + (Pwh - (Pperfs - Pwf_Pi)) * 2.31 / pfi + Kf * Pump_hanging_depth_measurement
-    return result
-
-
-if __name__ == "__main__":
-    print(excel_formula(
-        Vertical_depth_of_perforation_top_boundary = 8708,
-        Pump_hanging_depth=7942,
-        Pwh=250,
-        Pperfs=2516,
-        Kf=0.017,
-        Pump_hanging_depth_measurement = 8590,
-        water_ratio = 0.4
-    ))
-
-import math
-
-def relative_error(actual, theoretical, method='epsilon'):
-    """
-    计算相对误差，防止除0错误
-    
-    参数:
-    actual: 实际值
-    theoretical: 理论值/参考值
-    method: 处理除0的方法
-        - 'epsilon': 使用小值替代0
-        - 'symmetric': 使用对称相对误差
-        - 'difference': 当分母为0时返回差值
-    
-    返回:
-    相对误差 (保留正负号)
-    """
-    
-    # 计算差值 (保留符号)
-    diff = actual - theoretical
-    epsilon = 1e-10
-    
-    return diff / (theoretical+epsilon)
-    
-
-
-def relative_error_percent(actual, theoretical, method='epsilon'):
-    """
-    计算相对误差百分比
-    """
-    return relative_error(actual, theoretical, method) * 100
-
-
-# 测试示例
-if __name__ == "__main__":
-    # 测试用例
-    test_cases = [
-        (10, 9),      # 正常情况 (实际值>理论值)
-        (8, 10),      # 正常情况 (实际值<理论值)
-        (0, 5),       # 实际值为0
-        (5, 0),       # 理论值为0
-        (0, 0),       # 两个值都为0
-        (-5, -4),     # 负数
-        (1.23, 1.20), # 小数
-    ]
-    
-    print("测试结果:")
-    print("实际值\t理论值\tEpsilon方法\t对称方法\t差值方法")
-    print("-" * 60)
-    
-    for actual, theoretical in test_cases:
-        eps_err = relative_error(actual, theoretical, 'epsilon')
-        sym_err = relative_error(actual, theoretical, 'symmetric')
-        diff_err = relative_error(actual, theoretical, 'difference')
-        
-        print(f"{actual}\t{theoretical}\t{eps_err:.6f}\t{sym_err:.6f}\t{diff_err:.6f}")
-    
-    # 百分比示例
-    print(f"\n相对误差百分比示例:")
-    print(f"实际值10，理论值9: {relative_error_percent(10, 9, 'epsilon'):.2f}%")
-    print(f"实际值8，理论值10: {relative_error_percent(8, 10, 'epsilon'):.2f}%")
+﻿"id"	"device_type"	"manufacturer"	"model"	"serial_number"	"status"	"description"	"created_at"	"updated_at"	"is_deleted"	"lift_method"
+"1"	"PUMP"	"test"	"123"	""	"active"	""	"2025-06-25 22:05:41.938217"	"2025-06-25 22:05:41.938217"	"0"	
+"2"	"PUMP"	"test"	"123"	"1234"	"active"	"111"	"2025-06-25 22:07:28.962813"	"2025-06-25 22:07:28.962813"	"0"	
+"3"	"PUMP"	"test"	"tl200"	"12345"	"active"	""	"2025-06-25 23:23:45.233377"	"2025-06-25 23:23:45.233377"	"0"	
+"4"	"PUMP"	"test"	"tl200"	"145679"	"active"	""	"2025-06-25 23:23:55.610784"	"2025-06-26 13:47:20.360144"	"1"	
+"5"	"PUMP"	"eee"	"eee"	"000"	"active"	""	"2025-06-25 23:58:31.918816"	"2025-06-25 23:58:31.918816"	"0"	
+"6"	"PUMP"	"123"	"1231"	"4124"	"active"	""	"2025-06-26 00:56:51.855278"	"2025-06-26 00:56:51.855278"	"0"	
+"7"	"PUMP"	"33333"	"taf"	"9999999999999"	"active"	""	"2025-06-26 13:59:04.575878"	"2025-06-26 13:59:04.575878"	"0"	
+"8"	"PUMP"	"Baker Hughes"	"FLEXPump™ 400"	"BH-ESP-400-001"	"active"	"Baker Hughes 400系列潜油离心泵，适用于中低产量井"	"2025-07-05 02:53:32"	"2025-07-05 02:53:32"	"0"	
+"9"	"PUMP"	"Baker Hughes"	"FLEXPump™ 513"	"BH-ESP-513-001"	"active"	"Baker Hughes 500系列高效ESP泵"	"2025-07-05 02:53:32"	"2025-07-05 02:53:32"	"0"	
+"10"	"PUMP"	"Baker Hughes"	"FLEXPump™ 675"	"BH-ESP-675-001"	"active"	"Baker Hughes 600系列大流量ESP泵"	"2025-07-05 02:53:32"	"2025-07-05 02:53:32"	"0"	
+"11"	"PUMP"	"Schlumberger"	"REDA Maximus"	"SLB-REDA-MAX-001"	"active"	"Schlumberger REDA Maximus高性能ESP泵"	"2025-07-05 02:53:32"	"2025-07-05 02:53:32"	"0"	
+"12"	"PUMP"	"Schlumberger"	"REDA HRC"	"SLB-REDA-HRC-001"	"active"	"Schlumberger REDA HRC系列ESP泵"	"2025-07-05 02:53:32"	"2025-07-05 02:53:32"	"0"	
+"13"	"PUMP"	"Schlumberger"	"REDA DNX"	"SLB-REDA-DNX-001"	"active"	"Schlumberger REDA DNX大流量ESP泵"	"2025-07-05 02:53:32"	"2025-07-05 02:53:32"	"0"	
+"14"	"PUMP"	"Weatherford"	"RCH-1000"	"WFT-RCH-1000-001"	"active"	"Weatherford RCH-1000高扬程ESP泵"	"2025-07-05 02:53:32"	"2025-07-05 02:53:32"	"0"	
+"15"	"PUMP"	"Weatherford"	"RCH-1500"	"WFT-RCH-1500-001"	"active"	"Weatherford RCH-1500大功率ESP泵"	"2025-07-05 02:53:32"	"2025-07-05 02:53:32"	"0"	
+"16"	"PUMP"	"Weatherford"	"ESP-D5000"	"WFT-D5000-001"	"active"	"Weatherford D5000系列高效ESP泵"	"2025-07-05 02:53:32"	"2025-07-05 02:53:32"	"0"	
+"17"	"PUMP"	"Borets"	"P-450S"	"BOR-P450S-001"	"active"	"Borets P-450S紧凑型ESP泵"	"2025-07-05 02:53:32"	"2025-07-05 02:53:32"	"0"	
+"18"	"PUMP"	"Borets"	"P-562H"	"BOR-P562H-001"	"active"	"Borets P-562H大流量ESP泵"	"2025-07-05 02:53:32"	"2025-07-05 02:53:32"	"0"	
+"19"	"PUMP"	"Borets"	"P-675T"	"BOR-P675T-001"	"active"	"Borets P-675T高温ESP泵"	"2025-07-05 02:53:32"	"2025-07-05 02:53:32"	"0"	
+"20"	"PUMP"	"Baker Hughes"	"ESP-400A"	"BH-ESP-400A-001"	"active"	"Baker Hughes 400A系列标准ESP泵"	"2025-07-05 02:53:32"	"2025-07-05 02:53:32"	"0"	
+"21"	"PUMP"	"Baker Hughes"	"ESP-400B"	"BH-ESP-400B-001"	"active"	"Baker Hughes 400B系列改进型ESP泵"	"2025-07-05 02:53:32"	"2025-07-05 02:53:32"	"0"	
+"22"	"PUMP"	"Schlumberger"	"REDA-400"	"SLB-REDA-400-001"	"active"	"Schlumberger REDA 400系列ESP泵"	"2025-07-05 02:53:32"	"2025-07-05 02:53:32"	"0"	
+"23"	"PUMP"	"Weatherford"	"ESP-400"	"WFT-ESP-400-001"	"active"	"Weatherford 400系列ESP泵"	"2025-07-05 02:53:32"	"2025-07-05 02:53:32"	"0"	
+"24"	"PUMP"	"Baker Hughes"	"ESP-513A"	"BH-ESP-513A-001"	"active"	"Baker Hughes 513A系列高效ESP泵"	"2025-07-05 02:53:32"	"2025-07-05 02:53:32"	"0"	
+"25"	"PUMP"	"Schlumberger"	"REDA-513"	"SLB-REDA-513-001"	"active"	"Schlumberger REDA 513系列ESP泵"	"2025-07-05 02:53:32"	"2025-07-05 02:53:32"	"0"	
+"26"	"PUMP"	"Weatherford"	"ESP-513"	"WFT-ESP-513-001"	"active"	"Weatherford 513系列ESP泵"	"2025-07-05 02:53:32"	"2025-07-05 02:53:32"	"0"	
+"27"	"PUMP"	"Baker Hughes"	"ESP-675A"	"BH-ESP-675A-001"	"active"	"Baker Hughes 675A系列大流量ESP泵"	"2025-07-05 02:53:32"	"2025-07-05 02:53:32"	"0"	
+"28"	"PUMP"	"Schlumberger"	"REDA-675"	"SLB-REDA-675-001"	"active"	"Schlumberger REDA 675系列ESP泵"	"2025-07-05 02:53:32"	"2025-07-05 02:53:32"	"0"	
+"29"	"PUMP"	"Weatherford"	"ESP-675"	"WFT-ESP-675-001"	"active"	"Weatherford 675系列ESP泵"	"2025-07-05 02:53:32"	"2025-07-05 02:53:32"	"0"	
+"30"	"PUMP"	"Baker Hughes"	"ESP-750"	"BH-ESP-750-001"	"active"	"Baker Hughes 750系列超大流量ESP泵"	"2025-07-05 02:53:32"	"2025-07-05 02:53:32"	"0"	
+"31"	"PUMP"	"Schlumberger"	"REDA-750"	"SLB-REDA-750-001"	"active"	"Schlumberger REDA 750系列ESP泵"	"2025-07-05 02:53:32"	"2025-07-05 02:53:32"	"0"	
+"32"	"MOTOR"	"Baker Hughes"	"Electrospeed 3"	"BH-ES3-001"	"active"	"High efficiency submersible motor for ESP applications"	"2025-07-06 05:52:57"	"2025-07-06 05:52:57"	"0"	
+"33"	"MOTOR"	"Baker Hughes"	"Electrospeed 5"	"BH-ES5-001"	"active"	"Premium efficiency motor with enhanced thermal protection"	"2025-07-06 05:52:57"	"2025-07-06 05:52:57"	"0"	
+"34"	"MOTOR"	"Schlumberger"	"REDA Hotline"	"SCH-HT-001"	"active"	"High temperature resistant motor for extreme conditions"	"2025-07-06 05:52:57"	"2025-07-06 05:52:57"	"0"	
+"35"	"MOTOR"	"Schlumberger"	"REDA MaxForce"	"SCH-MF-001"	"active"	"High power motor for demanding applications"	"2025-07-06 05:52:57"	"2025-07-06 05:52:57"	"0"	
+"36"	"MOTOR"	"Weatherford"	"Magnus ESP"	"WF-MG-001"	"active"	"Reliable motor for standard ESP applications"	"2025-07-06 05:52:57"	"2025-07-06 05:52:57"	"0"	
+"37"	"MOTOR"	"Weatherford"	"Ultra HD"	"WF-UHD-001"	"active"	"Ultra high duty motor for heavy-duty operations"	"2025-07-06 05:52:57"	"2025-07-06 05:52:57"	"0"	
+"38"	"MOTOR"	"Borets"	"PM-750"	"BRT-PM-001"	"active"	"Compact motor for space-limited installations"	"2025-07-06 05:52:57"	"2025-07-06 05:52:57"	"0"	
+"39"	"MOTOR"	"Borets"	"EM-2000"	"BRT-EM-001"	"active"	"Enhanced motor with improved reliability"	"2025-07-06 05:52:57"	"2025-07-06 05:52:57"	"0"	
+"40"	"MOTOR"	"Franklin Electric"	"SubDrive 75"	"FE-SD75-001"	"active"	"Small capacity motor for low power applications"	"2025-07-06 05:52:57"	"2025-07-06 05:52:57"	"0"	
+"41"	"MOTOR"	"Franklin Electric"	"SubDrive 400"	"FE-SD400-001"	"active"	"High capacity motor for large installations"	"2025-07-06 05:52:57"	"2025-07-06 05:52:57"	"0"	
+"42"	"PUMP"	"Unknown"	"1"	"TEMP_1_20250711095540"	"active"	"临时设备记录 - 1"	"2025-07-11 09:55:40.479890"	"2025-07-11 09:55:40.479890"	"0"	
+"43"	"SEPARATOR"	"Halliburton"	"VORTEX-S500"	"SEP-2024-001"	"active"	"高效旋流分离器，适用于高产量井"	"2025-07-12 01:00:09"		"0"	
+"44"	"SEPARATOR"	"Halliburton"	"VORTEX-S750"	"SEP-2024-002"	"active"	"大流量旋流分离器，分离效率95%以上"	"2025-07-12 01:00:09"		"0"	
+"45"	"SEPARATOR"	"Schlumberger"	"SepMaster-SM1000"	"SEP-2024-003"	"active"	"智能分离器，带自动控制系统"	"2025-07-12 01:00:09"		"0"	
+"46"	"SEPARATOR"	"Schlumberger"	"SepMaster-SM1500"	"SEP-2024-004"	"active"	"重型分离器，适用于高压井"	"2025-07-12 01:00:09"		"0"	
+"47"	"SEPARATOR"	"Baker Hughes"	"CentraLift-CL600"	"SEP-2024-005"	"active"	"离心式气液分离器"	"2025-07-12 01:00:09"		"0"	
+"48"	"SEPARATOR"	"Baker Hughes"	"CentraLift-CL900"	"SEP-2024-006"	"active"	"双级离心分离器，超高分离效率"	"2025-07-12 01:00:09"		"0"	
+"49"	"SEPARATOR"	"Weatherford"	"RedaLift-RL400"	"SEP-2024-007"	"active"	"紧凑型分离器，适用于小井眼"	"2025-07-12 01:00:09"		"0"	
+"50"	"SEPARATOR"	"Weatherford"	"RedaLift-RL800"	"SEP-2024-008"	"active"	"高温高压分离器"	"2025-07-12 01:00:09"		"0"	
+"51"	"SEPARATOR"	"Novomet"	"NVMT-SEP300"	"SEP-2024-009"	"active"	"俄罗斯制造，高可靠性分离器"	"2025-07-12 01:00:09"		"0"	
+"52"	"SEPARATOR"	"Novomet"	"NVMT-SEP500"	"SEP-2024-010"	"active"	"重载型分离器，适用于恶劣工况"	"2025-07-12 01:00:09"		"0"	
+"53"	"SEPARATOR"	"中石化"	"SINOPEC-FS200"	"SEP-2024-011"	"active"	"国产化分离器，性价比高"	"2025-07-12 01:00:09"		"0"	
+"54"	"SEPARATOR"	"中石化"	"SINOPEC-FS400"	"SEP-2024-012"	"active"	"大型分离器，适用于海上平台"	"2025-07-12 01:00:09"		"0"	
+"55"	"SEPARATOR"	"胜利油田"	"SL-GS150"	"SEP-2024-013"	"active"	"气液分离器，专为稠油开发"	"2025-07-12 01:00:09"		"0"	
+"56"	"SEPARATOR"	"胜利油田"	"SL-GS300"	"SEP-2024-014"	"active"	"多相流分离器，三相分离"	"2025-07-12 01:00:09"		"0"	
+"57"	"SEPARATOR"	"Halliburton"	"VORTEX-S300"	"SEP-2024-015"	"maintenance"	"小型分离器，维护中"	"2025-07-12 01:00:09"		"0"	
+"58"	"SEPARATOR"	"Schlumberger"	"SepMaster-SM600"	"SEP-2024-016"	"active"	"中等流量分离器"	"2025-07-12 01:00:09"		"0"	
+"59"	"SEPARATOR"	"Baker Hughes"	"CentraLift-CL300"	"SEP-2024-017"	"active"	"入门级分离器"	"2025-07-12 01:00:09"		"0"	
+"60"	"SEPARATOR"	"Weatherford"	"RedaLift-RL600"	"SEP-2024-018"	"inactive"	"暂停使用的分离器"	"2025-07-12 01:00:09"		"0"	
+"61"	"SEPARATOR"	"华北油田"	"HB-FS250"	"SEP-2024-019"	"active"	"华北油田定制分离器"	"2025-07-12 01:00:09"		"0"	
+"62"	"SEPARATOR"	"大庆油田"	"DQ-LS180"	"SEP-2024-020"	"active"	"大庆油田专用分离器"	"2025-07-12 01:00:09"		"0"	
+"63"	"PUMP"	"Unknown"	"FLEXPump_400"	"TEMP_FLEXPump_400_20250712143420"	"active"	"临时设备记录 - FLEXPump_400"	"2025-07-12 14:34:20.910405"	"2025-07-12 14:34:20.910405"	"0"	
+"64"	"MOTOR"	"Baker Hughes"	"Centrilift-450HP"	"BH450-001"	"active"	"450HP/336kW高功率潜油电机，适用于深井大排量生产"			"0"	
+"65"	"MOTOR"	"Schlumberger"	"REDA-500HP"	"SLB500-001"	"active"	"500HP/373kW超高功率潜油电机，专为超深井设计"			"0"	
+"66"	"MOTOR"	"Halliburton"	"Summit-600HP"	"HAL600-001"	"active"	"600HP/448kW极高功率潜油电机，适用于特大排量井"			"0"	
+"67"	"MOTOR"	"Weatherford"	"Harbison-350HP"	"WFT350-001"	"active"	"350HP/261kW高效潜油电机，优化设计降低功耗"			"0"	
+"68"	"MOTOR"	"Baker Hughes"	"Centrilift-750HP"	"BH750-001"	"active"	"750HP/560kW工业级潜油电机，最高功率等级"			"0"	
+"69"	"MOTOR"	"Grundfos"	"SP-400HP"	"GDF400-001"	"active"	"400HP/298kW精确功率匹配潜油电机"			"0"	
+"70"	"MOTOR"	"Franklin Electric"	"SubDrive-550HP"	"FE550-001"	"active"	"550HP/410kW重载潜油电机，适用于高温高压环境"			"0"	
+"71"	"MOTOR"	"Borets"	"MARK-650HP"	"BOR650-001"	"active"	"650HP/485kW超重载潜油电机，俄罗斯工艺"			"0"	
+"72"	"MOTOR"	"Novomet"	"ESP-420HP"	"NVM420-001"	"active"	"420HP/313kW优化电机，专为400kW功率需求设计"			"0"	
+"73"	"MOTOR"	"Schlumberger"	"REDA-800HP"	"SLB800-001"	"active"	"800HP/597kW极限功率潜油电机，适用于超高产能井"			"0"	

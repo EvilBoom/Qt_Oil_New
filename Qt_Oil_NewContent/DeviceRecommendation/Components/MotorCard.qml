@@ -4,6 +4,7 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 import QtQuick.Controls.Material
+import "../../Common/Utils/UnitUtils.js" as UnitUtils
 
 Rectangle {
     id: root
@@ -15,30 +16,42 @@ Rectangle {
     property int selectedVoltage: 3300
     property int selectedFrequency: 60
     property bool isChineseMode: true
+    // 🔥 添加单位制属性
+    property bool isMetric: unitSystemController ? unitSystemController.isMetric : false
     
     signal clicked()
+    // 🔥 监听单位制变化
+    Connections {
+        target: unitSystemController
+        enabled: unitSystemController !== null
+
+        function onUnitSystemChanged(isMetric) {
+            root.isMetric = isMetric
+            console.log("MotorCard中单位制切换为:", isMetric ? "公制" : "英制")
+        }
+    }
     
-    color: isSelected ? Material.dialogColor : Material.backgroundColor
+    color: isSelected ? '#F5F5DC' : Material.backgroundColor
     radius: 8
     border.width: isSelected ? 2 : 1
-    border.color: isSelected ? Material.accent : Material.dividerColor
-    
+    border.color: isSelected ? Material.DeepPurple : Material.Brown
+
     // 推荐标识
     Rectangle {
         anchors.top: parent.top
         anchors.right: parent.right
         anchors.margins: 8
         width: 60
-        height: 24
+        height: 20
         radius: 12
-        color: Material.accent
+        color: Material.Green
         visible: matchScore >= 80
         
         Text {
             anchors.centerIn: parent
             text: isChineseMode ? "推荐" : "Best"
             color: "white"
-            font.pixelSize: 11
+            font.pixelSize: 9
             font.bold: true
         }
     }
@@ -63,7 +76,7 @@ Rectangle {
                 width: 40
                 height: 40
                 radius: 20
-                color: Material.color(Material.DeepOrange)
+                color: Material.color(Material.Cyan)
                 
                 Text {
                     anchors.centerIn: parent
@@ -100,7 +113,7 @@ Rectangle {
                 width: 40
                 height: 40
                 value: matchScore / 100
-                
+
                 Text {
                     anchors.centerIn: parent
                     text: matchScore + "%"
@@ -135,7 +148,7 @@ Rectangle {
                     Item { Layout.fillWidth: true }
                     
                     Text {
-                        text: (motorData ? motorData.power : 0) + " HP"
+                        text: formatPower(motorData ? motorData.power : 0)  // 🔥 使用格式化函数
                         font.pixelSize: 16
                         font.bold: true
                         color: Material.primaryTextColor
@@ -299,7 +312,7 @@ Rectangle {
                     }
                     
                     Text {
-                        text: (motorData ? motorData.outerDiameter : 0) + " in"
+                        text: formatDiameter(motorData ? motorData.outerDiameter : 0)  // 🔥 使用格式化函数
                         font.pixelSize: 13
                         font.bold: true
                         color: Material.primaryTextColor
@@ -322,7 +335,7 @@ Rectangle {
                     height: 20
                     radius: 10
                     color: modelData === selectedVoltage 
-                           ? Material.accent 
+                           ? Material.Green
                            : Qt.rgba(0, 0, 0, 0.05)
                     
                     Text {
@@ -353,7 +366,7 @@ Rectangle {
                     height: 20
                     radius: 10
                     color: modelData === selectedFrequency 
-                           ? Material.accent 
+                           ? Material.Green
                            : Qt.rgba(0, 0, 0, 0.05)
                     
                     Text {
@@ -373,10 +386,78 @@ Rectangle {
     // 选中效果
     Rectangle {
         anchors.fill: parent
-        color: Material.accent
+        color: Material.Blue
         opacity: 0.1
         radius: parent.radius
         visible: isSelected
+    }
+    // 🔥 =====================================
+    // 🔥 单位转换和格式化函数
+    // 🔥 =====================================
+
+    function formatPower(valueInHP) {
+        if (!valueInHP || valueInHP <= 0) return "N/A"
+
+        if (isMetric) {
+            // 转换为千瓦
+            var kwValue = valueInHP * 0.746
+            return kwValue.toFixed(1) + " kW"
+        } else {
+            // 保持马力
+            return valueInHP.toFixed(0) + " HP"
+        }
+    }
+
+    function formatDiameter(valueInInches) {
+        if (!valueInInches || valueInInches <= 0) return "N/A"
+
+        if (isMetric) {
+            // 转换为毫米
+            var mmValue = valueInInches * 25.4
+            return mmValue.toFixed(0) + " mm"
+        } else {
+            // 保持英寸
+            return valueInInches.toFixed(1) + " in"
+        }
+    }
+
+    function formatLength(valueInFt) {
+        if (!valueInFt || valueInFt <= 0) return "N/A"
+
+        if (isMetric) {
+            // 转换为米
+            var mValue = valueInFt * 0.3048
+            return mValue.toFixed(1) + " m"
+        } else {
+            // 保持英尺
+            return valueInFt.toFixed(1) + " ft"
+        }
+    }
+
+    function formatWeight(valueInLbs) {
+        if (!valueInLbs || valueInLbs <= 0) return "N/A"
+
+        if (isMetric) {
+            // 转换为千克
+            var kgValue = valueInLbs * 0.453592
+            return kgValue.toFixed(0) + " kg"
+        } else {
+            // 保持磅
+            return valueInLbs.toFixed(0) + " lbs"
+        }
+    }
+
+    function formatTemperature(valueInF) {
+        if (!valueInF || valueInF <= 0) return "N/A"
+
+        if (isMetric) {
+            // 转换为摄氏度
+            var cValue = UnitUtils.fahrenheitToCelsius(valueInF)
+            return cValue.toFixed(0) + " °C"
+        } else {
+            // 保持华氏度
+            return valueInF.toFixed(0) + " °F"
+        }
     }
     
     function getPowerUtilizationColor() {
@@ -391,6 +472,6 @@ Rectangle {
 
     Component.onCompleted: {
         console.log("尝试正常加载motorCard")
-        console.log(motorData)
+        // console.log(motorData)
     }
 }

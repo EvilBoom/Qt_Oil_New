@@ -74,7 +74,7 @@ Dialog {
                 spacing: 20
 
                 RadioButton {
-                    text: isChineseMode ? "潜油离心泵" : "Centrifugal Pump"
+                    text: isChineseMode ? "泵设备" : "Pump"
                     checked: deviceType === "pump"
                     onCheckedChanged: if (checked) deviceType = "pump"
                 }
@@ -213,6 +213,29 @@ Dialog {
                             columnSpacing: 20
                             rowSpacing: 10
                             Layout.fillWidth: true
+                            // 🔥 可以添加泵类型选择
+                            Label {
+                                text: isChineseMode ? "泵类型：" : "Pump Type:"
+                                Layout.alignment: Qt.AlignRight
+                            }
+                            ComboBox {
+                                Layout.fillWidth: true
+                                model: ListModel {
+                                    ListElement { value: "esp"; label: "潜油离心泵"; label_en: "ESP" }
+                                    ListElement { value: "pcp"; label: "螺杆泵"; label_en: "PCP" }
+                                    ListElement { value: "jet"; label: "射流泵"; label_en: "Jet Pump" }
+                                    ListElement { value: "espcp"; label: "柱塞泵"; label_en: "Plunger Pump" }
+                                    ListElement { value: "hpp"; label: "水力泵"; label_en: "Hydraulic Pump" }
+                                }
+                                textRole: isChineseMode ? "label" : "label_en"
+                                // 可以绑定到新的属性 pumpType
+                                property string pumpType: "esp"
+                                onCurrentIndexChanged: {
+                                    if (currentIndex >= 0 && currentIndex < model.count) {
+                                        pumpType = model.get(currentIndex).value
+                                    }
+                                }
+                            }
 
                             Label {
                                 text: isChineseMode ? "叶轮型号：" : "Impeller Model:"

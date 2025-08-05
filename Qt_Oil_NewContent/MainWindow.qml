@@ -13,9 +13,6 @@ Window {
     minimumHeight: 600
     title: qsTr("油井设备智能管理系统")
 
-    // 设置宋体作为主要字体
-    // Material.fontFamily: "SimSun"  // 宋体
-
     // 属性定义
     property string currentUserName: ""
     property string currentProjectName: ""
@@ -393,9 +390,51 @@ Window {
 
                     // 设备数据库管理页面
                     Loader {
+                        id: deviceManagementLoader
                         source: "DeviceManagement/DeviceManagementPage.qml"
 
                         property bool isChineseMode: mainWindow.isChinese
+
+
+                        onStatusChanged: {
+                            console.log("=== DeviceManagementLoader 状态变化 ===")
+                            console.log("Status:", status)
+                            switch(status) {
+                                case Loader.Null:
+                                    console.log("状态: Null - 没有源文件或源文件为空")
+                                    break
+                                case Loader.Ready:
+                                    console.log("状态: Ready - 组件加载成功")
+                                    break
+                                case Loader.Loading:
+                                    console.log("状态: Loading - 正在加载")
+                                    break
+                                case Loader.Error:
+                                    console.log("状态: Error - 加载失败")
+                                    console.log("错误信息:", sourceComponent ? sourceComponent.errorString() : "未知错误")
+                                    break
+                            }
+                        }
+
+                        onLoaded: {
+                            console.log("=== DeviceManagementPage 加载完成 ===")
+                            console.log("Item:", item)
+                            console.log("Item类型:", typeof item)
+                            if (item) {
+                                console.log("Item属性:", Object.keys(item))
+                            }
+                        }
+
+                        onSourceChanged: {
+                            console.log("=== DeviceManagementLoader 源文件变化 ===")
+                            console.log("新源文件:", source)
+                        }
+
+                        Component.onCompleted: {
+                            console.log("=== DeviceManagementLoader 初始化完成 ===")
+                            console.log("源文件:", source)
+                            console.log("初始状态:", status)
+                        }
                     }
 
 

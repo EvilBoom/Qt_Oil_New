@@ -7,6 +7,17 @@ import enum
 
 from .base import Base
 
+class LiftMethod(enum.Enum):
+    """举升方式枚举"""
+    ESP = "esp"          # 潜油离心泵
+    SRP = "srp"          # 螺杆泵  
+    PCP = "pcp"          # 螺杆泵
+    HPP = "hpp"          # 液压泵
+    GAS_LIFT = "gas_lift"  # 气举
+    BEAM_PUMP = "beam_pump"  # 游梁式抽油机
+    HYDRAULIC = "hydraulic"  # 液压泵
+    ESPCP = "espcp"  # 潜油电泵
+    JET = "jet"  # 射流泵
 
 class DeviceType(enum.Enum):
     """设备类型枚举"""
@@ -15,13 +26,16 @@ class DeviceType(enum.Enum):
     PROTECTOR = "protector"
     SEPARATOR = "separator"
 
-
 class Device(Base):
     """设备基础表"""
     __tablename__ = 'devices'
 
     id = Column(Integer, primary_key=True)
     device_type = Column(Enum(DeviceType), nullable=False)
+
+    # 🔥 新增：举升方式字段
+    lift_method = Column(Enum(LiftMethod), nullable=True)  # 对于泵设备必填
+
     manufacturer = Column(String(100))
     model = Column(String(100), nullable=False)
     serial_number = Column(String(100), unique=True)
@@ -42,6 +56,7 @@ class Device(Base):
             'id': self.id,
             'device_type': self.device_type.value if self.device_type else None,
             'manufacturer': self.manufacturer,
+            'lift_method': self.lift_method.value if self.lift_method else None,
             'model': self.model,
             'serial_number': self.serial_number,
             'status': self.status,

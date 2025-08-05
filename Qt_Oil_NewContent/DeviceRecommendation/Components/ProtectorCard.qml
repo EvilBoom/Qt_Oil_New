@@ -4,6 +4,7 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 import QtQuick.Controls.Material
+import "../../Common/Utils/UnitUtils.js" as UnitUtils
 
 Rectangle {
     id: root
@@ -15,22 +16,35 @@ Rectangle {
     property real requiredThrust: 0
     property bool isChineseMode: true
 
+    // 🔥 添加单位制属性
+    property bool isMetric: unitSystemController ? unitSystemController.isMetric : false
     signal clicked()
 
-    color: isSelected ? Material.dialogColor : Material.backgroundColor
+    color: isSelected ? '#F5F5DC' : Material.backgroundColor
     radius: 8
     border.width: isSelected ? 2 : 1
-    border.color: isSelected ? Material.accent : Material.dividerColor
+    border.color: isSelected ? Material.DeepPurple : Material.Brown
+
+    // 🔥 监听单位制变化
+    Connections {
+        target: unitSystemController
+        enabled: unitSystemController !== null
+
+        function onUnitSystemChanged(isMetric) {
+            root.isMetric = isMetric
+            console.log("ProtectorCard中单位制切换为:", isMetric ? "公制" : "英制")
+        }
+    }
 
     // 推荐标识
     Rectangle {
         anchors.top: parent.top
         anchors.right: parent.right
-        anchors.margins: 8
-        width: 60
-        height: 24
+        anchors.margins: 2
+        width: 50
+        height: 20
         radius: 12
-        color: Material.accent
+        color: Material.Green
         visible: matchScore >= 80
 
         Text {
@@ -139,7 +153,7 @@ Rectangle {
                     spacing: 4
 
                     Text {
-                        text: (protectorData ? protectorData.thrustCapacity : 0) + " lbs"
+                        text: formatForce(protectorData ? protectorData.thrustCapacity : 0)
                         font.pixelSize: 12
                         font.bold: true
                         color: getThrustColor()
@@ -192,7 +206,7 @@ Rectangle {
                 }
 
                 Text {
-                    text: protectorData ? protectorData.sealType : ""
+                    text: formatTemperature(protectorData ? protectorData.maxTemperature : 0)
                     font.pixelSize: 12
                     font.bold: true
                     color: Material.primaryTextColor
@@ -210,7 +224,7 @@ Rectangle {
                 }
 
                 Text {
-                    text: (protectorData ? protectorData.outerDiameter : 0) + " in"
+                    text: formatDiameter(protectorData ? protectorData.outerDiameter : 0)
                     font.pixelSize: 12
                     font.bold: true
                     color: Material.primaryTextColor
@@ -230,14 +244,14 @@ Rectangle {
         }
     }
 
-    // 选中效果
-    Rectangle {
-        anchors.fill: parent
-        color: Material.accent
-        opacity: 0.1
-        radius: parent.radius
-        visible: isSelected
-    }
+    // // 选中效果
+    // Rectangle {
+    //     anchors.fill: parent
+    //     color: Material.accent
+    //     opacity: 0.1
+    //     radius: parent.radius
+    //     visible: isSelected
+    // }
 
     // 辅助函数
     function getThrustColor() {
@@ -257,6 +271,79 @@ Rectangle {
             return "✓"
         } else {
             return "✗"
+        }
+    }
+    // 🔥 =====================================
+    // 🔥 单位转换和格式化函数
+    // 🔥 =====================================
+
+    function formatForce(valueInLbs) {
+        if (!valueInLbs || valueInLbs <= 0) return "N/A"
+
+        if (isMetric) {
+            // 转换为牛顿 (1 lbs = 4.448 N)
+            var nValue = valueInLbs * 4.448
+            if (nValue >= 1000) {
+                // 显示为kN
+                return (nValue / 1000).toFixed(1) + " kN"
+            } else {
+                return nValue.toFixed(0) + " N"
+            }
+        } else {
+            // 保持磅
+            return valueInLbs.toFixed(0) + " lbs"
+        }
+    }
+
+    function formatTemperature(valueInF) {
+        if (!valueInF || valueInF <= 0) return "N/A"
+
+        if (isMetric) {
+            // 转换为摄氏度
+            var cValue = UnitUtils.fahrenheitToCelsius(valueInF)
+            return cValue.toFixed(0) + " °C"
+        } else {
+            // 保持华氏度
+            return valueInF.toFixed(0) + " °F"
+        }
+    }
+
+    function formatDiameter(valueInInches) {
+        if (!valueInInches || valueInInches <= 0) return "N/A"
+
+        if (isMetric) {
+            // 转换为毫米
+            var mmValue = valueInInches * 25.4
+            return mmValue.toFixed(0) + " mm"
+        } else {
+            // 保持英寸
+            return valueInInches.toFixed(2) + " in"
+        }
+    }
+
+    function formatLength(valueInFt) {
+        if (!valueInFt || valueInFt <= 0) return "N/A"
+
+        if (isMetric) {
+            // 转换为米
+            var mValue = valueInFt * 0.3048
+            return mValue.toFixed(1) + " m"
+        } else {
+            // 保持英尺
+            return valueInFt.toFixed(1) + " ft"
+        }
+    }
+
+    function formatWeight(valueInLbs) {
+        if (!valueInLbs || valueInLbs <= 0) return "N/A"
+
+        if (isMetric) {
+            // 转换为千克
+            var kgValue = valueInLbs * 0.453592
+            return kgValue.toFixed(0) + " kg"
+        } else {
+            // 保持磅
+            return valueInLbs.toFixed(0) + " lbs"
         }
     }
 }

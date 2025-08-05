@@ -356,6 +356,28 @@ class WellStructureController(QObject):
                 calc_result['parameters'] = json.dumps(parameters)
 
                 result_id = self._db_service.save_calculation_result(calc_result)
+                # 🔥 新增：同时更新井表中的关键深度字段
+                if result_id:
+                    # 导入WellDataController实例（如果可用）
+                    try:
+                        from main import app  # 假设在main.py中有全局app变量
+                        well_controller = getattr(app, 'wellController', None)
+                        if well_controller:
+                            well_controller.saveCalculationResult(calc_result)
+                    except:
+                        # 如果无法获取WellController，直接更新数据库
+                        well_update_data = {
+                            'pump_hanging_vertical_depth': calc_result.get('pump_hanging_depth'),
+                            'perforation_vertical_depth': calc_result.get('perforation_depth'),
+                            'pump_depth': calc_result.get('pump_measured_depth')  # 如果有测量深度
+                        }
+                        # 过滤None值
+                        well_update_data = {k: v for k, v in well_update_data.items() if v is not None}
+                    
+                        if well_update_data:
+                            self._db_service.update_well(self._current_well_id, well_update_data)
+
+
 
                 self._calculation_result = calc_result
                 self.calculationCompleted.emit(calc_result)
@@ -382,6 +404,91 @@ class WellStructureController(QObject):
             logger.error(f"加载计算结果失败: {e}")
 
     # ========== 可视化功能 ==========
+    @Slot(result=dict)
+    def getWellSketchData2(self) -> dict:
+        """
+        直接返回井身结构草图数据，用于报告生成
+    
+        Args:
+            well_id: 井ID
+    
+        Returns:
+            dict: 包含井结构草图所需的所有数据
+        """
+        print("getWellSketchData获取井身结构草图数据")
+         # 调用可视化服务生成草图数据
+        sketch_data = self._viz_service.generate_well_sketch(
+                self._trajectory_data,
+                self._casing_data
+            )
+        print(sketch_data)
+        if not sketch_data:
+            logger.error("获取草图数据失败，生成井身结构草图数据失败")
+            return {}
+        else:
+            logger.info("获取草图数据成功")
+            logger.info(f"草图数据: {type(sketch_data)}{sketch_data}")
+        return sketch_data
+
+    @Slot(result=str)  # 改为QVariant
+    def getWellSketchData(self) -> dict:
+        """
+        直接返回井身结构草图数据，用于报告生成
+
+        Returns:
+            dict: 包含井结构草图所需的所有数据
+        """
+        print("=== getWellSketchData调用开始 ===")
+        logger.info(f"当前井ID: {self._current_well_id}")
+        logger.info(f"轨迹数据数量: {len(self._trajectory_data)}")
+        logger.info(f"套管数据数量: {len(self._casing_data)}")
+    
+        try:
+            if not self._trajectory_data and not self._casing_data:
+                logger.warning("没有轨迹数据和套管数据，返回空字典")
+                return {}
+        
+            # 调用可视化服务生成草图数据
+            sketch_data = self._viz_service.generate_well_sketch(
+                self._trajectory_data,
+                self._casing_data
+            )
+        
+            if sketch_data:
+                logger.info("✅ 获取草图数据成功")
+                # logger.info(f"草图数据类型: {type(sketch_data)}")
+                # logger.info(f"草图数据键: {list(sketch_data.keys()) if isinstance(sketch_data, dict) else 'Not a dict'}")
+            
+                # 🔥 确保数据是简单的Python原生类型
+                cleaned_data = self._clean_sketch_data(sketch_data)
+                # print(f"=== 清理后的草图数据 ===\n{cleaned_data}")
+                cleaned_data["has_data"] = True
+                
+                return json.dumps(cleaned_data, ensure_ascii=False, default=str)
+            else:
+                logger.error("❌ 草图数据为空")
+                return {}
+            
+        except Exception as e:
+            logger.error(f"❌ getWellSketchData异常: {str(e)}")
+            import traceback
+            traceback.print_exc()
+            return {}
+
+    def _clean_sketch_data(self, data):
+        """清理草图数据，确保QML兼容"""
+        if isinstance(data, dict):
+            cleaned = {}
+            for key, value in data.items():
+                cleaned[str(key)] = self._clean_sketch_data(value)
+            return cleaned
+        elif isinstance(data, (list, tuple)):
+            return [self._clean_sketch_data(item) for item in data]
+        elif isinstance(data, (int, float, str, bool)) or data is None:
+            return data
+        else:
+            # 其他类型转为字符串
+            return str(data)
 
     @Slot()
     def generateWellSketch(self):

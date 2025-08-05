@@ -1,6 +1,4 @@
-﻿// Qt_Oil_NewContent/DeviceRecommendation/Steps/Step1_ProductionParameters.qml
-
-import QtQuick
+﻿import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 import QtQuick.Controls.Material
@@ -9,6 +7,8 @@ import "../Components" as LocalComponents
 Rectangle {
     id: root
 
+    // 🔥 添加单位制属性
+    property bool isMetric: unitSystemController ? unitSystemController.isMetric : false
     // 外部属性
     property var controller: null
     property bool isChineseMode: true
@@ -21,6 +21,19 @@ Rectangle {
     signal nextStepRequested()
     signal dataChanged(var data)
 
+    // 🔥 监听单位制变化
+    Connections {
+        target: unitSystemController
+        enabled: unitSystemController !== null
+
+        function onUnitSystemChanged(isMetric) {
+            root.isMetric = isMetric
+            console.log("Step1中单位制切换为:", isMetric ? "公制" : "英制")
+            // 重新定义参数单位
+            updateParameterUnits()
+        }
+    }
+
     // 内部属性
     property bool hasExistingParams: false
     property int currentParamsId: -1
@@ -29,72 +42,56 @@ Rectangle {
 
     color: "transparent"
 
-    // 参数定义
-    property var parameterDefinitions: [
+    // 🔥 修复：参数定义 - 避免循环依赖
+    property var baseParameterDefinitions: [
         {
-            group: isChineseMode ? "压力参数" : "Pressure Parameters",
+            group: "pressure",
             params: [
                 {
                     key: "geoPressure",
-                    label: isChineseMode ? "地层压力" : "Geo Pressure",
-                    unit: "psi",
-                    placeholder: "例如: 1715",
-                    tooltip: isChineseMode ? "储层的原始地层压力" : "Original reservoir pressure",
+                    labelCN: "地层压力",
+                    labelEN: "Geo Pressure",
                     required: true,
-                    min: 0,
-                    max: 10000
+                    min: 0
                 },
                 {
                     key: "saturationPressure",
-                    label: isChineseMode ? "饱和压力" : "Saturation Pressure",
-                    unit: "psi",
-                    placeholder: "例如: 850",
-                    tooltip: isChineseMode ? "泡点压力，原油开始脱气的压力" : "Bubble point pressure",
+                    labelCN: "饱和压力",
+                    labelEN: "Saturation Pressure",
                     required: false,
-                    min: 0,
-                    max: 10000
+                    min: 0
                 },
                 {
                     key: "wellHeadPressure",
-                    label: isChineseMode ? "井口压力" : "Well Head Pressure",
-                    unit: "psi",
-                    placeholder: "例如: 350",
-                    tooltip: isChineseMode ? "井口回压" : "Well head back pressure",
+                    labelCN: "井口压力",
+                    labelEN: "Well Head Pressure",
                     required: true,
-                    min: 0,
-                    max: 5000
+                    min: 0
                 }
             ]
         },
         {
-            group: isChineseMode ? "生产参数" : "Production Parameters",
+            group: "production",
             params: [
                 {
                     key: "expectedProduction",
-                    label: isChineseMode ? "期望产量" : "Expected Production",
-                    unit: "bbl/d",
-                    placeholder: "例如: 0.185",
-                    tooltip: isChineseMode ? "期望的日产液量" : "Expected daily production rate",
+                    labelCN: "期望产量",
+                    labelEN: "Expected Production",
                     required: true,
-                    min: 0,
-                    max: 10000
+                    min: 0
                 },
                 {
                     key: "produceIndex",
-                    label: isChineseMode ? "生产指数" : "Production Index",
-                    unit: "bbl/d/psi",
-                    placeholder: "例如: 0.5",
-                    tooltip: isChineseMode ? "单位压差下的产量" : "Production per unit pressure drawdown",
+                    labelCN: "生产指数",
+                    labelEN: "Production Index",
                     required: true,
                     min: 0,
                     max: 100
                 },
                 {
                     key: "bsw",
-                    label: isChineseMode ? "水和沉淀物" : "Water Cut",
-                    unit: "%",
-                    placeholder: "例如: 3",
-                    tooltip: isChineseMode ? "产出液中水的体积百分比" : "Water volume percentage in produced fluid",
+                    labelCN: "水和沉淀物",
+                    labelEN: "Water Cut",
                     required: true,
                     min: 0,
                     max: 100,
@@ -103,41 +100,65 @@ Rectangle {
             ]
         },
         {
-            group: isChineseMode ? "流体性质" : "Fluid Properties",
+            group: "fluid",
             params: [
                 {
                     key: "bht",
-                    label: isChineseMode ? "井底温度" : "Bottom Hole Temperature",
-                    unit: "°F",
-                    placeholder: "例如: 235",
-                    tooltip: isChineseMode ? "井底流体温度" : "Temperature at bottom hole",
-                    required: true,
-                    min: 32,
-                    max: 500
+                    labelCN: "井底温度",
+                    labelEN: "Bottom Hole Temperature",
+                    required: true
                 },
                 {
                     key: "api",
-                    label: isChineseMode ? "原油API重度" : "Oil API Gravity",
-                    unit: "°API",
-                    placeholder: "例如: 19.4",
-                    tooltip: isChineseMode ? "原油的API重度" : "API gravity of crude oil",
+                    labelCN: "原油API重度",
+                    labelEN: "Oil API Gravity",
                     required: true,
                     min: 0,
                     max: 100
                 },
                 {
                     key: "gasOilRatio",
-                    label: isChineseMode ? "油气比" : "Gas Oil Ratio",
-                    unit: "scf/bbl",
-                    placeholder: "例如: 900",
-                    tooltip: isChineseMode ? "溶解气油比" : "Solution gas oil ratio",
+                    labelCN: "油气比",
+                    labelEN: "Gas Oil Ratio",
                     required: true,
-                    min: 0,
-                    max: 10000
+                    min: 0
                 }
             ]
         }
     ]
+
+    // 🔥 计算属性：动态生成参数定义
+    property var parameterDefinitions: {
+        var result = []
+
+        for (var i = 0; i < baseParameterDefinitions.length; i++) {
+            var baseGroup = baseParameterDefinitions[i]
+            var group = {
+                group: getGroupTitle(baseGroup.group),
+                params: []
+            }
+
+            for (var j = 0; j < baseGroup.params.length; j++) {
+                var baseParam = baseGroup.params[j]
+                var param = {
+                    key: baseParam.key,
+                    label: isChineseMode ? baseParam.labelCN : baseParam.labelEN,
+                    unit: getParameterUnit(baseParam.key),
+                    placeholder: getParameterPlaceholder(baseParam.key),
+                    tooltip: getParameterTooltip(baseParam.key),
+                    required: baseParam.required,
+                    min: getParameterMin(baseParam.key),
+                    max: getParameterMax(baseParam.key),
+                    isPercentage: baseParam.isPercentage || false
+                }
+                group.params.push(param)
+            }
+
+            result.push(group)
+        }
+
+        return result
+    }
 
     // 参数数据模型
     property var parametersData: ({
@@ -179,17 +200,17 @@ Rectangle {
             }
 
             // 单位转换按钮
-            Button {
-                text: isChineseMode ? "单位转换" : "Unit Conversion"
-                flat: true
-                onClicked: showUnitConversionDialog()
-            }
+            // Button {
+            //     text: isChineseMode ? "单位转换" : "Unit Conversion"
+            //     flat: true
+            //     onClicked: showUnitConversionDialog()
+            // }
         }
 
         // 参数名称和描述
         Rectangle {
             Layout.fillWidth: true
-            Layout.preferredHeight: nameColumn.height + 24
+            Layout.preferredHeight: nameColumn.height + 10
             color: Material.dialogColor
             radius: 8
 
@@ -198,8 +219,8 @@ Rectangle {
                 anchors.left: parent.left
                 anchors.right: parent.right
                 anchors.top: parent.top
-                anchors.margins: 12
-                spacing: 12
+                anchors.margins: 0
+                spacing: 2
 
                 RowLayout {
                     width: parent.width
@@ -207,7 +228,7 @@ Rectangle {
                     Text {
                         text: isChineseMode ? "参数集名称：" : "Parameter Set Name:"
                         color: Material.primaryTextColor
-                        font.pixelSize: 14
+                        font.pixelSize: 12
                     }
 
                     TextField {
@@ -228,7 +249,7 @@ Rectangle {
                     Text {
                         text: isChineseMode ? "备注说明：" : "Description:"
                         color: Material.primaryTextColor
-                        font.pixelSize: 14
+                        font.pixelSize: 12
                     }
 
                     TextField {
@@ -258,7 +279,7 @@ Rectangle {
                 // 历史数据显示区域
                 Rectangle {
                     width: parent.width
-                    height: parametersHistory.length > 0 ? (historyContent.height + 24) : 0
+                    height: parametersHistory.length > 0 ? (historyContent.height + 10) : 0
                     color: Material.dialogColor
                     radius: 8
                     visible: parametersHistory.length > 0
@@ -268,8 +289,8 @@ Rectangle {
                         anchors.left: parent.left
                         anchors.right: parent.right
                         anchors.top: parent.top
-                        anchors.margins: 12
-                        spacing: 12
+                        anchors.margins: 2
+                        spacing: 2
 
                         Text {
                             text: isChineseMode ? "📜 历史参数版本" : "📜 Historical Parameter Versions"
@@ -283,7 +304,6 @@ Rectangle {
                             model: parametersHistory
 
                             Rectangle {
-                                id: rectangle
                                 width: parent.width
                                 height: 60
                                 color: index % 2 === 0 ? "transparent" : Material.backgroundColor
@@ -294,8 +314,8 @@ Rectangle {
                                 RowLayout {
                                     anchors.verticalCenter: parent.verticalCenter
                                     anchors.fill: parent
-                                    anchors.margins: 8
-                                    spacing: 16
+                                    anchors.margins: 2
+                                    spacing: 2
 
                                     // 版本信息
                                     Column {
@@ -320,7 +340,7 @@ Rectangle {
                                     Grid {
                                         Layout.fillWidth: true
                                         columns: 3
-                                        spacing: 8
+                                        spacing: 2
 
                                         Text {
                                             text: "地层压力: " + (modelData.geo_pressure || "N/A")
@@ -465,7 +485,7 @@ Rectangle {
         }
     }
 
-    // 修正后的Connections - 删除重复的onParametersSaved
+    // 修正后的Connections
     Connections {
         target: controller
         enabled: controller !== null
@@ -475,25 +495,22 @@ Rectangle {
             console.log("params:", JSON.stringify(params))
 
             if (params && params.history) {
-                console.log("检测到历史数据")
-                console.log("历史数据条数:", params.history.length)
-                if (params.history.length > 0) {
-                    console.log("第一条历史数据:", JSON.stringify(params.history[0]))
-                }
                 parametersHistory = params.history
                 return
             }
 
             if (params && params.id) {
-                // 加载现有参数
                 hasExistingParams = true
                 currentParamsId = params.id
                 isModified = false
 
-                // 填充数据
+                // 🔥 填充数据时进行单位转换
                 for (var key in parametersData) {
                     if (params[toSnakeCase(key)] !== undefined) {
-                        parametersData[key] = params[toSnakeCase(key)].toString()
+                        var dbValue = params[toSnakeCase(key)].toString()
+                        // 从标准单位转换为当前显示单位
+                        var displayValue = convertFromStandardUnits(key, dbValue)
+                        parametersData[key] = displayValue.toString()
                     }
                 }
 
@@ -502,10 +519,8 @@ Rectangle {
                     parametersData.bsw = (params.bsw * 100).toString()
                 }
 
-                console.log("=== 参数加载完成，立即更新stepData ===")
                 updateStepDataImmediately()
             } else {
-                // 无参数
                 hasExistingParams = false
                 currentParamsId = -1
                 resetParameters()
@@ -531,7 +546,227 @@ Rectangle {
         }
     }
 
-    // 函数定义保持不变
+    // 🔥 =================================
+    // 🔥 辅助函数：单位和标题获取
+    // 🔥 =================================
+
+    function getGroupTitle(groupKey) {
+        var titles = {
+            "pressure": isChineseMode ? "压力参数" : "Pressure Parameters",
+            "production": isChineseMode ? "生产参数" : "Production Parameters",
+            "fluid": isChineseMode ? "流体性质" : "Fluid Properties"
+        }
+        return titles[groupKey] || groupKey
+    }
+
+    function getParameterUnit(key) {
+        switch(key) {
+            case "geoPressure":
+            case "saturationPressure":
+            case "wellHeadPressure":
+                return getPressureUnit()
+            case "expectedProduction":
+                return getFlowUnit()
+            case "produceIndex":
+                return getProductionIndexUnit()
+            case "bht":
+                return getTemperatureUnit()
+            case "gasOilRatio":
+                return getGasOilRatioUnit()
+            case "bsw":
+                return "%"
+            case "api":
+                return "°API"
+            default:
+                return ""
+        }
+    }
+
+    function getParameterPlaceholder(key) {
+        switch(key) {
+            case "geoPressure":
+                return getPressurePlaceholder("geoPressure")
+            case "saturationPressure":
+                return getPressurePlaceholder("saturationPressure")
+            case "wellHeadPressure":
+                return getPressurePlaceholder("wellHeadPressure")
+            case "expectedProduction":
+                return getFlowPlaceholder()
+            case "produceIndex":
+                return getProductionIndexPlaceholder()
+            case "bht":
+                return getTemperaturePlaceholder()
+            case "gasOilRatio":
+                return getGasOilRatioPlaceholder()
+            case "bsw":
+                return "例如: 0.5"
+            case "api":
+                return "例如: 19.4"
+            default:
+                return ""
+        }
+    }
+
+    function getParameterTooltip(key) {
+        if (isChineseMode) {
+            var tooltipsCN = {
+                "geoPressure": "储层的原始地层压力",
+                "saturationPressure": "泡点压力，原油开始脱气的压力",
+                "wellHeadPressure": "井口回压",
+                "expectedProduction": "期望的日产液量",
+                "produceIndex": "单位压差下的产量",
+                "bht": "井底流体温度",
+                "gasOilRatio": "溶解气油比",
+                "bsw": "产出液中水的体积百分比",
+                "api": "原油的API重度"
+            }
+            return tooltipsCN[key] || ""
+        } else {
+            var tooltipsEN = {
+                "geoPressure": "Original reservoir pressure",
+                "saturationPressure": "Bubble point pressure",
+                "wellHeadPressure": "Well head back pressure",
+                "expectedProduction": "Expected daily production rate",
+                "produceIndex": "Production per unit pressure drawdown",
+                "bht": "Temperature at bottom hole",
+                "gasOilRatio": "Solution gas oil ratio",
+                "bsw": "Water volume percentage in produced fluid",
+                "api": "API gravity of crude oil"
+            }
+            return tooltipsEN[key] || ""
+        }
+    }
+
+    function getParameterMin(key) {
+        switch(key) {
+            case "bht":
+                return getTemperatureMin()
+            default:
+                return 0
+        }
+    }
+
+    function getParameterMax(key) {
+        switch(key) {
+            case "geoPressure":
+            case "saturationPressure":
+            case "wellHeadPressure":
+                return getPressureMax()
+            case "expectedProduction":
+                return getFlowMax()
+            case "bht":
+                return getTemperatureMax()
+            case "gasOilRatio":
+                return getGasOilRatioMax()
+            case "bsw":
+            case "api":
+                return 100
+            case "produceIndex":
+                return 100
+            default:
+                return 999999
+        }
+    }
+
+    // 🔥 =================================
+    // 🔥 单位获取函数
+    // 🔥 =================================
+
+    function getPressureUnit() {
+        if (unitSystemController) {
+            return unitSystemController.getUnitLabel("pressure")
+        }
+        return isMetric ? "MPa" : "psi"
+    }
+
+    function getFlowUnit() {
+        if (unitSystemController) {
+            return unitSystemController.getUnitLabel("flow")
+        }
+        return isMetric ? "m³/d" : "bbl/d"
+    }
+
+    function getTemperatureUnit() {
+        if (unitSystemController) {
+            return unitSystemController.getUnitLabel("temperature")
+        }
+        return isMetric ? "°C" : "°F"
+    }
+
+    function getProductionIndexUnit() {
+        var flowUnit = getFlowUnit()
+        var pressureUnit = getPressureUnit()
+        return `${flowUnit}/${pressureUnit}`
+    }
+
+    function getGasOilRatioUnit() {
+        return isMetric ? "m³/m³" : "scf/bbl"
+    }
+
+    // 🔥 占位符和范围函数
+    function getPressurePlaceholder(type) {
+        if (isMetric) {
+            switch(type) {
+                case "geoPressure": return "例如: 11.82"        // 🔥 11820 kPa = 11.82 MPa
+                case "saturationPressure": return "例如: 5.86"  // 🔥 5860 kPa = 5.86 MPa
+                case "wellHeadPressure": return "例如: 2.41"    // 🔥 2413 kPa = 2.41 MPa
+                default: return "输入压力值"
+            }
+        } else {
+            switch(type) {
+                case "geoPressure": return "例如: 1715"
+                case "saturationPressure": return "例如: 850"
+                case "wellHeadPressure": return "例如: 350"
+                default: return "Enter pressure"
+            }
+        }
+    }
+
+    function getFlowPlaceholder() {
+        return isMetric ? "例如: 0.029" : "例如: 0.185"
+    }
+
+    // 🔥 修正生产指数占位符
+    function getProductionIndexPlaceholder() {
+        if (isMetric) {
+            return "例如: 14.30"  // 🔥 对应0.62 bbl/(d·psi)的公制值
+        } else {
+            return "例如: 0.62"   // 英制示例值
+        }
+    }
+
+    function getTemperaturePlaceholder() {
+        return isMetric ? "例如: 113" : "例如: 235"
+    }
+
+    function getGasOilRatioPlaceholder() {
+        return isMetric ? "例如: 161" : "例如: 900"
+    }
+
+    function getPressureMax() {
+        return isMetric ? 68.95 : 10000
+    }
+
+    function getFlowMax() {
+        return isMetric ? 1590 : 10000
+    }
+
+    function getTemperatureMin() {
+        return isMetric ? 0 : 32
+    }
+
+    function getTemperatureMax() {
+        return isMetric ? 260 : 500
+    }
+
+    function getGasOilRatioMax() {
+        return isMetric ? 1790 : 10000
+    }
+
+    // 🔥 =================================
+    // 🔥 主要业务函数
+    // 🔥 =================================
+
     function validateParameters() {
         for (var i = 0; i < parameterDefinitions.length; i++) {
             var group = parameterDefinitions[i]
@@ -544,7 +779,6 @@ Rectangle {
                         return false
                     }
 
-                    // 数值范围验证
                     var numValue = parseFloat(value)
                     if (isNaN(numValue)) {
                         console.log("参数" + param.key + "的值 '" + value + "' 不是有效数字")
@@ -560,7 +794,6 @@ Rectangle {
             }
         }
 
-        // 调用Controller的验证
         var result = true
         if (controller) {
             result = controller.validateParameters(parametersData)
@@ -572,11 +805,11 @@ Rectangle {
         console.log("验证通过")
         parametersValid = result
         console.log("设置 parametersValid:", parametersValid)
-        console.log("下一步按钮应该" + (parametersValid ? "可用" : "不可用"))
 
         return parametersValid
     }
 
+    // 🔥 修复：只保留一个saveParameters函数
     function saveParameters() {
         if (!parametersValid) {
             showErrorMessage(isChineseMode ? "请检查参数输入" : "Please check parameter input")
@@ -587,13 +820,19 @@ Rectangle {
         var dataToSave = {}
         for (var key in parametersData) {
             if (parametersData[key]) {
-                dataToSave[key] = parametersData[key]
+                var value = parametersData[key]
+                // 🔥 转换为标准单位（英制）存储
+                if (key !== "parameterName" && key !== "description") {
+                    dataToSave[key] = convertToStandardUnits(key, value)
+                } else {
+                    dataToSave[key] = value
+                }
             }
         }
 
         // 特殊处理百分比
         if (dataToSave.bsw) {
-            dataToSave.bsw = parseFloat(dataToSave.bsw) / 100.0
+            dataToSave.bsw = parseFloat(dataToSave.bsw)
         }
 
         // 调用Controller保存
@@ -615,15 +854,12 @@ Rectangle {
     function proceedToNext() {
         console.log("=== Step1 proceedToNext 开始 ===")
 
-        // 收集数据
         var stepData = collectStepData()
         console.log("收集的步骤数据:", JSON.stringify(stepData))
 
-        // 同步传递数据并等待确认
         if (root.dataChanged) {
             root.dataChanged(stepData)
 
-            // 添加短暂延迟确保数据传递完成
             Qt.callLater(function() {
                 console.log("=== 数据传递完成，请求下一步 ===")
                 root.nextStepRequested()
@@ -633,7 +869,6 @@ Rectangle {
         }
     }
 
-    // 新增：立即更新数据的方法
     function updateStepDataImmediately() {
         var data = collectStepData()
         console.log("=== Step1 立即更新stepData ===")
@@ -650,11 +885,9 @@ Rectangle {
             parameters: {}
         }
 
-        // 确保所有必要的参数都有有效值
         for (var key in parametersData) {
             var value = parametersData[key]
             if (value !== undefined && value !== "") {
-                // 数值类型转换验证
                 if (key !== "parameterName" && key !== "description") {
                     var numValue = parseFloat(value)
                     if (!isNaN(numValue)) {
@@ -674,12 +907,8 @@ Rectangle {
 
     function showHistoryDialog() {
         console.log("=== showHistoryDialog 被调用 ===")
-        console.log("controller:", controller)
-        console.log("wellId:", wellId)
         if (controller && wellId > 0) {
             console.log("=== 开始加载历史版本 ===")
-            console.log("井ID:", wellId)
-            console.log("控制器:", controller)
             controller.loadParametersHistory(wellId, 10)
         } else {
             console.log("无法加载历史版本 - controller:", controller, "wellId:", wellId)
@@ -689,11 +918,13 @@ Rectangle {
     function loadHistoryVersion(historyData) {
         console.log("加载历史版本:", JSON.stringify(historyData))
 
-        // 加载选中的历史版本到当前参数
+        // 🔥 加载时进行单位转换
         for (var key in parametersData) {
             var snakeKey = toSnakeCase(key)
             if (historyData[snakeKey] !== undefined) {
-                parametersData[key] = historyData[snakeKey].toString()
+                var dbValue = historyData[snakeKey].toString()
+                var displayValue = convertFromStandardUnits(key, dbValue)
+                parametersData[key] = displayValue.toString()
             }
         }
 
@@ -702,7 +933,6 @@ Rectangle {
             parametersData.bsw = (historyData.bsw * 100).toString()
         }
 
-        // 加载名称和描述
         if (historyData.parameter_name) {
             parametersData.parameterName = historyData.parameter_name
         }
@@ -715,19 +945,15 @@ Rectangle {
     }
 
     function showUnitConversionDialog() {
-        // TODO: 显示单位转换对话框
         console.log("显示单位转换")
     }
 
     function showSaveConfirmDialog() {
-        // TODO: 显示保存确认对话框
-        // 临时处理
         saveParameters()
         proceedToNext()
     }
 
     function showErrorMessage(message) {
-        // TODO: 显示错误消息
         console.error(message)
     }
 
@@ -737,11 +963,111 @@ Rectangle {
         }).replace(/^_/, "")
     }
 
-    // 在 Step1_ProductionParameters.qml 中添加
     function loadParameters() {
         console.log("加载井 " + wellId + " 的生产参数")
         if (wellId > 0 && controller) {
             controller.loadActiveParameters(wellId)
+        }
+    }
+
+    // 🔥 参数单位更新函数
+    function updateParameterUnits() {
+        // 触发参数定义重新计算
+        // 强制刷新parameterDefinitions
+        root.parameterDefinitions = null
+        root.parameterDefinitions = Qt.binding(function() {
+            var result = []
+
+            for (var i = 0; i < baseParameterDefinitions.length; i++) {
+                var baseGroup = baseParameterDefinitions[i]
+                var group = {
+                    group: getGroupTitle(baseGroup.group),
+                    params: []
+                }
+
+                for (var j = 0; j < baseGroup.params.length; j++) {
+                    var baseParam = baseGroup.params[j]
+                    var param = {
+                        key: baseParam.key,
+                        label: isChineseMode ? baseParam.labelCN : baseParam.labelEN,
+                        unit: getParameterUnit(baseParam.key),
+                        placeholder: getParameterPlaceholder(baseParam.key),
+                        tooltip: getParameterTooltip(baseParam.key),
+                        required: baseParam.required,
+                        min: getParameterMin(baseParam.key),
+                        max: getParameterMax(baseParam.key),
+                        isPercentage: baseParam.isPercentage || false
+                    }
+                    group.params.push(param)
+                }
+
+                result.push(group)
+            }
+
+            return result
+        })
+    }
+
+    // 🔥 验证单位转换函数
+    function convertToStandardUnits(key, value) {
+        if (!isMetric || !unitSystemController) {
+            return value  // 英制直接返回
+        }
+
+        var numValue = parseFloat(value)
+        if (isNaN(numValue)) return value
+
+        switch(key) {
+            case "geoPressure":
+            case "saturationPressure":
+            case "wellHeadPressure":
+                // ✅ 从 MPa 转换为 psi
+                return numValue * 145.038
+            case "expectedProduction":
+                // ✅ 从 m³/d 转换为 bbl/d
+                return numValue / 0.159
+            case "bht":
+                // ✅ 从 °C 转换为 °F
+                return numValue * 9/5 + 32
+            case "gasOilRatio":
+                // ✅ 从 m³/m³ 转换为 scf/bbl
+                return numValue * 5.615
+            case "produceIndex":
+                // ✅ 生产指数单位转换
+                return numValue / 23.06
+            default:
+                return numValue
+        }
+    }
+
+    function convertFromStandardUnits(key, value) {
+        if (!isMetric || !unitSystemController) {
+            return value  // 英制直接返回
+        }
+
+        var numValue = parseFloat(value)
+        if (isNaN(numValue)) return value
+
+        switch(key) {
+            case "geoPressure":
+            case "saturationPressure":
+            case "wellHeadPressure":
+                // ✅ 从 psi 转换为 MPa
+                return numValue / 145.038
+            case "expectedProduction":
+                // ✅ 从 bbl/d 转换为 m³/d
+                return numValue * 0.159
+            case "bht":
+                // ✅ 从 °F 转换为 °C
+                return (numValue - 32) * 5/9
+            case "gasOilRatio":
+                // ✅ 从 scf/bbl 转换为 m³/m³
+                return numValue / 5.615
+            case "produceIndex":
+                // ✅ 生产指数单位转换
+                return numValue * 23.06
+            default:
+                return numValue
         }
     }
 }

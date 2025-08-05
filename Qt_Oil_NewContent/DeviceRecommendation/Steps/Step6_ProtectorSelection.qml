@@ -4,6 +4,8 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 import QtQuick.Controls.Material
+import "../../Common/Components" as CommonComponents
+import "../../Common/Utils/UnitUtils.js" as UnitUtils
 
 Rectangle {
     id: root
@@ -14,6 +16,8 @@ Rectangle {
     property int wellId: -1
     property var stepData: ({})
     property var constraints: ({})
+    // 🔥 添加单位制属性
+    property bool isMetric: unitSystemController ? unitSystemController.isMetric : false
 
     // 信号
     signal nextStepRequested()
@@ -43,10 +47,22 @@ Rectangle {
         console.log("stepData:", JSON.stringify(stepData))
         loadProtectors()
     }
+    // 🔥 监听单位制变化
+    Connections {
+        target: unitSystemController
+        enabled: unitSystemController !== null
+
+        function onUnitSystemChanged(isMetric) {
+            root.isMetric = isMetric
+            console.log("Step6中单位制切换为:", isMetric ? "公制" : "英制")
+            // 强制更新显示
+            updateParameterDisplays()
+        }
+    }
 
     ColumnLayout {
         anchors.fill: parent
-        spacing: 16
+        spacing: 2
 
         // 标题栏
         RowLayout {
@@ -98,7 +114,7 @@ Rectangle {
                     }
 
                     Text {
-                        text: requiredThrustCapacity.toFixed(0) + " lbs"
+                        text: formatForce(requiredThrustCapacity)
                         font.pixelSize: 16
                         font.bold: true
                         color: Material.primaryTextColor
@@ -119,9 +135,9 @@ Rectangle {
                         text: {
                             var temp = stepData.parameters ? stepData.parameters.bht : "undefined"
                             if (temp === "undefined" || temp === undefined || temp === null || isNaN(parseFloat(temp))) {
-                                return "undefined °F"
+                                return "undefined " + getTemperatureUnit()
                             }
-                            return parseFloat(temp).toFixed(0) + " °F"
+                            return formatTemperature(parseFloat(temp))
                         }
                         font.pixelSize: 16
                         font.bold: true
@@ -143,9 +159,9 @@ Rectangle {
                         text: {
                             var shaft = stepData.pump ? stepData.pump.shaftDiameter : "undefined"
                             if (shaft === "undefined" || shaft === undefined || shaft === null || isNaN(parseFloat(shaft))) {
-                                return "undefined in"
+                                return "undefined " + getDiameterUnit()
                             }
-                            return parseFloat(shaft).toFixed(2) + " in"
+                            return formatDiameter(parseFloat(shaft))
                         }
                         font.pixelSize: 16
                         font.bold: true
@@ -164,7 +180,10 @@ Rectangle {
                     }
 
                     Text {
-                        text: (stepData.well && stepData.well.casingSize ? stepData.well.casingSize : "5.5") + " in"
+                        text: {
+                            var casingSize = stepData.well && stepData.well.casingSize ? stepData.well.casingSize : "5.5"
+                            return formatDiameter(parseFloat(casingSize))
+                        }
                         font.pixelSize: 16
                         font.bold: true
                         color: Material.primaryTextColor
@@ -177,22 +196,31 @@ Rectangle {
         RowLayout {
             Layout.fillWidth: true
             Layout.fillHeight: true
-            spacing: 16
+            spacing: 3
 
             // 左侧：保护器列表
             Rectangle {
+                id: protectorListRect
                 Layout.fillWidth: true
                 Layout.fillHeight: true
                 Layout.minimumWidth: 400
                 color: "transparent"
 
                 ScrollView {
+                    id: protectorScroll
                     anchors.fill: parent
                     clip: true
 
+                    // 关键：让滚动区域宽度/高度跟随内容实际大小
+                    contentWidth: protectorGrid.implicitWidth
+                    contentHeight: protectorGrid.implicitHeight
+
                     GridLayout {
-                        width: parent.width
-                        columns: width > 800 ? 2 : 1
+                        id: protectorGrid
+                        // 强制 GridLayout 宽度与视口匹配，避免内容过宽
+                        width: protectorScroll.width
+                        // 基于 ScrollView 视口宽度计算列数（稳定可靠）
+                        columns: protectorScroll.width > 800 ? 2 : 1
                         columnSpacing: 16
                         rowSpacing: 16
 
@@ -208,20 +236,19 @@ Rectangle {
                                 property bool isSelected: selectedProtector && selectedProtector.id === modelData.id
                                 property int matchScore: calculateProtectorMatchScore(modelData)
 
-                                color: isSelected ? Material.color(Material.Blue, Material.Shade100) : Material.backgroundColor
+                                color: isSelected ? '#F5F5DC' : Material.backgroundColor
                                 radius: 8
                                 border.width: isSelected ? 2 : 1
-                                border.color: isSelected ? Material.accent : Material.dividerColor
-
+                                border.color: isSelected ? Material.DeepPurple : Material.Brown
                                 // 推荐标识
                                 Rectangle {
                                     anchors.top: parent.top
                                     anchors.right: parent.right
-                                    anchors.margins: 8
+                                    anchors.margins: 2
                                     width: 60
-                                    height: 24
+                                    height: 20
                                     radius: 12
-                                    color: Material.accent
+                                    color: Material.Green
                                     visible: matchScore >= 80
 
                                     Text {
@@ -337,7 +364,7 @@ Rectangle {
                                             }
 
                                             Text {
-                                                text: (protectorData ? protectorData.thrustCapacity : 0) + " lbs"
+                                                text: formatForce(protectorData ? protectorData.thrustCapacity : 0)
                                                 font.pixelSize: 12
                                                 font.bold: true
                                                 color: {
@@ -359,7 +386,7 @@ Rectangle {
                                             }
 
                                             Text {
-                                                text: (protectorData ? protectorData.maxTemperature : 0) + " °F"
+                                                text: formatTemperature(protectorData ? protectorData.maxTemperature : 0)
                                                 font.pixelSize: 12
                                                 font.bold: true
                                                 color: Material.primaryTextColor
@@ -395,7 +422,7 @@ Rectangle {
                                             }
 
                                             Text {
-                                                text: (protectorData ? protectorData.outerDiameter : 0) + " in"
+                                                text: formatDiameter(protectorData ? protectorData.outerDiameter : 0)
                                                 font.pixelSize: 12
                                                 font.bold: true
                                                 color: Material.primaryTextColor
@@ -423,6 +450,7 @@ Rectangle {
                         anchors.centerIn: parent
                         spacing: 16
                         visible: !loading && getFilteredProtectors().length === 0
+                        z: 1  // 确保在GridLayout之上
 
                         Text {
                             anchors.horizontalCenter: parent.horizontalCenter
@@ -445,6 +473,7 @@ Rectangle {
                     anchors.centerIn: parent
                     running: loading
                     visible: running
+                    z: 2  // 确保在所有内容之上（包括ScrollView）
                 }
             }
 
@@ -557,7 +586,7 @@ Rectangle {
                         // 保护器数量选择
                         Rectangle {
                             Layout.fillWidth: true
-                            Layout.preferredHeight: 80
+                            Layout.preferredHeight: 100
                             color: Material.backgroundColor
                             radius: 8
 
@@ -574,6 +603,7 @@ Rectangle {
                                 }
 
                                 RowLayout {
+                                    Layout.fillHeight: true
                                     Layout.fillWidth: true
                                     spacing: 16
 
@@ -581,19 +611,51 @@ Rectangle {
                                         text: isChineseMode ? "数量：" : "Quantity:"
                                         color: Material.primaryTextColor
                                         font.pixelSize: 13
+                                        Layout.alignment: Qt.AlignVCenter  // 垂直居中对齐
                                     }
 
-                                    ButtonGroup {
-                                        id: protectorCountGroup
-                                    }
+
 
                                     Repeater {
-                                        model: [1, 2, 3]
+
+                                        // model: [1, 2, 3]
+                                        model: ["单", "双"] // 一般是单级或着双极
 
                                         RadioButton {
-                                            text: modelData + (isChineseMode ? " 个" : "")
+                                            id: radioButton
+                                            Layout.preferredHeight: 40
+                                            text: modelData + (isChineseMode ? "级" : "")
                                             checked: protectorCount === modelData
                                             ButtonGroup.group: protectorCountGroup
+                                            Layout.alignment: Qt.AlignVCenter  // 垂直居中对齐
+                                            // 文本颜色（根据选中状态变化）
+
+                                            // 自定义圆形指示器样式
+                                            indicator: Rectangle {
+                                                    implicitWidth: 15
+                                                    implicitHeight: 15
+                                                    radius: 12 // 圆形
+                                                    border.width: 2
+                                                    anchors.top: parent.top
+                                                    anchors.bottom: parent.bottom
+
+                                                    anchors.topMargin: 9
+                                                    anchors.bottomMargin: 9
+                                                    // 边框颜色（选中/未选中状态）
+                                                    border.color: checked ? "#2196F3" : "#CCCCCC"
+                                                    // 内部填充颜色（选中状态）
+                                                    color: checked ? "#2196F3" : "transparent"
+
+                                                    // 选中时的内部小点
+                                                    Rectangle {
+                                                        visible: checked
+                                                        width: 8
+                                                        height: 8
+                                                        radius: 4
+                                                        color: "white"
+                                                        anchors.centerIn: parent
+                                                    }
+                                                }
                                             onCheckedChanged: {
                                                 if (checked) {
                                                     protectorCount = modelData
@@ -605,12 +667,16 @@ Rectangle {
 
                                     Item { Layout.fillWidth: true }
                                 }
+                                ButtonGroup {
+                                    id: protectorCountGroup
+                                }
 
                                 Text {
                                     Layout.fillWidth: true
-                                    text: isChineseMode
-                                          ? "总推力承载: " + (selectedProtector ? (selectedProtector.thrustCapacity * protectorCount) : 0) + " lbs"
-                                          : "Total Thrust: " + (selectedProtector ? (selectedProtector.thrustCapacity * protectorCount) : 0) + " lbs"
+                                    text: {
+                                        var totalCapacity = selectedProtector ? (selectedProtector.thrustCapacity * protectorCount) : 0
+                                        return (isChineseMode ? "总推力承载: " : "Total Thrust: ") + formatForce(totalCapacity)
+                                    }
                                     color: Material.secondaryTextColor
                                     font.pixelSize: 12
                                     wrapMode: Text.Wrap
@@ -659,7 +725,7 @@ Rectangle {
                                         font.pixelSize: 12
                                     }
                                     Text {
-                                        text: (selectedProtector ? selectedProtector.thrustCapacity : 0) + " lbs"
+                                        text: formatForce(selectedProtector ? selectedProtector.thrustCapacity : 0)
                                         color: Material.primaryTextColor
                                         font.pixelSize: 12
                                         font.bold: true
@@ -685,7 +751,7 @@ Rectangle {
                                         font.pixelSize: 12
                                     }
                                     Text {
-                                        text: (selectedProtector ? selectedProtector.maxTemperature : 0) + " °F"
+                                        text: formatTemperature(selectedProtector ? selectedProtector.maxTemperature : 0)
                                         color: Material.primaryTextColor
                                         font.pixelSize: 12
                                         font.bold: true
@@ -698,7 +764,7 @@ Rectangle {
                                         font.pixelSize: 12
                                     }
                                     Text {
-                                        text: (selectedProtector ? selectedProtector.outerDiameter : 0) + " in"
+                                        text: formatDiameter(selectedProtector ? selectedProtector.outerDiameter : 0)
                                         color: Material.primaryTextColor
                                         font.pixelSize: 12
                                         font.bold: true
@@ -711,7 +777,7 @@ Rectangle {
                                         font.pixelSize: 12
                                     }
                                     Text {
-                                        text: (selectedProtector ? selectedProtector.length : 0) + " ft"
+                                        text: formatLength(selectedProtector ? selectedProtector.length : 0)
                                         color: Material.primaryTextColor
                                         font.pixelSize: 12
                                         font.bold: true
@@ -1002,6 +1068,101 @@ Rectangle {
         console.log("=== 更新Step6数据 ===")
         console.log("选择的保护器:", data)
         root.dataChanged(data)
+    }
+    // 🔥 =====================================
+    // 🔥 单位转换和格式化函数
+    // 🔥 =====================================
+
+    function formatForce(valueInLbs) {
+        if (!valueInLbs || valueInLbs <= 0) return "N/A"
+
+        if (isMetric) {
+            // 转换为牛顿 (1 lbs = 4.448 N)
+            var nValue = valueInLbs * 4.448
+            if (nValue >= 1000) {
+                // 显示为kN
+                return (nValue / 1000).toFixed(1) + " kN"
+            } else {
+                return nValue.toFixed(0) + " N"
+            }
+        } else {
+            // 保持磅
+            return valueInLbs.toFixed(0) + " lbs"
+        }
+    }
+
+    function formatTemperature(valueInF) {
+        if (!valueInF || valueInF <= 0) return "N/A"
+
+        if (isMetric) {
+            // 转换为摄氏度
+            var cValue = UnitUtils.fahrenheitToCelsius(valueInF)
+            return cValue.toFixed(0) + " °C"
+        } else {
+            // 保持华氏度
+            return valueInF.toFixed(0) + " °F"
+        }
+    }
+
+    function formatDiameter(valueInInches) {
+        if (!valueInInches || valueInInches <= 0) return "N/A"
+
+        if (isMetric) {
+            // 转换为毫米
+            var mmValue = valueInInches * 25.4
+            return mmValue.toFixed(0) + " mm"
+        } else {
+            // 保持英寸
+            return valueInInches.toFixed(2) + " in"
+        }
+    }
+
+    function formatLength(valueInFt) {
+        if (!valueInFt || valueInFt <= 0) return "N/A"
+
+        if (isMetric) {
+            // 转换为米
+            var mValue = valueInFt * 0.3048
+            return mValue.toFixed(1) + " m"
+        } else {
+            // 保持英尺
+            return valueInFt.toFixed(1) + " ft"
+        }
+    }
+
+    function formatWeight(valueInLbs) {
+        if (!valueInLbs || valueInLbs <= 0) return "N/A"
+
+        if (isMetric) {
+            // 转换为千克
+            var kgValue = valueInLbs * 0.453592
+            return kgValue.toFixed(0) + " kg"
+        } else {
+            // 保持磅
+            return valueInLbs.toFixed(0) + " lbs"
+        }
+    }
+
+    // 🔥 获取单位函数
+    function getTemperatureUnit() {
+        return isMetric ? "°C" : "°F"
+    }
+
+    function getDiameterUnit() {
+        return isMetric ? "mm" : "in"
+    }
+
+    function getForceUnit() {
+        return isMetric ? "kN" : "lbs"
+    }
+
+    function getLengthUnit() {
+        return isMetric ? "m" : "ft"
+    }
+
+    // 🔥 强制更新显示的函数
+    function updateParameterDisplays() {
+        console.log("更新Step6参数显示，当前单位制:", isMetric ? "公制" : "英制")
     }
 
     function filterProtectors() {

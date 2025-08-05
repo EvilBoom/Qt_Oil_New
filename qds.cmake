@@ -10,12 +10,12 @@ qt6_add_resources(${CMAKE_PROJECT_NAME} MainResource
     PREFIX "/qt/qml"
     VERSION 1.0
     FILES 
-        ".vs/VSWorkspaceState.json"
+        "drafts/report_draft_20250712_144151.json"
         ".vs/PythonSettings.json"
         ".vs/ProjectSettings.json"
-        ".vs/Qt_Oil_New/v17/DocumentLayout.backup.json"
+        ".vs/VSWorkspaceState.json"
         ".vs/Qt_Oil_New/v17/DocumentLayout.json"
-        "drafts/report_draft_20250712_144151.json"
+        ".vs/Qt_Oil_New/v17/DocumentLayout.backup.json"
 )
 
 target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE

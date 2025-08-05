@@ -1,9 +1,8 @@
-﻿// Qt_Oil_NewContent/DeviceRecommendation/Components/LiftMethodCard.qml
-
-import QtQuick
+﻿import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 import QtQuick.Controls.Material
+import "../../Common/Utils/UnitUtils.js" as UnitUtils
 
 Rectangle {
     id: root
@@ -12,13 +11,24 @@ Rectangle {
     property bool isSelected: false
     property int matchScore: 50
     property bool isChineseMode: true
+    property bool isMetric: unitSystemController ? unitSystemController.isMetric : false  // 🔥 添加单位制属性
 
     signal clicked()
 
-    color: isSelected ? Material.dialogColor : Material.backgroundColor
+    // 🔥 监听单位制变化
+    Connections {
+        target: unitSystemController
+        enabled: unitSystemController !== null
+
+        function onUnitSystemChanged(isMetric) {
+            root.isMetric = isMetric
+        }
+    }
+
+    color: isSelected ? '#F5F5DC' : Material.backgroundColor
     radius: 8
     border.width: isSelected ? 2 : 1
-    border.color: isSelected ? Material.accent : Material.dividerColor
+    border.color: isSelected ? Material.DeepPurple : Material.Brown
 
     // 推荐标识
     Rectangle {
@@ -28,7 +38,7 @@ Rectangle {
         width: 80
         height: 28
         radius: 14
-        color: Material.accent
+        color: Material.DeepPurple
         visible: matchScore >= 80
         z: 1
 
@@ -40,21 +50,12 @@ Rectangle {
             font.bold: true
         }
     }
-  
+
     ColumnLayout {
         anchors.fill: parent
         anchors.margins: 16
         spacing: 12
-        // 添加测试按钮
-        // Button {
-        //     Layout.fillWidth: true
-        //     text: "测试点击 - " + (methodData ? methodData.name : "Unknown")
 
-        //     onClicked: {
-        //         console.log("=== Button clicked ===")
-        //         root.clicked()
-        //     }
-        // }
         // 头部
         RowLayout {
             Layout.fillWidth: true
@@ -91,7 +92,7 @@ Rectangle {
                 }
             }
 
-            // 匹配度 - 修复作用域问题
+            // 匹配度
             Rectangle {
                 id: progressContainer
                 width: 48
@@ -101,7 +102,6 @@ Rectangle {
                 border.width: 1
                 border.color: Material.dividerColor
 
-                // 将属性定义在这里，确保作用域正确
                 readonly property real progressValue: matchScore / 100
                 readonly property color progressColor: {
                     if (progressValue >= 0.8) return Material.color(Material.Green)
@@ -121,7 +121,6 @@ Rectangle {
                         color: Material.primaryTextColor
                     }
 
-                    // 简单的线性进度条
                     Rectangle {
                         anchors.horizontalCenter: parent.horizontalCenter
                         width: 36
@@ -160,7 +159,7 @@ Rectangle {
             color: Material.dividerColor
         }
 
-        // 优缺点
+        // 🔥 修改优缺点显示，添加单位转换
         Row {
             Layout.fillWidth: true
             spacing: 12
@@ -191,7 +190,7 @@ Rectangle {
 
                         Text {
                             width: parent.parent.width - 12
-                            text: methodData.advantages[index]
+                            text: convertTextUnits(methodData.advantages[index])  // 🔥 转换文本中的单位
                             font.pixelSize: 11
                             color: Material.secondaryTextColor
                             wrapMode: Text.Wrap
@@ -209,7 +208,7 @@ Rectangle {
                     text: isChineseMode ? "限制" : "Limitations"
                     font.pixelSize: 12
                     font.bold: true
-                    color: Material.color(Material.Orange)
+                    color: Material.color(Material.Blue)
                 }
 
                 Repeater {
@@ -226,7 +225,7 @@ Rectangle {
 
                         Text {
                             width: parent.parent.width - 12
-                            text: methodData.limitations[index]
+                            text: convertTextUnits(methodData.limitations[index])  // 🔥 转换文本中的单位
                             font.pixelSize: 11
                             color: Material.secondaryTextColor
                             wrapMode: Text.Wrap
@@ -235,16 +234,17 @@ Rectangle {
                 }
             }
         }
+
         // 间隔弹簧，将按钮推到底部
         Item {
             Layout.fillHeight: true
         }
+
         // 选择按钮
         Button {
             Layout.fillWidth: true
             Layout.preferredHeight: 40
 
-            // 根据选中状态和匹配度设置按钮文本和样式
             text: {
                 if (isSelected) {
                     return (isChineseMode ? "✓ 已选择" : "✓ Selected")
@@ -255,100 +255,77 @@ Rectangle {
                 }
             }
 
-            // 动态设置按钮样式
             Material.background: {
                 if (isSelected) {
-                    return Material.accent
+                    return Material.Green
                 } else if (matchScore >= 80) {
-                    return Material.color(Material.Green)
+                    return Material.color(Material.Blue)
                 } else {
-                    return Material.primary
+                    return Material.Gray
                 }
             }
 
             Material.foreground: "white"
-
-            // 按钮圆角
             Material.roundedScale: Material.MediumScale
 
-            // 字体设置
             font.pixelSize: 14
             font.bold: isSelected
 
-            // 按钮状态动画
-            // Behavior on Material.background {
-            //     ColorAnimation { duration: 200 }
-            // }
-
-            // 点击事件
             onClicked: {
                 console.log("=== Select button clicked ===")
                 root.clicked()
             }
 
-            // 悬停效果
-            // HoverHandler {
-            //     id: hoverHandler
-            // }
-
-            // 根据悬停状态调整透明度
-            // opacity: hoverHandler.hovered ? 0.9 : 1.0
-
-            // Behavior on opacity {
-            //     NumberAnimation { duration: 150 }
-            // }
         }
     }
 
+    // 🔥 添加单位转换函数
+    function convertTextUnits(text) {
+        if (!text || typeof text !== "string") return text
 
-    // MouseArea {
-    //     id: mainMouseArea
-    //     anchors.fill: parent
-    //     // cursorShape: Qt.PointingHandCursor
-    //     // onClicked: root.clicked()
-    //     onClicked: {
-    //         // console.log("LiftMethodCard clicked:", methodData ? methodData.name : "unknown")
-    //         console.log("has actual clicked")
-    //         root.clicked()
-    //     }
+        var convertedText = text
 
-    // }
-    Component.onCompleted: {
-         console.log("=== LiftMethodCard completed")
+        if (root.isMetric) {
+            // 英制 → 公制转换
+            // 流量: bbl/d → m³/d
+            convertedText = convertedText.replace(/(\d+(?:-\d+)?)\s*bbl\/d/g, function(match, range) {
+                if (range.includes("-")) {
+                    var parts = range.split("-")
+                    var min = (parseFloat(parts[0]) * 0.159).toFixed(0)
+                    var max = (parseFloat(parts[1]) * 0.159).toFixed(0)
+                    return min + "-" + max + " m³/d"
+                } else {
+                    var converted = (parseFloat(range) * 0.159).toFixed(0)
+                    return converted + " m³/d"
+                }
+            })
+
+            // 深度: ft → m
+            convertedText = convertedText.replace(/(\d+(?:,\d+)?)\s*ft/g, function(match, value) {
+                var numValue = parseFloat(value.replace(/,/g, ""))
+                var converted = (numValue * 0.3048).toFixed(0)
+                return converted.toLocaleString() + " m"
+            })
+
+            // 温度: °F → °C
+            convertedText = convertedText.replace(/(\d+)\s*°F/g, function(match, value) {
+                var converted = ((parseFloat(value) - 32) * 5/9).toFixed(0)
+                return converted + " °C"
+            })
+
+            // 压力: psi → kPa
+            convertedText = convertedText.replace(/(\d+(?:,\d+)?)\s*psi/g, function(match, value) {
+                var numValue = parseFloat(value.replace(/,/g, ""))
+                var converted = (numValue * 6.895).toFixed(0)
+                return converted.toLocaleString() + " kPa"
+            })
+        }
+        // 如果是英制，不需要转换（数据库中本来就是英制）
+
+        return convertedText
     }
 
-    // 选中效果 - 整个卡片的高亮边框
-    // Rectangle {
-    //     anchors.fill: parent
-    //     color: "transparent"
-    //     radius: parent.radius
-    //     border.width: isSelected ? 3 : 0
-    //     border.color: Material.accent
-
-    //     Behavior on border.width {
-    //         NumberAnimation { duration: 200 }
-    //     }
-    // }
-
-    // 悬停效果
-    // Rectangle {
-    //     id: hoverEffect
-    //     anchors.fill: parent
-    //     color: Material.primaryTextColor
-    //     opacity: 0
-    //     radius: parent.radius
-
-    //     NumberAnimation on opacity {
-    //         id: hoverAnimation
-    //         to: 0.05
-    //         duration: 200
-    //         running: false
-
-    //         onStopped: {
-    //             if (!parent.containsMouse) {
-    //                 hoverEffect.opacity = 0
-    //             }
-    //         }
-    //     }
-    // }
+    Component.onCompleted: {
+        console.log("=== LiftMethodCard completed with isMetric:", root.isMetric)
+    }
 }

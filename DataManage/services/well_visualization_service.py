@@ -160,14 +160,18 @@ class WellVisualizationService:
 
             # 计算图形尺寸（英制）
             max_tvd = float(np.max(tvd_array)) if len(tvd_array) > 0 else 1000.0
+            max_md = float(np.max(md_array)) if len(md_array) > 0 else 1000.0
+
             max_horizontal = float(np.max(np.abs(horizontal_displacement))) if len(horizontal_displacement) > 0 else 100.0
             
             # 确保最小尺寸
+            max_md = max(max_md, 100.0)
             max_tvd = max(max_tvd, 100.0)
             max_horizontal = max(max_horizontal, 50.0)
 
             dimensions = {
                 'max_depth': max_tvd,               # 英尺
+                'max_md': max_md,                   # 英尺
                 'max_horizontal': max_horizontal,   # 英尺
                 'aspect_ratio': max_tvd / max(max_horizontal, 1),
                 'padding': 0.1,                     # 10%边距

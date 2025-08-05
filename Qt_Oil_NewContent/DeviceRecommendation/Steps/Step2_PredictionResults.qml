@@ -4,6 +4,8 @@ import QtQuick.Layouts
 import QtQuick.Controls.Material
 import QtCharts
 import "../Components" as LocalComponents
+import "../../Common/Components" as CommonComponents
+import "../../Common/Utils/UnitUtils.js" as UnitUtils
 
 Rectangle {
     id: root
@@ -11,6 +13,7 @@ Rectangle {
     // 外部属性
     property var controller: null
     property bool isChineseMode: true
+    property bool isMetric: unitSystemController ? unitSystemController.isMetric : false  // 🔥 添加单位制属性
     property int wellId: -1
     property var stepData: ({})
     property var constraints: ({})
@@ -33,6 +36,17 @@ Rectangle {
 
     color: "transparent"
 
+    // 🔥 监听单位制变化
+    Connections {
+        target: unitSystemController
+        enabled: unitSystemController !== null
+
+        function onUnitSystemChanged(isMetric) {
+            root.isMetric = isMetric
+            console.log("Step2中单位制切换为:", isMetric ? "公制" : "英制")
+        }
+    }
+
     ColumnLayout {
         anchors.fill: parent
         spacing: 16
@@ -50,6 +64,13 @@ Rectangle {
             }
 
             Item { Layout.fillWidth: true }
+
+            // 🔥 添加单位切换器
+            CommonComponents.UnitSwitcher {
+                isChinese: root.isChineseMode
+                showLabel: false
+                labelText: ""
+            }
 
             // 重新计算按钮
             Button {
@@ -86,8 +107,8 @@ Rectangle {
 
                     ColumnLayout {
                         anchors.fill: parent
-                        anchors.margins: 20
-                        spacing: 16
+                        anchors.margins: 10
+                        spacing: 3
 
                         // 标题行
                         RowLayout {
@@ -135,72 +156,73 @@ Rectangle {
                                 anchors.fill: parent
                                 columns: 3
                                 columnSpacing: 24
-                                rowSpacing: 16
+                                rowSpacing: 2
 
-                                // 推荐产量
+                                // 🔥 修改推荐产量卡片，添加单位转换
                                 LocalComponents.PredictionResultCard {
                                     Layout.fillWidth: true
                                     Layout.fillHeight: true
                                     Layout.minimumWidth: 200
 
                                     title: isChineseMode ? "推荐产量" : "Recommended Production"
-                                    unit: "bbl/d"
+                                    unit: getFlowUnit()  // 🔥 动态单位
                                     icon: "💧"
 
-                                    mlValue: mlResults ? mlResults.production : 0
+                                    mlValue: mlResults ? convertFlowValue(mlResults.production) : 0  // 🔥 转换数值
                                     empiricalValue: {
                                         if (!stepData || !stepData.parameters) return 0
-                                        var value = stepData.parameters.expectedProduction
+                                        var value = stepData.prediction.empiricalResults.production
                                         if (value === undefined || value === null || isNaN(parseFloat(value))) return 0
-                                        return parseFloat(value)
+                                        console.log(value)
+                                        return convertFlowValue(parseFloat(value))  // 🔥 转换数值
                                     }
-                                    confidence: mlResults ? mlResults.confidence : 0
+                                    // confidence: mlResults ? mlResults.confidence : 0
 
                                     isAdjustable: true
-                                    finalValue: finalProduction
+                                    finalValue: convertFlowValue(finalProduction)  // 🔥 转换显示值
 
                                     onFinalValueChanged: {
-                                        finalProduction = finalValue
+                                        finalProduction = convertFlowValueToStandard(finalValue)  // 🔥 转换回标准单位存储
                                         updateStepData()
                                     }
                                 }
 
-                                // 所需扬程
+                                // 🔥 修改所需扬程卡片，添加单位转换
                                 LocalComponents.PredictionResultCard {
                                     Layout.fillWidth: true
                                     Layout.fillHeight: true
                                     Layout.minimumWidth: 200
 
                                     title: isChineseMode ? "所需扬程" : "Required Total Head"
-                                    unit: "ft"
+                                    unit: getDepthUnit()  // 🔥 动态单位
                                     icon: "⬆️"
 
-                                    mlValue: mlResults ? mlResults.total_head : 0
+                                    mlValue: mlResults ? convertDepthValue(mlResults.total_head) : 0  // 🔥 转换数值
                                     empiricalValue: {
                                         if (!empiricalResults) return 0
                                         var value = empiricalResults.total_head
                                         if (value === undefined || value === null || isNaN(parseFloat(value))) return 0
-                                        return parseFloat(value)
+                                        return convertDepthValue(parseFloat(value))  // 🔥 转换数值
                                     }
                                     confidence: mlResults ? mlResults.confidence : 0
 
                                     isAdjustable: true
-                                    finalValue: finalTotalHead
+                                    finalValue: convertDepthValue(finalTotalHead)  // 🔥 转换显示值
 
                                     onFinalValueChanged: {
-                                        finalTotalHead = finalValue
+                                        finalTotalHead = convertDepthValueToStandard(finalValue)  // 🔥 转换回标准单位存储
                                         updateStepData()
                                     }
                                 }
 
-                                // 吸入口汽液比
+                                // 吸入口气液比 (这个通常无单位，保持不变)
                                 LocalComponents.PredictionResultCard {
                                     Layout.fillWidth: true
                                     Layout.fillHeight: true
                                     Layout.minimumWidth: 200
 
-                                    title: isChineseMode ? "吸入口汽液比" : "Gas Rate at Intake"
-                                    unit: "-"
+                                    title: isChineseMode ? "吸入口气液比" : "Gas Rate at Intake"
+                                    unit: "%"
                                     icon: "💨"
 
                                     mlValue: mlResults ? mlResults.gas_rate : 0
@@ -246,8 +268,17 @@ Rectangle {
                             }
 
                             Button {
+                                id: startPredictionButton
                                 anchors.horizontalCenter: parent.horizontalCenter
                                 text: isChineseMode ? "开始预测" : "Start Prediction"
+                                background: Rectangle {
+                                        color: startPredictionButton.pressed ? "#2a5cad" :
+                                               startPredictionButton.hovered ? "#3a7cdb" :
+                                               "#3465a4"
+                                        radius: 6
+                                        border.color: startPredictionButton.hovered ? "#81a2be" : "#5c85b6"
+                                        border.width: 1
+                                }
                                 highlighted: true
                                 enabled: stepData.parameters && !(controller && controller.busy)
                                 onClicked: runPrediction()
@@ -256,10 +287,10 @@ Rectangle {
                     }
                 }
 
-                // 经验公式对比区域 - 新增
+                // 经验公式对比区域 - 🔥 修改显示的数值，添加单位转换
                 Rectangle {
                     width: parent.width
-                    height: 320  // 🔥 增加高度以避免重叠
+                    height: 320
                     color: Material.dialogColor
                     radius: 8
                     visible: predictionCompleted && mlResults && empiricalResults
@@ -267,7 +298,7 @@ Rectangle {
                     ColumnLayout {
                         anchors.fill: parent
                         anchors.margins: 20
-                        spacing: 12  // 🔥 减少间距以更紧凑
+                        spacing: 12
 
                         // 标题行
                         RowLayout {
@@ -375,7 +406,7 @@ Rectangle {
                             color: Material.dividerColor
                         }
 
-                        // 🔥 对比表格标题栏 - 新增
+                        // 🔥 对比表格标题栏 - 修改为动态单位
                         Rectangle {
                             Layout.fillWidth: true
                             Layout.preferredHeight: 32
@@ -432,19 +463,19 @@ Rectangle {
                             }
                         }
 
-                        // 对比表格 - 修改为固定高度
+                        // 对比表格 - 🔥 修改为显示转换后的数值
                         Item {
                             Layout.fillWidth: true
-                            Layout.preferredHeight: 156  // 🔥 固定高度：3行 × 48px + 间距
+                            Layout.preferredHeight: 156
 
                             Column {
                                 anchors.fill: parent
-                                spacing: 6  // 🔥 减少行间距
+                                spacing: 6
 
-                                // 对比项目1：推荐产量
+                                // 🔥 对比项目1：推荐产量 - 添加单位转换
                                 Rectangle {
                                     width: parent.width
-                                    height: 48  // 🔥 减少行高
+                                    height: 48
                                     color: Material.color(Material.Grey, Material.Shade50)
                                     radius: 6
                                     border.width: 1
@@ -452,19 +483,19 @@ Rectangle {
 
                                     RowLayout {
                                         anchors.fill: parent
-                                        anchors.margins: 10  // 🔥 减少内边距
+                                        anchors.margins: 10
 
                                         Text {
                                             Layout.preferredWidth: parent.width * 0.25
                                             text: isChineseMode ? "推荐产量" : "Production"
                                             font.bold: true
-                                            font.pixelSize: 12  // 🔥 减少字体大小
+                                            font.pixelSize: 12
                                             color: Material.primaryTextColor
                                         }
 
                                         Text {
                                             Layout.preferredWidth: parent.width * 0.2
-                                            text: mlResults ? mlResults.production.toFixed(2) + " bbl/d" : "N/A"
+                                            text: mlResults ? convertFlowValue(mlResults.production).toFixed(2) + " " + getFlowUnit() : "N/A"
                                             color: Material.color(Material.Blue)
                                             font.bold: true
                                             font.pixelSize: 11
@@ -473,7 +504,7 @@ Rectangle {
 
                                         Text {
                                             Layout.preferredWidth: parent.width * 0.2
-                                            text: empiricalResults ? empiricalResults.production.toFixed(2) + " bbl/d" : "N/A"
+                                            text: empiricalResults ? convertFlowValue(empiricalResults.production).toFixed(2) + " " + getFlowUnit() : "N/A"
                                             color: Material.color(Material.Green)
                                             font.bold: true
                                             font.pixelSize: 11
@@ -504,7 +535,7 @@ Rectangle {
 
                                         Text {
                                             Layout.fillWidth: true
-                                            text: finalProduction.toFixed(2) + " bbl/d"
+                                            text: convertFlowValue(finalProduction).toFixed(2) + " " + getFlowUnit()
                                             color: Material.color(Material.Orange)
                                             font.bold: true
                                             font.pixelSize: 11
@@ -513,7 +544,7 @@ Rectangle {
                                     }
                                 }
 
-                                // 对比项目2：所需扬程
+                                // 🔥 对比项目2：所需扬程 - 添加单位转换
                                 Rectangle {
                                     width: parent.width
                                     height: 48
@@ -536,7 +567,7 @@ Rectangle {
 
                                         Text {
                                             Layout.preferredWidth: parent.width * 0.2
-                                            text: mlResults ? mlResults.total_head.toFixed(0) + " ft" : "N/A"
+                                            text: mlResults ? convertDepthValue(mlResults.total_head).toFixed(0) + " " + getDepthUnit() : "N/A"
                                             color: Material.color(Material.Blue)
                                             font.bold: true
                                             font.pixelSize: 11
@@ -545,7 +576,7 @@ Rectangle {
 
                                         Text {
                                             Layout.preferredWidth: parent.width * 0.2
-                                            text: empiricalResults ? empiricalResults.total_head.toFixed(0) + " ft" : "N/A"
+                                            text: empiricalResults ? convertDepthValue(empiricalResults.total_head).toFixed(0) + " " + getDepthUnit() : "N/A"
                                             color: Material.color(Material.Green)
                                             font.bold: true
                                             font.pixelSize: 11
@@ -576,7 +607,7 @@ Rectangle {
 
                                         Text {
                                             Layout.fillWidth: true
-                                            text: finalTotalHead.toFixed(0) + " ft"
+                                            text: convertDepthValue(finalTotalHead).toFixed(0) + " " + getDepthUnit()
                                             color: Material.color(Material.Orange)
                                             font.bold: true
                                             font.pixelSize: 11
@@ -585,7 +616,7 @@ Rectangle {
                                     }
                                 }
 
-                                // 对比项目3：气液比
+                                // 对比项目3：气液比 (保持不变，通常无单位)
                                 Rectangle {
                                     width: parent.width
                                     height: 48
@@ -628,14 +659,14 @@ Rectangle {
                                             Layout.preferredWidth: parent.width * 0.15
                                             text: {
                                                 if (mlResults && empiricalResults && empiricalResults.gas_rate > 0) {
-                                                    var error = Math.abs(mlResults.gas_rate - empiricalResults.gas_rate) / empiricalResults.gas_rate * 100
+                                                    var error = Math.abs(mlResults.gas_rate - empiricalResults.gas_rate) / Math.max(mlResults.gas_rate, empiricalResults.gas_rate) * 100
                                                     return error.toFixed(1) + "%"
                                                 }
                                                 return "N/A"
                                             }
                                             color: {
                                                 if (mlResults && empiricalResults && empiricalResults.gas_rate > 0) {
-                                                    var error = Math.abs(mlResults.gas_rate - empiricalResults.gas_rate) / empiricalResults.gas_rate * 100
+                                                    var error = Math.abs(mlResults.gas_rate - empiricalResults.gas_rate) / Math.max(mlResults.gas_rate, empiricalResults.gas_rate) * 100
                                                     return error < 15 ? Material.color(Material.Green) :
                                                            error < 30 ? Material.color(Material.Orange) : Material.color(Material.Red)
                                                 }
@@ -659,10 +690,10 @@ Rectangle {
                             }
                         }
 
-                        // 智能选择说明 - 修改高度和样式
+                        // 智能选择说明
                         Rectangle {
                             Layout.fillWidth: true
-                            Layout.preferredHeight: 60  // 🔥 增加高度以容纳更多文本
+                            Layout.preferredHeight: 60
                             color: Material.color(Material.Blue, Material.Shade50)
                             radius: 6
                             border.width: 1
@@ -685,17 +716,17 @@ Rectangle {
                                     color: Material.color(Material.Blue, Material.Shade800)
                                     font.pixelSize: 11
                                     wrapMode: Text.Wrap
-                                    maximumLineCount: 3  // 🔥 限制最大行数
+                                    maximumLineCount: 3
                                 }
                             }
                         }
                     }
                 }
 
-                // IPR曲线区域
+                // IPR曲线区域 - 🔥 修改关键信息显示，添加单位转换
                 Rectangle {
                     width: parent.width
-                    height: 400  // 增加高度以适应滚动布局
+                    height: 400
                     color: Material.dialogColor
                     radius: 8
 
@@ -717,7 +748,7 @@ Rectangle {
 
                             Item { Layout.fillWidth: true }
 
-                            // 数据统计
+                            // 数据统计 - 🔥 添加单位转换
                             Row {
                                 spacing: 16
                                 visible: predictionCompleted
@@ -745,7 +776,9 @@ Rectangle {
 
                                     Text {
                                         anchors.centerIn: parent
-                                        text: isChineseMode ? "工作点: " + finalProduction.toFixed(1) + " bbl/d" : "Operating: " + finalProduction.toFixed(1) + " bbl/d"
+                                        text: isChineseMode ?
+                                              "工作点: " + convertFlowValue(finalProduction).toFixed(1) + " " + getFlowUnit() :
+                                              "Operating: " + convertFlowValue(finalProduction).toFixed(1) + " " + getFlowUnit()
                                         color: Material.color(Material.Green)
                                         font.pixelSize: 11
                                         font.bold: true
@@ -756,6 +789,12 @@ Rectangle {
                             // 查看完整IPR曲线按钮
                             Button {
                                 text: isChineseMode ? "📈 查看完整IPR曲线" : "📈 View Full IPR Curve"
+                                contentItem: Text {
+                                    text: parent.text
+                                    font.pixelSize: 12
+                                    font.bold: true
+                                    color: "white"
+                                }
                                 highlighted: true
                                 enabled: predictionCompleted
                                 onClicked: {
@@ -765,6 +804,38 @@ Rectangle {
                                         openIPRDialog()
                                     }
                                 }
+                                background: Rectangle {
+                                        color: startPredictionButton.pressed ? "#2a5cad" :
+                                               startPredictionButton.hovered ? "#3a7cdb" :
+                                               "#3465a4"
+                                        radius: 6
+                                        border.color: startPredictionButton.hovered ? "#81a2be" : "#5c85b6"
+                                        border.width: 1
+                                }
+                            }
+
+                            // 气液比分析按钮
+                            Button {
+                                text: isChineseMode ? "🔬 气液比分析" : "🔬 GLR Analysis"
+                                contentItem: Text {
+                                    text: parent.text
+                                    font.pixelSize: 12
+                                    font.bold: true
+                                    color: "white"
+                                }
+                                flat: true
+                                // Material.accent: Material.Purple
+                                enabled: predictionCompleted
+                                onClicked: openGLRAnalysisDialog()
+                                background: Rectangle {
+                                        color: startPredictionButton.pressed ? "#2a5cad" :
+                                               startPredictionButton.hovered ? "#3a7cdb" :
+                                               "#3465a4"
+                                        radius: 6
+                                        border.color: startPredictionButton.hovered ? "#81a2be" : "#5c85b6"
+                                        border.width: 1
+                                }
+
                             }
                         }
 
@@ -774,7 +845,7 @@ Rectangle {
                             color: Material.dividerColor
                         }
 
-                        // IPR曲线预览区域
+                        // IPR曲线预览区域 - 🔥 修改关键信息显示单位
                         Rectangle {
                             Layout.fillWidth: true
                             Layout.fillHeight: true
@@ -833,7 +904,7 @@ Rectangle {
                                     visible: predictionCompleted
                                 }
 
-                                // 右侧：关键信息
+                                // 右侧：关键信息 - 🔥 修改为显示转换后的单位
                                 Column {
                                     Layout.fillWidth: true
                                     Layout.fillHeight: true
@@ -853,7 +924,7 @@ Rectangle {
                                         columnSpacing: 20
                                         rowSpacing: 12
 
-                                        // 最大产量
+                                        // 🔥 最大产量 - 添加单位转换
                                         Text {
                                             text: isChineseMode ? "最大产量:" : "Max Production:"
                                             color: Material.secondaryTextColor
@@ -861,14 +932,14 @@ Rectangle {
                                         }
                                         Text {
                                             text: iprCurveData.length > 0 ?
-                                                  Math.max(...iprCurveData.map(p => p.production)).toFixed(1) + " bbl/d" :
+                                                  convertFlowValue(Math.max(...iprCurveData.map(p => p.production))).toFixed(1) + " " + getFlowUnit() :
                                                   "N/A"
                                             color: Material.primaryTextColor
                                             font.pixelSize: 12
                                             font.bold: true
                                         }
 
-                                        // 地层压力
+                                        // 🔥 地层压力 - 添加单位转换
                                         Text {
                                             text: isChineseMode ? "地层压力:" : "Reservoir Pressure:"
                                             color: Material.secondaryTextColor
@@ -876,14 +947,14 @@ Rectangle {
                                         }
                                         Text {
                                             text: iprCurveData.length > 0 ?
-                                                  Math.max(...iprCurveData.map(p => p.pressure)).toFixed(0) + " psi" :
+                                                  convertPressureValue(Math.max(...iprCurveData.map(p => p.pressure))).toFixed(0) + " " + getPressureUnit() :
                                                   "N/A"
                                             color: Material.primaryTextColor
                                             font.pixelSize: 12
                                             font.bold: true
                                         }
 
-                                        // 曲线类型
+                                        // 曲线类型 (保持不变)
                                         Text {
                                             text: isChineseMode ? "曲线类型:" : "Curve Type:"
                                             color: Material.secondaryTextColor
@@ -896,7 +967,7 @@ Rectangle {
                                             font.bold: true
                                         }
 
-                                        // 工作点效率
+                                        // 工作点效率 (保持不变)
                                         Text {
                                             text: isChineseMode ? "工作点效率:" : "Operating Efficiency:"
                                             color: Material.secondaryTextColor
@@ -925,8 +996,54 @@ Rectangle {
         }
     }
 
-    // 其余部分保持不变...
-    // 组件加载完成
+    // 🔥 添加单位转换函数
+    function getFlowUnit() {
+        if (unitSystemController) {
+            return unitSystemController.getUnitLabel("flow")
+        }
+        return isMetric ? "m³/d" : "bbl/d"
+    }
+
+    function getDepthUnit() {
+        if (unitSystemController) {
+            return unitSystemController.getUnitLabel("depth")
+        }
+        return isMetric ? "m" : "ft"
+    }
+
+    function getPressureUnit() {
+        if (unitSystemController) {
+            return unitSystemController.getUnitLabel("pressure")
+        }
+        return isMetric ? "kPa" : "psi"
+    }
+
+    function convertFlowValue(value) {
+        if (!isMetric) return value  // 英制不需要转换
+        return UnitUtils.bblToM3(value)  // bbl/d → m³/d
+    }
+
+    function convertFlowValueToStandard(value) {
+        if (!isMetric) return value  // 英制不需要转换
+        return UnitUtils.m3ToBbl(value)  // m³/d → bbl/d
+    }
+
+    function convertDepthValue(value) {
+        if (!isMetric) return value  // 英制不需要转换
+        return UnitUtils.feetToMeters(value)  // ft → m
+    }
+
+    function convertDepthValueToStandard(value) {
+        if (!isMetric) return value  // 英制不需要转换
+        return UnitUtils.metersToFeet(value)  // m → ft
+    }
+
+    function convertPressureValue(value) {
+        if (!isMetric) return value  // 英制不需要转换
+        return UnitUtils.psiToKpa(value)  // psi → kPa
+    }
+
+    // 其余函数保持不变...
     Component.onCompleted: {
         console.log("=== Step2 组件加载完成 ===")
         console.log("stepData:", JSON.stringify(stepData))
@@ -1067,9 +1184,31 @@ Rectangle {
         }
     }
 
+    function openGLRAnalysisDialog() {
+        console.log("=== 打开气液比分析对话框 ===")
+        console.log("当前参数:", JSON.stringify(stepData.parameters))
+
+        if (stepData.parameters) {
+            glrAnalysisDialog.currentParameters = stepData.parameters
+            glrAnalysisDialog.show()
+            glrAnalysisDialog.raise()
+            glrAnalysisDialog.requestActivate()
+        } else {
+            showErrorMessage(isChineseMode ? "缺少生产参数数据" : "Missing production parameters")
+        }
+    }
+
     // IPR曲线对话框
     LocalComponents.IPRCurveDialog {
         id: iprDialog
         isChineseMode: root.isChineseMode
+    }
+
+    // 气液比分析对话框
+    LocalComponents.GasLiquidRatioAnalysisDialog {
+        id: glrAnalysisDialog
+        isChineseMode: root.isChineseMode
+        controller: root.controller
+        currentParameters: stepData.parameters || {}
     }
 }

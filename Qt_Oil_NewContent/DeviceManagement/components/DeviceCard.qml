@@ -1,42 +1,43 @@
 ﻿import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
-import QtQuick.Controls.Material
+import "../../Common/Components" as CommonComponents
 
 Rectangle {
     id: root
 
-    // 属性
-    property int deviceId
-    property string deviceType 
-    property string manufacturer
-    property string deviceModel
-    property string serialNumber
-    property string status
-    property string description
-    property string createdAt
-    property string details
+    // 🔥 修复：使用单独的属性而不是 deviceData 对象
+    property int deviceId: 0
+    property string deviceType: "pump"
+    property string manufacturer: ""
+    property string deviceModel: ""  // 注意：不能使用 model 作为属性名
+    property string serialNumber: ""
+    property string status: "active"
+    property string description: ""
+    property string createdAt: ""
+    property string details: "{}"
 
     property bool isChineseMode: true
+    property bool isMetric: unitSystemController ? unitSystemController.isMetric : true
     property bool selectionMode: false
     property bool isSelected: false
 
-    // 信号
     signal clicked()
     signal editClicked()
     signal deleteClicked()
 
+    width: parent.width
     height: 120
     radius: 8
-    color: mouseArea.containsMouse ? "#f8f9fa" : "white"
+    color: {
+        if (isSelected) return "#E3F2FD"
+        if (mouseArea.containsMouse) return "#F5F5F5"
+        return "#FFFFFF"
+    }
     border.width: isSelected ? 2 : 1
-    border.color: isSelected ? Material.color(Material.Blue) : "#e0e0e0"
+    border.color: isSelected ? "#1976D2" : "#E0E0E0"
 
     Behavior on color {
-        ColorAnimation { duration: 150 }
-    }
-
-    Behavior on border.color {
         ColorAnimation { duration: 150 }
     }
 
@@ -45,33 +46,36 @@ Rectangle {
         anchors.fill: parent
         hoverEnabled: true
         cursorShape: Qt.PointingHandCursor
-
         onClicked: root.clicked()
     }
 
     RowLayout {
         anchors.fill: parent
-        anchors.margins: 15
-        spacing: 15
+        anchors.margins: 16
+        spacing: 16
 
-        // 选择框（批量选择模式）
+        // 🔥 批量选择模式的复选框
         CheckBox {
             visible: selectionMode
             checked: isSelected
-            onToggled: root.clicked()
+            onCheckedChanged: {
+                if (checked !== isSelected) {
+                    root.clicked()
+                }
+            }
         }
 
         // 设备图标
         Rectangle {
-            Layout.preferredWidth: 60
-            Layout.preferredHeight: 60
+            Layout.preferredWidth: 48
+            Layout.preferredHeight: 48
             radius: 8
-            color: getTypeColor(deviceType)
+            color: getTypeColor()
 
-            Label {
+            Text {
                 anchors.centerIn: parent
-                text: getTypeIcon(deviceType)
-                font.pixelSize: 28
+                text: getTypeIcon()
+                font.pixelSize: 24
                 color: "white"
             }
         }
@@ -79,240 +83,164 @@ Rectangle {
         // 设备信息
         ColumnLayout {
             Layout.fillWidth: true
-            spacing: 5
+            spacing: 4
 
-            // 第一行：型号和状态
             RowLayout {
                 Layout.fillWidth: true
 
-                Label {
-                    text: deviceModel
+                Text {
+                    text: deviceModel || "Unknown Model"
                     font.pixelSize: 16
                     font.bold: true
-                    color: "#333"
-                    elide: Text.ElideRight
+                    color: "#1976D2"
                     Layout.fillWidth: true
+                    elide: Text.ElideRight
                 }
 
-                // 状态标签
-                Rectangle {
-                    width: statusLabel.width + 16
-                    height: 24
-                    radius: 12
-                    color: getStatusColor(status)
-
-                    Label {
-                        id: statusLabel
-                        anchors.centerIn: parent
-                        text: getStatusText(status)
-                        font.pixelSize: 12
-                        color: "white"
-                    }
+                Text {
+                    text: getTypeLabel()
+                    font.pixelSize: 12
+                    color: "#666"
+                    // background: Rectangle {
+                    //     color: "#F0F0F0"
+                    //     radius: 4
+                    //     anchors.fill: parent
+                    //     anchors.margins: -4
+                    // }
                 }
             }
 
-            // 第二行：制造商和序列号
+            Text {
+                text: manufacturer || "Unknown Manufacturer"
+                font.pixelSize: 12
+                color: "#666"
+                Layout.fillWidth: true
+                elide: Text.ElideRight
+            }
+
             RowLayout {
                 Layout.fillWidth: true
-                spacing: 20
 
-                Label {
-                    text: manufacturer
-                    font.pixelSize: 14
+                Rectangle {
+                    width: 8
+                    height: 8
+                    radius: 4
+                    color: getStatusColor()
+                }
+
+                Text {
+                    text: getStatusText()
+                    font.pixelSize: 12
                     color: "#666"
                 }
 
-                Label {
-                    text: serialNumber ? `SN: ${serialNumber}` : ""
-                    font.pixelSize: 14
-                    color: "#666"
-                }
+                Item { Layout.fillWidth: true }
 
-                Label {
-                    text: getTypeText(deviceType)
-                    font.pixelSize: 14
-                    color: "#666"
+                Text {
+                    text: serialNumber || "N/A"
+                    font.pixelSize: 10
+                    color: "#999"
                 }
-            }
-
-            // 第三行：描述或详细参数
-            Label {
-                Layout.fillWidth: true
-                text: getDeviceDetails()
-                font.pixelSize: 12
-                color: "#999"
-                elide: Text.ElideRight
             }
         }
 
         // 操作按钮
         Row {
-            spacing: 5
             visible: !selectionMode
+            spacing: 8
 
             Button {
+                text: "✏️"
+                flat: true
                 width: 36
                 height: 36
-                flat: true
-
-                contentItem: Label {
-                    text: "✏️"
-                    font.pixelSize: 16
-                    horizontalAlignment: Text.AlignHCenter
-                    verticalAlignment: Text.AlignVCenter
-                }
-
+                onClicked: root.editClicked()
                 ToolTip.text: isChineseMode ? "编辑" : "Edit"
                 ToolTip.visible: hovered
 
-                onClicked: {
-                    root.editClicked()
+                background: Rectangle {
+                    color: parent.hovered ? "#E0E0E0" : "transparent"
+                    radius: 4
                 }
             }
 
             Button {
+                text: "🗑️"
+                flat: true
                 width: 36
                 height: 36
-                flat: true
-
-                contentItem: Label {
-                    text: "🗑️"
-                    font.pixelSize: 16
-                    horizontalAlignment: Text.AlignHCenter
-                    verticalAlignment: Text.AlignVCenter
-                }
-
+                onClicked: root.deleteClicked()
                 ToolTip.text: isChineseMode ? "删除" : "Delete"
                 ToolTip.visible: hovered
 
-                onClicked: {
-                    root.deleteClicked()
+                background: Rectangle {
+                    color: parent.hovered ? "#FFEBEE" : "transparent"
+                    radius: 4
                 }
             }
         }
     }
 
-    // 辅助函数
-    function getTypeIcon(type) {
-        switch(type) {
-            case "pump": return "⚙️"
-            case "motor": return "🔌"
-            case "protector": return "🛡️"
-            case "separator": return "🔧"
-            default: return "📦"
+    // 🔥 辅助函数
+    function getTypeIcon() {
+        switch(deviceType.toLowerCase()) {
+            case 'pump': return "⚙️"
+            case 'motor': return "⚡"
+            case 'protector': return "🛡️"
+            case 'separator': return "🔄"
+            default: return "❓"
         }
     }
 
-    function getTypeColor(type) {
-        switch(type) {
-            case "pump": return "#4a90e2"
-            case "motor": return "#f5a623"
-            case "protector": return "#7ed321"
-            case "separator": return "#bd10e0"
-            default: return "#999"
+    function getTypeColor() {
+        switch(deviceType.toLowerCase()) {
+            case 'pump': return "#2196F3"
+            case 'motor': return "#4CAF50"
+            case 'protector': return "#FF9800"
+            case 'separator': return "#9C27B0"
+            default: return "#757575"
         }
     }
 
-    function getTypeText(type) {
+    function getTypeLabel() {
         if (isChineseMode) {
-            switch(type) {
-                case "pump": return "潜油离心泵"
-                case "motor": return "电机"
-                case "protector": return "保护器"
-                case "separator": return "分离器"
-                default: return "未知类型"
-            }
-        } else {
-            switch(type) {
-                case "pump": return "Centrifugal Pump"
-                case "motor": return "Motor"
-                case "protector": return "Protector"
-                case "separator": return "Separator"
-                default: return "Unknown Type"
-            }
-        }
-    }
-
-    function getStatusColor(status) {
-        switch(status) {
-            case "active": return "#52c41a"
-            case "inactive": return "#ff4d4f"
-            case "maintenance": return "#faad14"
-            default: return "#999"
-        }
-    }
-
-    function getStatusText(status) {
-        if (isChineseMode) {
-            switch(status) {
-                case "active": return "正常"
-                case "inactive": return "停用"
-                case "maintenance": return "维护中"
+            switch(deviceType.toLowerCase()) {
+                case 'pump': return "泵设备"
+                case 'motor': return "电机"
+                case 'protector': return "保护器"
+                case 'separator': return "分离器"
                 default: return "未知"
             }
         } else {
-            switch(status) {
-                case "active": return "Active"
-                case "inactive": return "Inactive"
-                case "maintenance": return "Maintenance"
+            switch(deviceType.toLowerCase()) {
+                case 'pump': return "Pump"
+                case 'motor': return "Motor"
+                case 'protector': return "Protector"
+                case 'separator': return "Separator"
                 default: return "Unknown"
             }
         }
     }
-    //Component.onCompleted: {
-        //console.log("DeviceCard model keys:", Object.keys(model))
-       // console.log("DeviceCard model.deviceId:", deviceId)
-   //}
 
-    function getDeviceDetails() {
-        if (!details || details === "{}") {
-            return description || (isChineseMode ? "暂无描述" : "No description")
+    function getStatusColor() {
+        switch(status.toLowerCase()) {
+            case "active": return "#4CAF50"
+            case "maintenance": return "#FF9800"
+            case "inactive": return "#F44336"
+            default: return "#999999"
         }
+    }
 
-        try {
-            var detailsObj = JSON.parse(details)
-            var info = []
-
-            switch(deviceType) {
-                case "pump":
-                    if (detailsObj.displacement_min && detailsObj.displacement_max) {
-                        info.push(`${isChineseMode ? "排量" : "Displacement"}: ${detailsObj.displacement_min}-${detailsObj.displacement_max} m³/d`)
-                    }
-                    if (detailsObj.single_stage_head) {
-                        info.push(`${isChineseMode ? "扬程" : "Head"}: ${detailsObj.single_stage_head} m`)
-                    }
-                    break
-
-                case "motor":
-                    if (detailsObj.motor_type) {
-                        info.push(`${isChineseMode ? "类型" : "Type"}: ${detailsObj.motor_type}`)
-                    }
-                    if (detailsObj.frequency_params && detailsObj.frequency_params.length > 0) {
-                        var freqs = detailsObj.frequency_params.map(fp => fp.frequency + "Hz").join(", ")
-                        info.push(`${isChineseMode ? "频率" : "Frequency"}: ${freqs}`)
-                    }
-                    break
-
-                case "protector":
-                    if (detailsObj.thrust_capacity) {
-                        info.push(`${isChineseMode ? "推力" : "Thrust"}: ${detailsObj.thrust_capacity} kN`)
-                    }
-                    if (detailsObj.max_temperature) {
-                        info.push(`${isChineseMode ? "最高温度" : "Max Temp"}: ${detailsObj.max_temperature}°C`)
-                    }
-                    break
-
-                case "separator":
-                    if (detailsObj.separation_efficiency) {
-                        info.push(`${isChineseMode ? "效率" : "Efficiency"}: ${detailsObj.separation_efficiency}%`)
-                    }
-                    break
+    function getStatusText() {
+        if (isChineseMode) {
+            switch(status.toLowerCase()) {
+                case "active": return "正常"
+                case "maintenance": return "维护中"
+                case "inactive": return "停用"
+                default: return status
             }
-
-            return info.length > 0 ? info.join(" | ") : (description || (isChineseMode ? "暂无详情" : "No details"))
-
-        } catch(e) {
-            return description || (isChineseMode ? "暂无描述" : "No description")
+        } else {
+            return status.charAt(0).toUpperCase() + status.slice(1)
         }
     }
 }

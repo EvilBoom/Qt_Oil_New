@@ -1,11 +1,11 @@
-﻿// Qt_Oil_NewContent/DeviceRecommendation/Steps/Step3_LiftMethodSelection.qml
-
-import QtQuick
+﻿import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 import QtQuick.Controls.Material
 import QtQuick.Effects
 import "../Components" as LocalComponents
+import "../../Common/Components" as CommonComponents
+import "../../Common/Utils/UnitUtils.js" as UnitUtils
 
 Rectangle {
     id: root
@@ -13,6 +13,7 @@ Rectangle {
     // 外部属性
     property var controller: null
     property bool isChineseMode: true
+    property bool isMetric: unitSystemController ? unitSystemController.isMetric : false  // 🔥 添加单位制属性
     property int wellId: -1
     property var stepData: ({})
     property var constraints: ({})
@@ -25,7 +26,18 @@ Rectangle {
     property int selectedMethodIndex: -1
     property var selectedMethod: null
 
-    // 举升方式定义
+    // 🔥 监听单位制变化
+    Connections {
+        target: unitSystemController
+        enabled: unitSystemController !== null
+
+        function onUnitSystemChanged(isMetric) {
+            root.isMetric = isMetric
+            console.log("Step3中单位制切换为:", isMetric ? "公制" : "英制")
+        }
+    }
+
+    // 🔥 修改举升方式定义，使用动态单位范围
     property var liftMethods: [
         {
             id: "esp",
@@ -37,21 +49,21 @@ Rectangle {
                 ? "适用于大排量、中深井，效率高，可靠性好"
                 : "Suitable for high flow rate, medium-deep wells with high efficiency",
             advantages: [
-                isChineseMode ? "排量范围大(100-60000 bbl/d)" : "Wide flow range (100-60000 bbl/d)",
-                isChineseMode ? "扬程高，可达15000ft" : "High head capacity up to 15000ft",
+                isChineseMode ? `排量范围大(${getFlowRangeText(100, 60000)})` : `Wide flow range (${getFlowRangeText(100, 60000)})`,
+                isChineseMode ? `扬程高，可达${getDepthText(15000)}` : `High head capacity up to ${getDepthText(15000)}`,
                 isChineseMode ? "效率高(35-60%)" : "High efficiency (35-60%)",
                 isChineseMode ? "可处理含砂量低的流体" : "Can handle low sand content fluids"
             ],
             limitations: [
                 isChineseMode ? "不适合高含气井" : "Not suitable for high GOR wells",
-                isChineseMode ? "温度限制(<300°F)" : "Temperature limitation (<300°F)",
+                isChineseMode ? `温度限制(<${getTemperatureText(300)})` : `Temperature limitation (<${getTemperatureText(300)})`,
                 isChineseMode ? "对固体颗粒敏感" : "Sensitive to solid particles",
                 isChineseMode ? "初期投资大" : "High initial investment"
             ],
             applicableRange: {
-                production: { min: 100, max: 60000 },
-                depth: { min: 1000, max: 15000 },
-                temperature: { max: 300 },
+                production: { min: convertFlowFromStandard(100), max: convertFlowFromStandard(60000) },
+                depth: { min: convertDepthFromStandard(1000), max: convertDepthFromStandard(15000) },
+                temperature: { max: convertTemperatureFromStandard(300) },
                 gor: { max: 2000 },
                 viscosity: { max: 1000 }
             }
@@ -72,15 +84,15 @@ Rectangle {
                 isChineseMode ? "运行平稳，无脉动" : "Smooth operation without pulsation"
             ],
             limitations: [
-                isChineseMode ? "温度限制(<250°F)" : "Temperature limitation (<250°F)",
+                isChineseMode ? `温度限制(<${getTemperatureText(250)})` : `Temperature limitation (<${getTemperatureText(250)})`,
                 isChineseMode ? "不适合含气量高的井" : "Not suitable for high gas content",
                 isChineseMode ? "排量相对较小" : "Relatively low flow rate",
                 isChineseMode ? "定子易磨损" : "Stator prone to wear"
             ],
             applicableRange: {
-                production: { min: 10, max: 5000 },
-                depth: { min: 500, max: 6000 },
-                temperature: { max: 250 },
+                production: { min: convertFlowFromStandard(10), max: convertFlowFromStandard(5000) },
+                depth: { min: convertDepthFromStandard(500), max: convertDepthFromStandard(6000) },
+                temperature: { max: convertTemperatureFromStandard(250) },
                 gor: { max: 500 },
                 viscosity: { max: 50000 }
             }
@@ -107,9 +119,9 @@ Rectangle {
                 isChineseMode ? "不适合深井" : "Not suitable for deep wells"
             ],
             applicableRange: {
-                production: { min: 1, max: 500 },
-                depth: { min: 500, max: 4000 },
-                temperature: { max: 250 },
+                production: { min: convertFlowFromStandard(1), max: convertFlowFromStandard(500) },
+                depth: { min: convertDepthFromStandard(500), max: convertDepthFromStandard(4000) },
+                temperature: { max: convertTemperatureFromStandard(250) },
                 gor: { max: 5000 },
                 viscosity: { max: 1000 }
             }
@@ -136,9 +148,9 @@ Rectangle {
                 isChineseMode ? "维护成本高" : "High maintenance cost"
             ],
             applicableRange: {
-                production: { min: 50, max: 4000 },
-                depth: { min: 1000, max: 10000 },
-                temperature: { max: 400 },
+                production: { min: convertFlowFromStandard(50), max: convertFlowFromStandard(4000) },
+                depth: { min: convertDepthFromStandard(1000), max: convertDepthFromStandard(10000) },
+                temperature: { max: convertTemperatureFromStandard(400) },
                 gor: { max: 1000 },
                 viscosity: { max: 2000 }
             }
@@ -165,9 +177,9 @@ Rectangle {
                 isChineseMode ? "噪音较大" : "High noise level"
             ],
             applicableRange: {
-                production: { min: 100, max: 15000 },
-                depth: { min: 1000, max: 10000 },
-                temperature: { max: 500 },
+                production: { min: convertFlowFromStandard(100), max: convertFlowFromStandard(15000) },
+                depth: { min: convertDepthFromStandard(1000), max: convertDepthFromStandard(10000) },
+                temperature: { max: convertTemperatureFromStandard(500) },
                 gor: { max: 2000 },
                 viscosity: { max: 1000 }
             }
@@ -180,7 +192,7 @@ Rectangle {
         anchors.fill: parent
         spacing: 16
 
-        // 标题栏
+        // 🔥 修改标题栏，添加单位切换器
         RowLayout {
             Layout.fillWidth: true
 
@@ -193,7 +205,13 @@ Rectangle {
 
             Item { Layout.fillWidth: true }
 
-            // 筛选条件显示 - 修复toFixed错误
+            // 🔥 添加单位切换器
+            CommonComponents.UnitSwitcher {
+                isChinese: root.isChineseMode
+                showLabel: false
+            }
+
+            // 🔥 修改筛选条件显示，添加单位转换
             Rectangle {
                 Layout.preferredWidth: childrenRect.width + 24
                 Layout.preferredHeight: 36
@@ -214,29 +232,35 @@ Rectangle {
                         text: {
                             var conditions = []
 
-                            // 安全访问预测数据
+                            // 🔥 安全访问预测数据并转换单位
                             if (stepData && stepData.prediction && stepData.prediction.finalValues) {
                                 var prod = stepData.prediction.finalValues.production
                                 if (prod !== undefined && prod !== null) {
-                                    conditions.push((isChineseMode ? "产量: " : "Prod: ") + Number(prod).toFixed(0) + " bbl/d")
+                                    var convertedProd = convertFlowFromStandard(Number(prod))
+                                    conditions.push((isChineseMode ? "产量: " : "Prod: ") +
+                                                  convertedProd.toFixed(0) + " " + getFlowUnit())
                                 }
 
                                 var depth = stepData.prediction.finalValues.pumpDepth
                                 if (depth !== undefined && depth !== null) {
-                                    conditions.push((isChineseMode ? "深度: " : "Depth: ") + Number(depth).toFixed(0) + " ft")
+                                    var convertedDepth = convertDepthFromStandard(Number(depth))
+                                    conditions.push((isChineseMode ? "深度: " : "Depth: ") +
+                                                  convertedDepth.toFixed(0) + " " + getDepthUnit())
                                 }
                             }
 
-                            // 安全访问参数数据
+                            // 🔥 安全访问参数数据并转换单位
                             if (stepData && stepData.parameters) {
                                 var temp = stepData.parameters.bht
                                 if (temp !== undefined && temp !== null) {
-                                    conditions.push((isChineseMode ? "温度: " : "Temp: ") + temp + " °F")
+                                    var convertedTemp = convertTemperatureFromStandard(parseFloat(temp))
+                                    conditions.push((isChineseMode ? "温度: " : "Temp: ") +
+                                                  convertedTemp.toFixed(0) + " " + getTemperatureUnit())
                                 }
 
                                 var gor = stepData.parameters.gasOilRatio
                                 if (gor !== undefined && gor !== null) {
-                                    conditions.push("GOR: " + gor + " scf/bbl")
+                                    conditions.push("GOR: " + gor + " " + getGasOilRatioUnit())
                                 }
                             }
 
@@ -250,47 +274,76 @@ Rectangle {
             }
         }
 
-        // 方法选择区域
-        ScrollView {
+        // 方法选择区域（保持不变）
+        Rectangle {
             Layout.fillWidth: true
             Layout.fillHeight: true
-            clip: true
+            color: "transparent"
 
-            Flow {
-                width: parent.width
-                spacing: 16
+            ScrollView {
+                id: methodScroll
+                anchors.fill: parent
+                clip: true
 
-                Repeater {
-                    model: liftMethods
+                contentWidth: methodGrid.implicitWidth
+                contentHeight: methodGrid.implicitHeight
 
-                    LocalComponents.LiftMethodCard {
-                        width: {
-                            var availableWidth = parent.width
-                            var minCardWidth = 320  // 最小卡片宽度
-                            var maxCardWidth = 400  // 最大卡片宽度
-                            var cols = Math.floor(availableWidth / minCardWidth)
-                            if (cols === 0) cols = 1
-                            var cardWidth = (availableWidth - (cols - 1) * 16) / cols
-                            return Math.min(Math.max(cardWidth, minCardWidth), maxCardWidth)
+                GridLayout {
+                    id: methodGrid
+                    columns: methodScroll.width > 1200 ? 3 : (methodScroll.width > 800 ? 2 : 1)
+                    columnSpacing: 16
+                    rowSpacing: 16
+                    width: methodScroll.width
+
+                    Repeater {
+                        model: liftMethods
+
+                        LocalComponents.LiftMethodCard {
+                            Layout.fillWidth: true
+                            Layout.preferredHeight: 280
+                            Layout.alignment: Qt.AlignTop
+
+                            methodData: modelData
+                            isSelected: selectedMethodIndex === index
+                            matchScore: calculateMatchScore(modelData)
+                            isChineseMode: root.isChineseMode
+                            isMetric: root.isMetric  // 🔥 传递单位制信息
+
+                            onClicked: {
+                                selectedMethodIndex = index
+                                selectedMethod = modelData
+                                console.log("选择举升方式:", selectedMethod.id)
+
+                                // 🔥 新增：选择举升方式后立即筛选泵
+                                filterPumpsByLiftMethod(modelData.id)
+                                updateStepData()
+                            }
                         }
-                        height: 280
+                    }
+                }
 
-                        methodData: modelData
-                        isSelected: selectedMethodIndex === index
-                        matchScore: calculateMatchScore(modelData)
-                        isChineseMode: root.isChineseMode
+                Column {
+                    anchors.centerIn: parent
+                    spacing: 16
+                    visible: !loading && (!liftMethods || liftMethods.length === 0)
+                    z: 1
 
-                        onClicked: {
-                            selectedMethodIndex = index
-                            selectedMethod = modelData
-                            updateStepData()
-                        }
+                    Text {
+                        text: "🔧"
+                        font.pixelSize: 48
+                        color: Material.hintTextColor
+                    }
+
+                    Text {
+                        text: isChineseMode ? "暂无可用的举升方法" : "No lift methods available"
+                        color: Material.hintTextColor
+                        font.pixelSize: 14
                     }
                 }
             }
         }
 
-        // 底部详情面板
+        // 🔥 修改底部详情面板，添加单位显示
         Rectangle {
             Layout.fillWidth: true
             Layout.preferredHeight: selectedMethod ? 180 : 0
@@ -351,7 +404,6 @@ Rectangle {
                     color: Material.dividerColor
                 }
 
-                // 详细说明
                 ScrollView {
                     Layout.fillWidth: true
                     Layout.fillHeight: true
@@ -370,16 +422,70 @@ Rectangle {
         }
     }
 
-    // 调试信息
+    // 🔥 添加单位转换函数
+    function getFlowUnit() {
+        if (unitSystemController) {
+            return unitSystemController.getUnitLabel("flow")
+        }
+        return isMetric ? "m³/d" : "bbl/d"
+    }
+
+    function getDepthUnit() {
+        if (unitSystemController) {
+            return unitSystemController.getUnitLabel("depth")
+        }
+        return isMetric ? "m" : "ft"
+    }
+
+    function getTemperatureUnit() {
+        if (unitSystemController) {
+            return unitSystemController.getUnitLabel("temperature")
+        }
+        return isMetric ? "°C" : "°F"
+    }
+
+    function getGasOilRatioUnit() {
+        return isMetric ? "m³/m³" : "scf/bbl"
+    }
+
+    function convertFlowFromStandard(value) {
+        if (!isMetric) return value  // 英制不需要转换
+        return UnitUtils.bblToM3(value)  // bbl/d → m³/d
+    }
+
+    function convertDepthFromStandard(value) {
+        if (!isMetric) return value  // 英制不需要转换
+        return UnitUtils.feetToMeters(value)  // ft → m
+    }
+
+    function convertTemperatureFromStandard(value) {
+        if (!isMetric) return value  // 英制不需要转换
+        return UnitUtils.fahrenheitToCelsius(value)  // °F → °C
+    }
+
+    function getFlowRangeText(min, max) {
+        var convertedMin = convertFlowFromStandard(min)
+        var convertedMax = convertFlowFromStandard(max)
+        return convertedMin.toFixed(0) + "-" + convertedMax.toFixed(0) + " " + getFlowUnit()
+    }
+
+    function getDepthText(value) {
+        var converted = convertDepthFromStandard(value)
+        return converted.toFixed(0) + " " + getDepthUnit()
+    }
+
+    function getTemperatureText(value) {
+        var converted = convertTemperatureFromStandard(value)
+        return converted.toFixed(0) + " " + getTemperatureUnit()
+    }
+
+    // 调试信息（保持不变）
     Component.onCompleted: {
         console.log("=== Step3 组件加载完成 ===")
         console.log("stepData:", JSON.stringify(stepData, null, 2))
-
-        // 添加数据监控
         debugDataStructure()
     }
 
-    // 数据结构调试函数
     function debugDataStructure() {
         console.log("=== 调试数据结构 ===")
 
@@ -422,16 +528,14 @@ Rectangle {
         }
     }
 
-    // 修复匹配度计算函数
+    // 🔥 修改匹配度计算函数，使用转换后的单位进行比较
     function calculateMatchScore(method) {
-        // 添加详细的调试信息
         console.log("=== calculateMatchScore 开始 ===")
         console.log("method:", method ? method.id : "null")
         console.log("stepData存在:", !!stepData)
         console.log("prediction存在:", !!(stepData && stepData.prediction))
         console.log("parameters存在:", !!(stepData && stepData.parameters))
 
-        // 检查数据完整性
         if (!stepData) {
             console.log("stepData为空，返回默认分数50")
             return 50
@@ -451,13 +555,13 @@ Rectangle {
         var penalties = 0
 
         try {
-            // 安全获取预测数据
-            var production = Number(stepData.prediction.finalValues.production) || 0
-            var depth = Number(stepData.prediction.finalValues.pumpDepth) || 0
+            // 🔥 获取转换后的预测数据进行比较
+            var production = convertFlowFromStandard(Number(stepData.prediction.finalValues.production) || 0)
+            var depth = convertDepthFromStandard(Number(stepData.prediction.finalValues.pumpDepth) || 0)
 
             console.log("获取到的数据 - 产量:", production, "深度:", depth)
 
-            // 产量匹配度
+            // 产量匹配度（使用转换后的单位比较）
             if (production < method.applicableRange.production.min) {
                 penalties += 20
                 console.log("产量过低，扣20分")
@@ -466,7 +570,7 @@ Rectangle {
                 console.log("产量过高，扣30分")
             }
 
-            // 深度匹配度
+            // 深度匹配度（使用转换后的单位比较）
             if (depth < method.applicableRange.depth.min) {
                 penalties += 15
                 console.log("深度过小，扣15分")
@@ -475,14 +579,14 @@ Rectangle {
                 console.log("深度过大，扣20分")
             }
 
-            // 温度匹配度
-            var temperature = parseFloat(stepData.parameters.bht) || 0
+            // 🔥 温度匹配度（使用转换后的单位比较）
+            var temperature = convertTemperatureFromStandard(parseFloat(stepData.parameters.bht) || 0)
             if (temperature > method.applicableRange.temperature.max) {
                 penalties += 25
                 console.log("温度过高，扣25分")
             }
 
-            // GOR匹配度
+            // GOR匹配度（通常无单位转换需求）
             var gor = parseFloat(stepData.parameters.gasOilRatio) || 0
             if (gor > method.applicableRange.gor.max) {
                 penalties += 20
@@ -515,7 +619,8 @@ Rectangle {
             selectedMethod: selectedMethod.id,
             methodName: selectedMethod.name,
             methodShortName: selectedMethod.shortName,
-            matchScore: calculateMatchScore(selectedMethod)
+            matchScore: calculateMatchScore(selectedMethod),
+            pumpsFiltered: true  // 🔥 标记已筛选泵型
         }
         console.log("=== Step3 updateStepData ===")
         console.log("发送的数据:", JSON.stringify(data))
@@ -523,16 +628,15 @@ Rectangle {
         root.dataChanged(data)
     }
 
+    // 🔥 修改详细说明函数，使用转换后的单位显示
     function getDetailedExplanation() {
         if (!selectedMethod) return ""
 
-        // 检查数据完整性
         if (!stepData || !stepData.prediction || !stepData.parameters) {
             return isChineseMode ? "数据加载中，请稍候..." : "Loading data, please wait..."
         }
 
         var explanation = selectedMethod.description + "\n\n"
-
         explanation += (isChineseMode ? "基于当前井况分析：\n" : "Based on current well conditions:\n")
 
         var score = calculateMatchScore(selectedMethod)
@@ -550,25 +654,25 @@ Rectangle {
                 : "✗ This lift method may not be optimal, consider other options or adjust design parameters."
         }
 
-        // 安全添加具体的参数分析
+        // 🔥 安全添加具体的参数分析，使用转换后的单位
         try {
             explanation += "\n\n" + (isChineseMode ? "参数分析：" : "Parameter Analysis:")
 
-            var production = Number(stepData.prediction.finalValues.production) || 0
+            var production = convertFlowFromStandard(Number(stepData.prediction.finalValues.production) || 0)
             var prodRange = selectedMethod.applicableRange.production
-            explanation += "\n• " + (isChineseMode ? "产量" : "Production") + ": " + production.toFixed(0) + " bbl/d "
-            explanation += (isChineseMode ? "(范围: " : "(Range: ") + prodRange.min + "-" + prodRange.max + " bbl/d) "
+            explanation += "\n• " + (isChineseMode ? "产量" : "Production") + ": " + production.toFixed(0) + " " + getFlowUnit() + " "
+            explanation += (isChineseMode ? "(范围: " : "(Range: ") + prodRange.min.toFixed(0) + "-" + prodRange.max.toFixed(0) + " " + getFlowUnit() + ") "
             explanation += getStatusIcon(production, prodRange.min, prodRange.max)
 
-            var depth = Number(stepData.prediction.finalValues.pumpDepth) || 0
+            var depth = convertDepthFromStandard(Number(stepData.prediction.finalValues.pumpDepth) || 0)
             var depthRange = selectedMethod.applicableRange.depth
-            explanation += "\n• " + (isChineseMode ? "深度" : "Depth") + ": " + depth.toFixed(0) + " ft "
-            explanation += (isChineseMode ? "(范围: " : "(Range: ") + depthRange.min + "-" + depthRange.max + " ft) "
+            explanation += "\n• " + (isChineseMode ? "深度" : "Depth") + ": " + depth.toFixed(0) + " " + getDepthUnit() + " "
+            explanation += (isChineseMode ? "(范围: " : "(Range: ") + depthRange.min.toFixed(0) + "-" + depthRange.max.toFixed(0) + " " + getDepthUnit() + ") "
             explanation += getStatusIcon(depth, depthRange.min, depthRange.max)
 
-            var temperature = parseFloat(stepData.parameters.bht) || 0
-            explanation += "\n• " + (isChineseMode ? "温度" : "Temperature") + ": " + temperature + " °F "
-            explanation += (isChineseMode ? "(上限: " : "(Max: ") + selectedMethod.applicableRange.temperature.max + " °F) "
+            var temperature = convertTemperatureFromStandard(parseFloat(stepData.parameters.bht) || 0)
+            explanation += "\n• " + (isChineseMode ? "温度" : "Temperature") + ": " + temperature.toFixed(0) + " " + getTemperatureUnit() + " "
+            explanation += (isChineseMode ? "(上限: " : "(Max: ") + selectedMethod.applicableRange.temperature.max.toFixed(0) + " " + getTemperatureUnit() + ") "
             explanation += temperature <= selectedMethod.applicableRange.temperature.max ? "✓" : "✗"
 
         } catch (error) {
@@ -583,5 +687,16 @@ Rectangle {
         if (value < min || value > max) return "✗"
         if (value < min * 1.2 || value > max * 0.8) return "⚠"
         return "✓"
+    }
+    // 🔥 在Step3末尾添加筛选函数
+    function filterPumpsByLiftMethod(liftMethodId) {
+        console.log("=== 根据举升方式筛选泵 ===", liftMethodId)
+
+        if (controller && controller.getPumpsByLiftMethod) {
+            console.log("调用控制器筛选泵型")
+            controller.getPumpsByLiftMethod(liftMethodId)
+        } else {
+            console.warn("控制器或方法不可用")
+        }
     }
 }

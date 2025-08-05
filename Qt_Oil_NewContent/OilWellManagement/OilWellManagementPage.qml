@@ -2,6 +2,8 @@
 import QtQuick.Controls
 import QtQuick.Layouts
 import QtQuick.Controls.Material
+import "../Common/Components" as CommonComponents
+import "../Common/Utils/UnitUtils.js" as UnitUtils
 
 Rectangle {
     id: root
@@ -12,6 +14,8 @@ Rectangle {
     property bool isChineseMode: true
     property var currentWell: null
     property var wellList: []
+    // 🔥 添加单位制属性
+    property bool isMetric: unitSystemController ? unitSystemController.isMetric : false
 
     // 连接控制器信号
     Connections {
@@ -20,6 +24,16 @@ Rectangle {
             if (details.id === root.projectId) {
                 projectSelector.currentProjectName = details.project_name
             }
+        }
+    }
+    // 🔥 监听单位制变化
+    Connections {
+        target: unitSystemController
+        enabled: unitSystemController !== null
+
+        function onUnitSystemChanged(isMetric) {
+            root.isMetric = isMetric
+            console.log("OilWellManagement中单位制切换为:", isMetric ? "公制" : "英制")
         }
     }
 
@@ -319,8 +333,12 @@ Rectangle {
                                         }
 
                                         Text {
-                                            text: (isChineseMode ? "深度: " : "Depth: ") + model.depth + "m | " +
-                                                  (isChineseMode ? "状态: " : "Status: ") + model.status
+                                            text: {
+                                                // 🔥 支持单位转换的深度显示
+                                                var depthText = (isChineseMode ? "深度: " : "Depth: ") + formatDepth(parseFloat(model.depth || 0))
+                                                var statusText = " | " + (isChineseMode ? "状态: " : "Status: ") + model.status
+                                                return depthText + statusText
+                                            }
                                             font.pixelSize: 14
                                             color: "#666"
                                         }
@@ -452,43 +470,53 @@ Rectangle {
                                     }
 
                                     Label {
-                                        text: isChineseMode ? "井深 (ft):" : "Well Depth (m):"
+                                        text: isChineseMode ?
+                                            `井深 (${getDepthUnit()}):` :
+                                            `Well Depth (${getDepthUnit()}):`
                                         font.bold: true
                                     }
                                     Label {
-                                        text: root.currentWell.well_md || "-"
+                                        text: formatDepth(parseFloat(root.currentWell.well_md || 0))
                                     }
 
                                     Label {
-                                        text: isChineseMode ? "内径 (mm):" : "Inner Diameter (mm):"
+                                        text: isChineseMode ?
+                                            `内径 (${getDiameterUnit()}):` :
+                                            `Inner Diameter (${getDiameterUnit()}):`
                                         font.bold: true
                                     }
                                     Label {
-                                        text: root.currentWell.inner_diameter || "-"
+                                        text: formatDiameter(parseFloat(root.currentWell.inner_diameter || 0))
                                     }
 
                                     Label {
-                                        text: isChineseMode ? "外径 (mm):" : "Outer Diameter (mm):"
+                                        text: isChineseMode ?
+                                            `外径 (${getDiameterUnit()}):` :
+                                            `Outer Diameter (${getDiameterUnit()}):`
                                         font.bold: true
                                     }
                                     Label {
-                                        text: root.currentWell.outer_diameter || "-"
+                                        text: formatDiameter(parseFloat(root.currentWell.outer_diameter || 0))
                                     }
 
                                     Label {
-                                        text: isChineseMode ? "泵挂深度 (m):" : "Pump Depth (m):"
+                                        text: isChineseMode ?
+                                            `泵挂深度 (${getDepthUnit()}):` :
+                                            `Pump Depth (${getDepthUnit()}):`
                                         font.bold: true
                                     }
                                     Label {
-                                        text: root.currentWell.pump_depth || "-"
+                                        text: formatDepth(parseFloat(root.currentWell.pump_depth || 0))
                                     }
 
                                     Label {
-                                        text: isChineseMode ? "管径 (mm):" : "Tubing Diameter (mm):"
+                                        text: isChineseMode ?
+                                            `管径 (${getDiameterUnit()}):` :
+                                            `Tubing Diameter (${getDiameterUnit()}):`
                                         font.bold: true
                                     }
                                     Label {
-                                        text: root.currentWell.tubing_diameter || "-"
+                                        text: formatDiameter(parseFloat(root.currentWell.tubing_diameter || 0))
                                     }
                                 }
                             }
@@ -506,19 +534,23 @@ Rectangle {
                                     property var reservoirData: reservoirController.currentReservoirData
 
                                     Label {
-                                        text: isChineseMode ? "温度 (°C):" : "Temperature (°C):"
+                                        text: isChineseMode ?
+                                            `温度 (${getTemperatureUnit()}):` :
+                                            `Temperature (${getTemperatureUnit()}):`
                                         font.bold: true
                                     }
                                     Label {
-                                        text: parent.reservoirData?.bht || "-"
+                                        text: formatTemperature(parseFloat(parent.reservoirData?.bht || 0))
                                     }
 
                                     Label {
-                                        text: isChineseMode ? "压力 (MPa):" : "Pressure (MPa):"
+                                        text: isChineseMode ?
+                                            `压力 (${getPressureUnit()}):` :
+                                            `Pressure (${getPressureUnit()}):`
                                         font.bold: true
                                     }
                                     Label {
-                                        text: parent.reservoirData?.pr || "-"
+                                        text: formatPressure(parseFloat(parent.reservoirData?.pr || 0))
                                     }
 
                                     Label {
@@ -538,11 +570,13 @@ Rectangle {
                                     }
 
                                     Label {
-                                        text: isChineseMode ? "产液量 (m³/d):" : "Liquid Rate (m³/d):"
+                                        text: isChineseMode ?
+                                            `产液量 (${getFlowUnit()}):` :
+                                            `Liquid Rate (${getFlowUnit()}):`
                                         font.bold: true
                                     }
                                     Label {
-                                        text: parent.reservoirData?.liquid_production || "-"
+                                        text: formatFlowRate(parseFloat(parent.reservoirData?.liquid_production || 0))
                                     }
                                 }
                             }
@@ -629,6 +663,95 @@ Rectangle {
             interval: 3000
             onTriggered: messageBar.visible = false
         }
+    }
+    // 🔥 =====================================
+    // 🔥 单位转换和格式化函数
+    // 🔥 =====================================
+
+    function formatDepth(valueInM) {
+        if (!valueInM || valueInM <= 0) return "-"
+
+        if (isMetric) {
+            // 保持米
+            return valueInM.toFixed(1) + " m"
+        } else {
+            // 转换为英尺
+            var ftValue = UnitUtils.metersToFeet(valueInM)
+            return ftValue.toFixed(0) + " ft"
+        }
+    }
+
+    function formatDiameter(valueInMm) {
+        if (!valueInMm || valueInMm <= 0) return "-"
+
+        if (isMetric) {
+            // 保持毫米
+            return valueInMm.toFixed(1) + " mm"
+        } else {
+            // 转换为英寸
+            var inValue = UnitUtils.mmToInches(valueInMm)
+            return inValue.toFixed(2) + " in"
+        }
+    }
+
+    function formatTemperature(valueInC) {
+        if (!valueInC || valueInC <= 0) return "-"
+
+        if (isMetric) {
+            // 保持摄氏度
+            return valueInC.toFixed(1) + " °C"
+        } else {
+            // 转换为华氏度
+            var fValue = UnitUtils.celsiusToFahrenheit(valueInC)
+            return fValue.toFixed(1) + " °F"
+        }
+    }
+
+    function formatPressure(valueInMPa) {
+        if (!valueInMPa || valueInMPa <= 0) return "-"
+
+        if (isMetric) {
+            // 保持MPa
+            return valueInMPa.toFixed(2) + " MPa"
+        } else {
+            // 转换为psi
+            var psiValue = UnitUtils.mpaToPsi(valueInMPa)
+            return psiValue.toFixed(0) + " psi"
+        }
+    }
+
+    function formatFlowRate(valueInM3d) {
+        if (!valueInM3d || valueInM3d <= 0) return "-"
+
+        if (isMetric) {
+            // 保持m³/d
+            return valueInM3d.toFixed(1) + " m³/d"
+        } else {
+            // 转换为bbl/d
+            var bblValue = UnitUtils.m3ToBbl(valueInM3d)
+            return bblValue.toFixed(0) + " bbl/d"
+        }
+    }
+
+    // 🔥 获取单位标签函数
+    function getDepthUnit() {
+        return isMetric ? "m" : "ft"
+    }
+
+    function getDiameterUnit() {
+        return isMetric ? "mm" : "in"
+    }
+
+    function getTemperatureUnit() {
+        return isMetric ? "°C" : "°F"
+    }
+
+    function getPressureUnit() {
+        return isMetric ? "MPa" : "psi"
+    }
+
+    function getFlowUnit() {
+        return isMetric ? "m³/d" : "bbl/d"
     }
 
     // 辅助函数
