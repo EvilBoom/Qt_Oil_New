@@ -1015,32 +1015,6 @@ Rectangle {
                                         enabled: !root.isTraining
                                         onClicked: root.startTraining()
                                     }
-                                    
-                                    Button {
-                                        text: root.isChinese ? "保存模型" : "Save Model"
-                                        enabled: !root.isTraining && root.currentModel && root.currentModel.length > 0
-                                        onClicked: {
-                                            console.log("Save button clicked, currentModel:", root.currentModel)
-                                            console.log("isTraining:", root.isTraining)
-                                            root.saveCurrentModel()
-                                        }
-                                        
-                                        // 添加调试信息
-                                        Component.onCompleted: {
-                                            console.log("Save button created, currentModel:", root.currentModel)
-                                        }
-                                        
-                                        // 监听状态变化
-                                        Connections {
-                                            target: root
-                                            function onCurrentModelChanged() {
-                                                console.log("Save button: currentModel changed to:", root.currentModel)
-                                            }
-                                            function onIsTrainingChanged() {
-                                                console.log("Save button: isTraining changed to:", root.isTraining)
-                                            }
-                                        }
-                                    }
                                 }
                                 
                                 ProgressBar {
@@ -1159,7 +1133,7 @@ Rectangle {
                                         }
 
                                         Button {
-                                            text: root.isChinese ? "保存模型" : "Save Model"
+                                            text: root.isChinese ? "保存模型sss" : "Save Model"
                                             onClicked: {
                                                 try {
                                                     let savePath = root.continuousLearningController.saveModelWithDialog(root.currentModel)

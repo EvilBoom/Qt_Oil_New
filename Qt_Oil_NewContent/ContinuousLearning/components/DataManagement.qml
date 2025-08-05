@@ -92,7 +92,7 @@ Rectangle {
                     
                     Text {
                         text: root.isChinese ? "支持Excel(.xlsx/.xls)和CSV(.csv)文件格式" : "Support Excel(.xlsx/.xls) and CSV(.csv) file formats"
-                        font.pixelSize: 12
+                        font.pixelSize: 14
                         color: "#6c757d"
                     }
                     
@@ -196,7 +196,7 @@ Rectangle {
                                     text: root.isChinese ? 
                                         "💡 提示：下载对应任务的模板，了解数据格式要求" :
                                         "💡 Tip: Download the template for your task to understand data format requirements"
-                                    font.pixelSize: 11
+                                    font.pixelSize: 14
                                     color: "#6c757d"
                                     font.italic: true
                                 }
@@ -218,7 +218,7 @@ Rectangle {
                             id: dataFileStatus
                             text: root.isChinese ? "未选择文件" : "No file selected"
                             color: "#6c757d"
-                            font.pixelSize: 12
+                            font.pixelSize: 14
                         }
                     }
                     
@@ -229,7 +229,7 @@ Rectangle {
                         
                         Text {
                             text: root.isChinese ? "表名设置" : "Table Name Settings"
-                            font.pixelSize: 14
+                            font.pixelSize: 15
                             font.bold: true
                             color: "#212529"
                         }
@@ -244,7 +244,7 @@ Rectangle {
                                 
                                 Text {
                                     text: root.isChinese ? "数据类型：" : "Data Type:"
-                                    font.pixelSize: 12
+                                    font.pixelSize: 14
                                     color: "#495057"
                                 }
                                 
@@ -282,7 +282,7 @@ Rectangle {
                                 
                                 Text {
                                     text: root.isChinese ? "表名：" : "Table Name:"
-                                    font.pixelSize: 12
+                                    font.pixelSize: 14
                                     color: "#495057"
                                 }
                                 
@@ -319,7 +319,7 @@ Rectangle {
                                     text: root.isChinese ? 
                                         `最终表名：${root.isTrainingData ? 'data_' : 'test_'}${root.userTableName}` :
                                         `Final table name: ${root.isTrainingData ? 'data_' : 'test_'}${root.userTableName}`
-                                    font.pixelSize: 11
+                                    font.pixelSize: 13
                                     color: "#6c757d"
                                     visible: root.userTableName !== ""
                                 }
@@ -567,7 +567,7 @@ Rectangle {
                                                 id: headerText
                                                 anchors.centerIn: parent
                                                 text: parent.modelData
-                                                font.pixelSize: 12
+                                                font.pixelSize: 14
                                                 font.bold: true
                                                 color: "#ffffff"
                                                 elide: Text.ElideRight
@@ -601,7 +601,7 @@ Rectangle {
                                                     id: cellText
                                                     anchors.centerIn: parent
                                                     text: parent.modelData || ""
-                                                    font.pixelSize: 11
+                                                    font.pixelSize: 14
                                                     color: "#212529"
                                                     elide: Text.ElideRight
                                                 }
@@ -636,7 +636,7 @@ Rectangle {
                             (root.isChinese ? 
                                 `显示前 ${root.previewData.rows.length} 行，共 ${root.previewData.total_rows} 行` :
                                 `Showing first ${root.previewData.rows.length} rows of ${root.previewData.total_rows} total`) : ""
-                        font.pixelSize: 11
+                        font.pixelSize: 13
                         color: "#6c757d"
                         visible: text !== ""
                     }

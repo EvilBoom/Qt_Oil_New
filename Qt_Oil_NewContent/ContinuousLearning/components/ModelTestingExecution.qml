@@ -15,6 +15,7 @@ Rectangle {
     // 测试配置（从配置页面传入）
     property string selectedTask: ""
     property string selectedModel: ""
+    property string selectedModelPath: ""
     property string modelType: ""
     property var selectedDataTables: []
     property var selectedFeatures: []
@@ -128,7 +129,7 @@ Rectangle {
                         text: root.isTesting ? 
                             (root.isChinese ? "测试进行中..." : "Testing in progress...") :
                             (root.isChinese ? "测试已完成" : "Testing completed")
-                        font.pixelSize: 12
+                        font.pixelSize: 14
                         color: root.isTesting ? "#28a745" : "#6c757d"
                     }
                 }
@@ -159,7 +160,7 @@ Rectangle {
                         text: root.isChinese ? 
                             `测试任务: ${root.selectedTask}` :
                             `Test Task: ${root.selectedTask}`
-                        font.pixelSize: 12
+                        font.pixelSize: 14
                         color: "#6c757d"
                     }
                     
@@ -167,7 +168,7 @@ Rectangle {
                         text: root.isChinese ? 
                             `测试模型: ${root.selectedModel.split('/').pop() || root.selectedModel} (${root.modelType})` :
                             `Test Model: ${root.selectedModel.split('/').pop() || root.selectedModel} (${root.modelType})`
-                        font.pixelSize: 12
+                        font.pixelSize: 14
                         color: "#6c757d"
                         Layout.fillWidth: true
                         elide: Text.ElideMiddle
@@ -177,7 +178,7 @@ Rectangle {
                         text: root.isChinese ? 
                             `特征数: ${root.selectedFeatures.length}` :
                             `Features: ${root.selectedFeatures.length}`
-                        font.pixelSize: 12
+                        font.pixelSize: 14
                         color: "#6c757d"
                     }
                     
@@ -185,7 +186,7 @@ Rectangle {
                         text: root.isChinese ? 
                             `目标: ${root.targetLabel}` :
                             `Target: ${root.targetLabel}`
-                        font.pixelSize: 12
+                        font.pixelSize: 14
                         color: "#6c757d"
                     }
                     
@@ -599,60 +600,60 @@ Rectangle {
                                 
                                 Text {
                                     text: "MAPE:"
-                                    font.pixelSize: 12
+                                    font.pixelSize: 14
                                     color: "#495057"
                                 }
                                 Text {
                                     text: root.testResults.mape ? `${root.testResults.mape.toFixed(2)}%` : "N/A"
-                                    font.pixelSize: 12
+                                    font.pixelSize: 14
                                     color: "#007bff"
                                     font.bold: true
                                 }
                                 
                                 Text {
                                     text: "MSE:"
-                                    font.pixelSize: 12
+                                    font.pixelSize: 14
                                     color: "#495057"
                                 }
                                 Text {
                                     text: root.testResults.mse ? root.testResults.mse.toFixed(4) : "N/A"
-                                    font.pixelSize: 12
+                                    font.pixelSize: 14
                                     color: "#007bff"
                                     font.bold: true
                                 }
                                 
                                 Text {
                                     text: "MAE:"
-                                    font.pixelSize: 12
+                                    font.pixelSize: 14
                                     color: "#495057"
                                 }
                                 Text {
                                     text: root.testResults.mae ? root.testResults.mae.toFixed(4) : "N/A"
-                                    font.pixelSize: 12
+                                    font.pixelSize: 14
                                     color: "#007bff"
                                     font.bold: true
                                 }
                                 
                                 Text {
                                     text: "R²:"
-                                    font.pixelSize: 12
+                                    font.pixelSize: 14
                                     color: "#495057"
                                 }
                                 Text {
                                     text: root.testResults.r2 ? root.testResults.r2.toFixed(4) : "N/A"
-                                    font.pixelSize: 12
+                                    font.pixelSize: 14
                                     color: "#007bff"
                                     font.bold: true
                                 }
                                 
                                 Text {
                                     text: root.isChinese ? "测试样本:" : "Test Samples:"
-                                    font.pixelSize: 12
+                                    font.pixelSize: 14
                                     color: "#495057"
                                 }
                                 Text {
                                     text: root.testResults.test_samples || "N/A"
-                                    font.pixelSize: 12
+                                    font.pixelSize: 14
                                     color: "#007bff"
                                     font.bold: true
                                 }
@@ -796,10 +797,14 @@ Rectangle {
         root.testResults = {}
         addLog(root.isChinese ? "开始模型测试..." : "Starting model testing...")
         
+        // 确定使用的模型路径
+        let modelToUse = root.selectedModelPath && root.selectedModelPath.length > 0 ? 
+                         root.selectedModelPath : root.selectedModel
+        
         // 准备测试参数
         let testParams = {
             "task": root.selectedTask,
-            "model": root.selectedModel,
+            "model": modelToUse,
             "modelType": root.modelType,
             "dataTables": root.selectedDataTables,
             "features": root.selectedFeatures,
@@ -808,12 +813,16 @@ Rectangle {
         }
         
         addLog(root.isChinese ? 
-            `测试参数: 模型=${root.selectedModel.split('/').pop()}, 特征=${root.selectedFeatures.length}个, 目标=${root.targetLabel}` :
-            `Test params: model=${root.selectedModel.split('/').pop()}, features=${root.selectedFeatures.length}, target=${root.targetLabel}`)
+            `测试参数: 模型=${modelToUse.split('/').pop()}, 特征=${root.selectedFeatures.length}个, 目标=${root.targetLabel}` :
+            `Test params: model=${modelToUse.split('/').pop()}, features=${root.selectedFeatures.length}, target=${root.targetLabel}`)
+        
+        if (root.selectedModelPath && root.selectedModelPath.length > 0) {
+            addLog(root.isChinese ? `使用本地模型路径: ${root.selectedModelPath}` : `Using local model path: ${root.selectedModelPath}`)
+        }
         
         // 调用测试
         root.continuousLearningController.startModelTestingWithConfiguration(
-            root.selectedModel,
+            modelToUse,
             root.modelType,
             root.selectedDataTables,
             root.selectedFeatures,

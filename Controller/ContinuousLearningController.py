@@ -803,8 +803,36 @@ class ContinuousLearningController(QObject):
     
     @Slot(result=list)
     def getAvailableModels(self):
-        """获取可用模型列表"""
-        return list(self._models.keys())
+        """获取可用模型列表 - 包括从任务默认文件夹扫描的模型"""
+        models = []
+        
+        # 添加当前内存中的模型
+        models.extend(list(self._models.keys()))
+        
+        # 扫描任务默认文件夹中的模型
+        try:
+            base_path = Path(__file__).parent.parent
+            save_dirs = {
+                "TDHsave": "TDH",
+                "QFsave": "QF", 
+                "GLRsave": "GLR"
+            }
+            
+            for folder_name, task_prefix in save_dirs.items():
+                save_dir = base_path / folder_name
+                if save_dir.exists():
+                    # 扫描文件夹中的模型目录
+                    for model_dir in save_dir.iterdir():
+                        if model_dir.is_dir():
+                            model_name = model_dir.name
+                            # 避免重复添加
+                            if model_name not in models:
+                                models.append(model_name)
+                            
+        except Exception as e:
+            logger.warning(f"扫描模型文件夹失败: {str(e)}")
+        
+        return models
     
     @Slot(str, result=dict)
     def getModelInfo(self, model_name):
@@ -817,6 +845,34 @@ class ContinuousLearningController(QObject):
             model_info.pop('model_instance', None)
             return model_info
         return {}
+    
+    @Slot(str, result=str)
+    def getModelPath(self, model_name):
+        """获取模型的完整文件路径"""
+        try:
+            base_path = Path(__file__).parent.parent
+            save_dirs = ["TDHsave", "QFsave", "GLRsave"]
+            
+            # 首先检查是否是内存中的模型
+            if model_name in self._models:
+                model_info = self._models[model_name]
+                # 如果模型信息中有保存路径，返回它
+                if 'save_path' in model_info:
+                    return str(model_info['save_path'])
+            
+            # 在各个保存文件夹中查找模型
+            for save_dir_name in save_dirs:
+                save_dir = base_path / save_dir_name
+                model_dir = save_dir / model_name
+                if model_dir.exists() and model_dir.is_dir():
+                    return str(model_dir)
+            
+            logger.warning(f"未找到模型路径: {model_name}")
+            return ""
+            
+        except Exception as e:
+            logger.error(f"获取模型路径失败: {str(e)}")
+            return ""
     
     @Slot(str, result=str)
     def saveModelWithDialog(self, model_name):

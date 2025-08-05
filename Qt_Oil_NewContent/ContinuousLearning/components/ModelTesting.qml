@@ -18,6 +18,7 @@ Rectangle {
     // 配置数据（在页面间传递）
     property string selectedTask: ""
     property string selectedModel: ""
+    property string selectedModelPath: ""
     property string modelType: ""
     property var selectedDataTables: []
     property var selectedFeatures: []
@@ -51,6 +52,7 @@ Rectangle {
                     // 保存配置数据
                     root.selectedTask = completeConfig.task
                     root.selectedModel = completeConfig.model
+                    root.selectedModelPath = completeConfig.modelPath || ""
                     root.modelType = completeConfig.modelType
                     root.selectedDataTables = completeConfig.dataTables
                     root.selectedFeatures = completeConfig.inputFeatures  // 使用最终的输入特征
@@ -76,6 +78,7 @@ Rectangle {
                 // 传递配置数据
                 selectedTask: root.selectedTask
                 selectedModel: root.selectedModel
+                selectedModelPath: root.selectedModelPath
                 modelType: root.modelType
                 selectedDataTables: root.selectedDataTables
                 selectedFeatures: root.selectedFeatures
