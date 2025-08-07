@@ -3,6 +3,7 @@ from PySide6.QtCore import QObject, Signal, Slot, Property, QThread, QMutex
 from PySide6.QtWidgets import QVBoxLayout, QFileDialog, QApplication
 from typing import Dict, Any, List
 import logging
+import sqlite3
 import pandas as pd
 import numpy as np
 from pathlib import Path
@@ -12,7 +13,7 @@ from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 import json
 import time
 import sys
-import sqlite3
+import sys
 sys.path.append(str(Path(__file__).parent.parent))
 
 # 导入数据处理器
@@ -617,9 +618,7 @@ class ContinuousLearningController(QObject):
         self._ml_service = None
         self._project_id = -1
         self._db_path = "data/oil_analysis.db"
-        # 数据库管理器实例（兼容原有接口）
-        from DataManage.DataManage import DatabaseManager
-        self._db_manager = DatabaseManager(self._db_path)
+        
         # 训练配置 - 使用新的配置类
         self._training_config = TrainingConfig(
             learning_rate=0.001,
@@ -628,20 +627,24 @@ class ContinuousLearningController(QObject):
             patience=100,
             test_size=0.2
         )
+        
         # 数据管理
         self._training_data = []
         self._test_data = []
         self._selected_tables = []
         self._selected_features = []
         self._target_label = ""
+        
         # 模型管理 - 使用统一的预测器接口
         self._predictors = {}  # 存储预测器实例
         self._models = {}      # 存储模型信息
         self._current_model = None
         self._training_history = {}
         self._test_results = {}
+        
         # Excel文件路径
         self._excel_file_path = ""
+        
         # 训练线程
         self._training_thread = None
         self._mutex = QMutex()
@@ -1184,7 +1187,117 @@ class ContinuousLearningController(QObject):
             self.testLogUpdated.emit(f"推断任务类型失败: {str(e)}")
             return "unknown"
     
-    
+    def _load_test_data(self, data_tables, features, target_label, feature_mapping, task_type=None):
+        """加载测试数据"""
+        try:
+            # 合并所有数据表
+            all_data = []
+            for table_name in data_tables:
+                try:
+                    conn = sqlite3.connect(self._db_path)
+                    df = pd.read_sql_query(f"SELECT * FROM \"{table_name}\"", conn)
+                    conn.close()
+                    all_data.append(df)
+                    self.testLogUpdated.emit(f"已加载表 {table_name}: {len(df)} 行")
+                except Exception as e:
+                    self.testLogUpdated.emit(f"加载表 {table_name} 失败: {str(e)}")
+                    continue
+            
+            if not all_data:
+                self.testLogUpdated.emit("没有成功加载任何数据表")
+                return None, None
+            
+            # 合并数据
+            combined_df = pd.concat(all_data, ignore_index=True)
+            self.testLogUpdated.emit(f"合并数据完成: 总共 {len(combined_df)} 行")
+            
+            # 使用与训练时相同的特征映射逻辑
+            def get_model_feature_order(task_type):
+                """获取模型特征的标准顺序（与训练时保持一致）"""
+                if task_type == "glr":
+                    return 
+                    return ["Geopressure", "ProduceIndex", "BHT", "Qf", "BSW", "API", "GOR", "Pb", "WHP"]
+                elif task_type in ["production", "head"]:
+                    return ["phdm", "freq", "Pr", "IP", "BHT", "Qf", "BSW", "API", "GOR", "Pb", "WHP"]
+                else:
+                    self.testLogUpdated.emit(f"警告: 未知任务类型 {task_type}")
+                    return []
+            
+            # 获取模型期望的特征顺序
+            model_feature_order = get_model_feature_order(task_type) if task_type else []
+            
+            if not model_feature_order:
+                self.testLogUpdated.emit("无法确定模型特征顺序，使用用户原始特征")
+                mapped_features = features
+            elif feature_mapping:
+                # 有特征映射，直接按照to_list顺序从映射中取特征
+                self.testLogUpdated.emit("应用特征映射:")
+                self.testLogUpdated.emit(f"特征映射字典: {feature_mapping}")
+                self.testLogUpdated.emit(f"期望特征顺序: {model_feature_order}")
+                mapped_features = []
+                
+                for i, model_feature in enumerate(model_feature_order):
+                    if model_feature in feature_mapping:
+                        user_feature = feature_mapping[model_feature]
+                        mapped_features.append(user_feature)
+                        self.testLogUpdated.emit(f"  [{i}] {model_feature} → {user_feature}")
+                    else:
+                        self.testLogUpdated.emit(f"  [{i}] 错误: 特征映射中缺少 {model_feature}")
+                        self.testLogUpdated.emit(f"映射不完整，返回原始特征: {features}")
+                        mapped_features = features  # 映射不完整，返回原始特征
+                        break
+            else:
+                # 没有特征映射，直接取用户特征的前N个
+                expected_count = len(model_feature_order)
+                if len(features) >= expected_count:
+                    mapped_features = features[:expected_count]
+                    self.testLogUpdated.emit(f"无特征映射，取前 {expected_count} 个用户特征:")
+                    self.testLogUpdated.emit(f"原始用户特征: {features}")
+                    self.testLogUpdated.emit(f"选择的特征: {mapped_features}")
+                else:
+                    self.testLogUpdated.emit(f"用户特征数量 {len(features)} 少于期望的 {expected_count} 个")
+                    self.testLogUpdated.emit(f"返回所有用户特征: {features}")
+                    mapped_features = features
+            
+            self.testLogUpdated.emit(f"最终特征数量: {len(mapped_features)}")
+            self.testLogUpdated.emit(f"最终特征顺序: {mapped_features}")
+            self.testLogUpdated.emit(f"期望特征顺序: {model_feature_order}")
+            
+            # 验证特征顺序是否正确
+            if len(mapped_features) == len(model_feature_order) and feature_mapping:
+                self.testLogUpdated.emit("特征顺序验证:")
+                for i, (expected, actual) in enumerate(zip(model_feature_order, mapped_features)):
+                    if expected in feature_mapping and feature_mapping[expected] == actual:
+                        self.testLogUpdated.emit(f"  ✓ [{i}] {expected} → {actual}")
+                    else:
+                        self.testLogUpdated.emit(f"  ✗ [{i}] 期望 {expected}，实际 {actual}")
+            
+            # 检查必要的列
+            required_cols = mapped_features + [target_label]
+            missing_cols = [col for col in required_cols if col not in combined_df.columns]
+            if missing_cols:
+                self.testLogUpdated.emit(f"数据中缺少必要的列: {missing_cols}")
+                return None, None
+            
+            X_test = combined_df[mapped_features].values
+            y_test = combined_df[target_label].values
+            
+            # 移除包含NaN的行
+            valid_indices = ~(np.isnan(X_test).any(axis=1) | np.isnan(y_test))
+            X_test = X_test[valid_indices]
+            y_test = y_test[valid_indices]
+            
+            self.testLogUpdated.emit(f"有效测试样本: {len(X_test)} 个")
+            
+            if len(X_test) == 0:
+                self.testLogUpdated.emit("没有有效的测试样本")
+                return None, None
+            
+            return X_test, y_test
+            
+        except Exception as e:
+            self.testLogUpdated.emit(f"加载测试数据失败: {str(e)}")
+            return None, None
     
     # ================== 其他功能保持不变 ==================
     
@@ -1198,11 +1311,13 @@ class ContinuousLearningController(QObject):
     @Slot(result=dict)
     @Slot(str, result=dict)
     def uploadDataFileToDatabase(self, custom_table_name=""):
-        """上传数据文件到数据库（使用DatabaseManager）"""
+        """上传数据文件到数据库"""
         try:
             if not self._excel_file_path:
                 return {"success": False, "error": "未选择数据文件"}
+            
             file_path = self._excel_file_path
+            
             # 根据文件扩展名选择读取方法
             if file_path.lower().endswith('.csv'):
                 df = pd.read_csv(file_path)
@@ -1210,32 +1325,29 @@ class ContinuousLearningController(QObject):
                 df = pd.read_excel(file_path)
             else:
                 return {"success": False, "error": "不支持的文件格式，请选择Excel(.xlsx/.xls)或CSV(.csv)文件"}
+            
             # 确定表名
             if custom_table_name.strip():
                 table_name = custom_table_name.strip()
             else:
                 timestamp = int(time.time())
                 table_name = f"data_upload_{timestamp}"
-            # 用DatabaseManager批量插入
-            data_list = df.to_dict(orient='records')
-            if not data_list:
-                return {"success": False, "error": "数据文件为空"}
-            # 创建表（如果不存在）
-            columns = df.columns.tolist()
-            col_defs = ', '.join([f'"{col}" TEXT' for col in columns])
-            create_sql = f'CREATE TABLE IF NOT EXISTS "{table_name}" ({col_defs})'
-            self._db_manager.execute_custom_query(create_sql)
-            # 清空表再插入
-            self._db_manager.execute_custom_query(f'DELETE FROM "{table_name}"')
-            self._db_manager.batch_insert(table_name, data_list)
+            
+            # 连接数据库
+            conn = sqlite3.connect(self._db_path)
+            df.to_sql(table_name, conn, if_exists='replace', index=False)
+            conn.close()
+            
             logger.info(f"数据文件成功上传到表: {table_name}")
             self.tablesListUpdated.emit(self.getAvailableTables())
+            
             return {
-                "success": True,
+                "success": True, 
                 "table_name": table_name,
                 "records": len(df),
                 "columns": list(df.columns)
             }
+            
         except Exception as e:
             error_msg = f"数据文件上传失败: {str(e)}"
             logger.error(error_msg)
@@ -1244,12 +1356,17 @@ class ContinuousLearningController(QObject):
     # 数据库管理功能
     @Slot(result=list)
     def getAvailableTables(self):
-        """获取数据库中的可用表（兼容原有接口）"""
+        """获取数据库中的可用表"""
         try:
-            # 直接用DatabaseManager自定义查询
-            result = self._db_manager.execute_custom_query("SELECT name FROM sqlite_master WHERE type='table'")
-            all_tables = [row['name'] for row in result]
+            conn = sqlite3.connect(self._db_path)
+            cursor = conn.cursor()
+            cursor.execute("SELECT name FROM sqlite_master WHERE type='table'")
+            all_tables = [row[0] for row in cursor.fetchall()]
+            conn.close()
+            
+            # 过滤只保留data或test开头的表
             filtered_tables = [table for table in all_tables if table.startswith('data') or table.startswith('test')]
+            
             logger.info(f"Found {len(filtered_tables)} filtered tables: {filtered_tables}")
             self.tablesListUpdated.emit(filtered_tables)
             return filtered_tables
@@ -1259,10 +1376,14 @@ class ContinuousLearningController(QObject):
     
     @Slot(str, result=list)
     def getTableFields(self, table_name):
-        """获取指定表的字段（兼容原有接口）"""
+        """获取指定表的字段"""
         try:
-            result = self._db_manager.execute_custom_query(f"PRAGMA table_info('{table_name}')")
-            fields = [row['name'] for row in result]
+            conn = sqlite3.connect(self._db_path)
+            cursor = conn.cursor()
+            cursor.execute(f"PRAGMA table_info({table_name})")
+            fields = [row[1] for row in cursor.fetchall()]
+            conn.close()
+            
             self.fieldsListUpdated.emit(fields)
             return fields
         except Exception as e:
@@ -1278,94 +1399,105 @@ class ContinuousLearningController(QObject):
             logger.error(f"获取模型期望特征失败: {str(e)}")
             return []
     
-    def _load_test_data(self, data_tables, features, target_label, feature_mapping, task_type=None):
+    @Slot(str, result='QVariant')
+    def previewTableData(self, table_name):
         """预览表数据"""
         try:
-            # 合并所有数据表（使用DatabaseManager）
-            all_data = []
-            for table_name in data_tables:
-                try:
-                    rows = self._db_manager.execute_custom_query(f"SELECT * FROM '{table_name}'")
-                    if rows:
-                        df = pd.DataFrame(rows)
-                        all_data.append(df)
-                        self.testLogUpdated.emit(f"已加载表 {table_name}: {len(df)} 行")
-                except Exception as e:
-                    self.testLogUpdated.emit(f"加载表 {table_name} 失败: {str(e)}")
-                    continue
-            if not all_data:
-                self.testLogUpdated.emit("没有成功加载任何数据表")
-                return None, None
-            combined_df = pd.concat(all_data, ignore_index=True)
-            self.testLogUpdated.emit(f"合并数据完成: 总共 {len(combined_df)} 行")
-            # ...existing code for feature mapping and validation...
-            def get_model_feature_order(task_type):
-                if task_type == "glr":
-                    return ["Geopressure", "ProduceIndex", "BHT", "Qf", "BSW", "API", "GOR", "Pb", "WHP"]
-                elif task_type in ["production", "head"]:
-                    return ["phdm", "freq", "Pr", "IP", "BHT", "Qf", "BSW", "API", "GOR", "Pb", "WHP"]
-                else:
-                    self.testLogUpdated.emit(f"警告: 未知任务类型 {task_type}")
-                    return []
-            model_feature_order = get_model_feature_order(task_type) if task_type else []
-            if not model_feature_order:
-                self.testLogUpdated.emit("无法确定模型特征顺序，使用用户原始特征")
-                mapped_features = features
-            elif feature_mapping:
-                self.testLogUpdated.emit("应用特征映射:")
-                self.testLogUpdated.emit(f"特征映射字典: {feature_mapping}")
-                self.testLogUpdated.emit(f"期望特征顺序: {model_feature_order}")
-                mapped_features = []
-                for i, model_feature in enumerate(model_feature_order):
-                    if model_feature in feature_mapping:
-                        user_feature = feature_mapping[model_feature]
-                        mapped_features.append(user_feature)
-                        self.testLogUpdated.emit(f"  [{i}] {model_feature} → {user_feature}")
-                    else:
-                        self.testLogUpdated.emit(f"  [{i}] 错误: 特征映射中缺少 {model_feature}")
-                        self.testLogUpdated.emit(f"映射不完整，返回原始特征: {features}")
-                        mapped_features = features
-                        break
-            else:
-                expected_count = len(model_feature_order)
-                if len(features) >= expected_count:
-                    mapped_features = features[:expected_count]
-                    self.testLogUpdated.emit(f"无特征映射，取前 {expected_count} 个用户特征:")
-                    self.testLogUpdated.emit(f"原始用户特征: {features}")
-                    self.testLogUpdated.emit(f"选择的特征: {mapped_features}")
-                else:
-                    self.testLogUpdated.emit(f"用户特征数量 {len(features)} 少于期望的 {expected_count} 个")
-                    self.testLogUpdated.emit(f"返回所有用户特征: {features}")
-                    mapped_features = features
-            self.testLogUpdated.emit(f"最终特征数量: {len(mapped_features)}")
-            self.testLogUpdated.emit(f"最终特征顺序: {mapped_features}")
-            self.testLogUpdated.emit(f"期望特征顺序: {model_feature_order}")
-            if len(mapped_features) == len(model_feature_order) and feature_mapping:
-                self.testLogUpdated.emit("特征顺序验证:")
-                for i, (expected, actual) in enumerate(zip(model_feature_order, mapped_features)):
-                    if expected in feature_mapping and feature_mapping[expected] == actual:
-                        pass
-                    else:
-                        pass
-            required_cols = mapped_features + [target_label]
-            missing_cols = [col for col in required_cols if col not in combined_df.columns]
-            if missing_cols:
-                self.testLogUpdated.emit(f"数据中缺少必要的列: {missing_cols}")
-                return None, None
-            X_test = combined_df[mapped_features].values
-            y_test = combined_df[target_label].values
-            valid_indices = ~(np.isnan(X_test).any(axis=1) | np.isnan(y_test))
-            X_test = X_test[valid_indices]
-            y_test = y_test[valid_indices]
-            self.testLogUpdated.emit(f"有效测试样本: {len(X_test)} 个")
-            if len(X_test) == 0:
-                self.testLogUpdated.emit("没有有效的测试样本")
-                return None, None
-            return X_test, y_test
+            conn = sqlite3.connect(self._db_path)
+            cursor = conn.cursor()
+            
+            # 获取前20行数据
+            cursor.execute(f"SELECT * FROM \"{table_name}\" LIMIT 20")
+            rows = cursor.fetchall()
+            
+            # 获取列名
+            cursor.execute(f"PRAGMA table_info({table_name})")
+            columns = [row[1] for row in cursor.fetchall()]
+            
+            conn.close()
+            
+            if not rows:
+                return {
+                    "success": True,
+                    "columns": [],
+                    "rows": [],
+                    "message": "表为空"
+                }
+            
+            # 格式化数据为二维数组
+            formatted_rows = []
+            for row in rows:
+                formatted_row = [str(val) if val is not None else "NULL" for val in row]
+                formatted_rows.append(formatted_row)
+            
+            return {
+                "success": True,
+                "columns": columns,
+                "rows": formatted_rows,
+                "total_rows": len(rows)
+            }
+            
         except Exception as e:
-            self.testLogUpdated.emit(f"加载测试数据失败: {str(e)}")
-            return None, None
+            error_msg = f"预览表数据失败: {str(e)}"
+            logger.error(error_msg)
+            return {
+                "success": False,
+                "error": error_msg
+            }
+    
+    @Slot(result=list)
+    def getTrainingDataList(self):
+        """获取训练数据列表"""
+        try:
+            if hasattr(self, '_training_data') and self._training_data is not None:
+                # 确保 _training_data 是 DataFrame 对象
+                if isinstance(self._training_data, pd.DataFrame):
+                    data_list = self._training_data.head(100).to_dict('records')  # 只返回前100条用于显示
+                    return data_list
+                elif isinstance(self._training_data, list):
+                    # 如果是列表，直接返回前100个元素
+                    return self._training_data[:100]
+            return []
+        except Exception as e:
+            logger.error(f"获取训练数据列表失败: {str(e)}")
+            return []
         
+    
+    @Slot(str, result='QVariant')
+    def deleteTable(self, table_name):
+        """删除数据表"""
+        try:
+            conn = sqlite3.connect(self._db_path)
+            cursor = conn.cursor()
+            
+            # 先检查表是否存在
+            cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name=?", (table_name,))
+            exists = cursor.fetchone()
+            if not exists:
+                conn.close()
+                return {
+                    "success": False,
+                    "error": f"表 {table_name} 不存在"
+                }
+            
+            cursor.execute(f"DROP TABLE IF EXISTS {table_name}")
+            conn.commit()
+            conn.close()
+            
+            logger.info(f"成功删除表: {table_name}")
+            return {
+                "success": True,
+                "message": f"表 {table_name} 已删除"
+            }
+            
+        except Exception as e:
+            error_msg = f"删除表失败: {str(e)}"
+            logger.error(error_msg)
+            return {
+                "success": False,
+                "error": error_msg
+            }
+    
     @Slot(str, result='QVariant')
     def downloadTemplate(self, task_type):
         """下载对应任务的Excel模板文件"""
