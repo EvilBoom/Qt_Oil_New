@@ -1,8 +1,0 @@
-module ContinuousLearning.components
-TaskSelector 1.0 TaskSelector.qml
-StepIndicator 1.0 StepIndicator.qml
-DataManagement 1.0 DataManagement.qml
-ModelTraining 1.0 ModelTraining.qml
-ModelTesting 1.0 ModelTesting.qml
-ModelTestingConfig 1.0 ModelTestingConfig.qml
-ModelTestingExecution 1.0 ModelTestingExecution.qml

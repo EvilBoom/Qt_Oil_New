@@ -42,7 +42,7 @@ Rectangle {
             Layout.fillWidth: true
             text: root.stepTitle
             color: root.getTextColor()
-            font.pixelSize: 12
+            font.pixelSize: 14
             font.bold: root.isActive
             horizontalAlignment: Text.AlignHCenter
             wrapMode: Text.WordWrap

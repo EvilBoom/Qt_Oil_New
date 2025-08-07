@@ -2,9 +2,7 @@
 模型特征配置类
 定义不同任务类型所需的输入特征
 """
-from .svrQF import  QFInput
-from .svrTDH import SVRInput as TDHInput
-from .keraGLR import GLRInput
+from .model import QFInput, SVRInput as TDHInput, GLRInput  
 
 class ModelFeatureConfig:
     """模型特征配置管理类"""

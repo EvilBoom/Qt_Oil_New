@@ -16,6 +16,7 @@ Rectangle {
     // 配置相关属性
     property string selectedTask: ""           // 选择的测试任务
     property string selectedModel: ""          // 选择的模型
+    property string selectedModelPath: ""      // 选择的模型文件路径
     property string modelType: ""              // 模型类型（local/file/folder）
     property var availableDataTables: []       // data开头的表
     property var availableTestTables: []       // test开头的表  
@@ -63,6 +64,7 @@ Rectangle {
         return {
             task: root.selectedTask,
             model: root.selectedModel,
+            modelPath: root.selectedModelPath,
             modelType: root.modelType,
             dataTables: root.selectedDataTables,
             inputFeatures: featureConfig.inputFeatures,
@@ -302,6 +304,18 @@ Rectangle {
                                                 root.modelType = "local"
                                                 root.addLog(root.isChinese ? `已选择本地模型: ${selectedModelName}` : `Selected local model: ${selectedModelName}`)
                                                 
+                                                // 获取模型的完整文件路径
+                                                if (root.continuousLearningController) {
+                                                    let modelPath = root.continuousLearningController.getModelPath(selectedModelName)
+                                                    if (modelPath && modelPath.length > 0) {
+                                                        root.addLog(root.isChinese ? `模型路径: ${modelPath}` : `Model path: ${modelPath}`)
+                                                        // 将完整路径保存到selectedModel中，以便后续使用
+                                                        root.selectedModelPath = modelPath
+                                                    } else {
+                                                        root.addLog(root.isChinese ? `警告: 未找到模型 ${selectedModelName} 的文件路径` : `Warning: Could not find file path for model ${selectedModelName}`)
+                                                    }
+                                                }
+                                                
                                                 // 清除外部模型选择
                                                 externalModelPath.text = root.getExternalModelHint()
                                                 externalModelPath.color = "#6c757d"
@@ -502,7 +516,7 @@ Rectangle {
                             
                             Text {
                                 text: root.isChinese ? `共 ${root.commonFeatures.length} 个特征` : `${root.commonFeatures.length} features total`
-                                font.pixelSize: 12
+                                font.pixelSize: 14
                                 color: "#6c757d"
                             }
                             
@@ -563,7 +577,7 @@ Rectangle {
                                 "Please select features for model input. Selected features will be passed directly to the model."
                         }
                     }
-                    font.pixelSize: 12
+                    font.pixelSize: 14
                     color: "#6c757d"
                     wrapMode: Text.WordWrap
                     Layout.fillWidth: true
@@ -738,7 +752,7 @@ Rectangle {
                     text: root.isChinese ? 
                         "请将数据中的特征映射到模型期望的输入特征。这一步骤确保您的数据特征能正确对应到模型的输入要求：" :
                         "Map your data features to model expected input features. This step ensures your data features correctly correspond to the model's input requirements:"
-                    font.pixelSize: 12
+                    font.pixelSize: 14
                     color: "#6c757d"
                     wrapMode: Text.WordWrap
                 }
@@ -777,7 +791,7 @@ Rectangle {
                                         `${unmappedCount} features still need mapping`
                                 }
                             }
-                            font.pixelSize: 12
+                            font.pixelSize: 14
                             font.bold: true
                             color: "#495057"
                         }
@@ -970,7 +984,7 @@ Rectangle {
                             text: root.isChinese ? 
                                 `• 测试任务: ${root.selectedTask || '未选择'}` :
                                 `• Test Task: ${root.selectedTask || 'Not selected'}`
-                            font.pixelSize: 12
+                            font.pixelSize: 14
                             color: "#495057"
                         }
                         
@@ -978,7 +992,7 @@ Rectangle {
                             text: root.isChinese ? 
                                 `• 测试模型: ${root.selectedModel || '未选择'} (${root.modelType || 'N/A'})` :
                                 `• Test Model: ${root.selectedModel || 'Not selected'} (${root.modelType || 'N/A'})`
-                            font.pixelSize: 12
+                            font.pixelSize: 14
                             color: "#495057"
                         }
                         
@@ -986,7 +1000,7 @@ Rectangle {
                             text: root.isChinese ? 
                                 `• 测试数据表: ${root.selectedDataTables.length} 个` :
                                 `• Test Data Tables: ${root.selectedDataTables.length}`
-                            font.pixelSize: 12
+                            font.pixelSize: 14
                             color: "#495057"
                         }
                         
@@ -997,7 +1011,7 @@ Rectangle {
                                     `• 最终输入特征: ${featureConfig.inputFeatures.length} 个` :
                                     `• Final Input Features: ${featureConfig.inputFeatures.length}`
                             }
-                            font.pixelSize: 12
+                            font.pixelSize: 14
                             color: "#495057"
                         }
                         
@@ -1005,7 +1019,7 @@ Rectangle {
                             text: root.isChinese ? 
                                 `• 预测目标: ${root.targetLabel || '未选择'}` :
                                 `• Target: ${root.targetLabel || 'Not selected'}`
-                            font.pixelSize: 12
+                            font.pixelSize: 14
                             color: "#495057"
                         }
                         
@@ -1021,7 +1035,7 @@ Rectangle {
                                     `• 特征映射: ${mappedCount}/${root.modelExpectedFeatures.length} 个` :
                                     `• Feature Mapping: ${mappedCount}/${root.modelExpectedFeatures.length}`
                             }
-                            font.pixelSize: 12
+                            font.pixelSize: 14
                             color: "#495057"
                             visible: root.modelExpectedFeatures.length > 0
                         }
@@ -1093,7 +1107,7 @@ Rectangle {
                                     return root.isChinese ? "请完成所有特征映射后再开始测试" : "Please complete all feature mappings before testing"
                                 }
                             }
-                            font.pixelSize: 12
+                            font.pixelSize: 14
                             color: "#495057"
                             Layout.fillWidth: true
                         }
