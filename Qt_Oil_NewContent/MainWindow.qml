@@ -441,23 +441,6 @@ Window {
                         }
                         
                         onStatusChanged: {
-                            console.log("DeviceManagement Loader status:", status)
-                            if (status === Loader.Error) {
-                                console.log("Error loading DeviceManagement page")
-                                console.log("Source:", source)
-                            } else if (status === Loader.Ready) {
-                                console.log("DeviceManagement page ready")
-                            } else if (status === Loader.Loading) {
-                                console.log("DeviceManagement page loading...")
-                            }
-                        }
-                        
-                        Component.onCompleted: {
-                            console.log("DeviceManagement Loader completed, source:", source)
-                        }
-
-
-                        onStatusChanged: {
                             console.log("=== DeviceManagementLoader 状态变化 ===")
                             console.log("Status:", status)
                             switch(status) {
@@ -466,12 +449,16 @@ Window {
                                     break
                                 case Loader.Ready:
                                     console.log("状态: Ready - 组件加载成功")
+                                    console.log("DeviceManagement page ready")
                                     break
                                 case Loader.Loading:
                                     console.log("状态: Loading - 正在加载")
+                                    console.log("DeviceManagement page loading...")
                                     break
                                 case Loader.Error:
                                     console.log("状态: Error - 加载失败")
+                                    console.log("Error loading DeviceManagement page")
+                                    console.log("Source:", source)
                                     console.log("错误信息:", sourceComponent ? sourceComponent.errorString() : "未知错误")
                                     break
                             }
@@ -479,6 +466,7 @@ Window {
 
                         Component.onCompleted: {
                             console.log("=== DeviceManagementLoader 初始化完成 ===")
+                            console.log("DeviceManagement Loader completed, source:", source)
                             console.log("源文件:", source)
                             console.log("初始状态:", status)
                         }

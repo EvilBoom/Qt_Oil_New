@@ -214,7 +214,8 @@ Window {
                                 }
 
                                 MouseArea {
-                                    anchors.fill: parent
+                                    Layout.fillWidth: true
+                                    Layout.fillHeight: true
                                     cursorShape: Qt.PointingHandCursor
                                     onClicked: {
                                         if (!isChinese) toggleLanguage()
@@ -251,7 +252,8 @@ Window {
                                 }
 
                                 MouseArea {
-                                    anchors.fill: parent
+                                    Layout.fillWidth: true
+                                    Layout.fillHeight: true
                                     cursorShape: Qt.PointingHandCursor
                                     onClicked: {
                                         if (isChinese) toggleLanguage()
@@ -307,7 +309,8 @@ Window {
                                 }
 
                                 MouseArea {
-                                    anchors.fill: parent
+                                    Layout.fillWidth: true
+                                    Layout.fillHeight: true
                                     cursorShape: Qt.PointingHandCursor
                                     onClicked: {
                                         unitSystemController.isMetric = true
@@ -344,7 +347,8 @@ Window {
                                 }
 
                                 MouseArea {
-                                    anchors.fill: parent
+                                    Layout.fillWidth: true
+                                    Layout.fillHeight: true
                                     cursorShape: Qt.PointingHandCursor
                                     onClicked: {
                                         unitSystemController.isMetric = false
@@ -621,14 +625,6 @@ Window {
                             Layout.preferredHeight: 44
                             text: isChinese ? "退出" : "Exit"
                             font.pixelSize: 16
-
-                            contentItem: Text {
-                                text: parent.text
-                                font: parent.font
-                                color: parent.down ? primaryColor : primaryDarkColor
-                                horizontalAlignment: Text.AlignHCenter
-                                verticalAlignment: Text.AlignVCenter
-                            }
 
                             background: Rectangle {
                                 radius: 4
