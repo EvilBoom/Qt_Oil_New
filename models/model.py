@@ -156,12 +156,23 @@ class BasePredictor(QObject, ABC, metaclass=ABCQObjectMeta):
     def __init__(self, X, y, config: TrainingConfig = None, log_widget: QPlainTextEdit = None, 
                  plot_widget: QWidget = None):
         super().__init__()
-        self.X = X
-        self.y = y
+        
+        # 调试：记录传入的原始数据
+        self.logger = logger
+        self.log(f"BasePredictor构造函数 - 接收到的X类型: {type(X)}, 形状/长度: {getattr(X, 'shape', len(X) if hasattr(X, '__len__') else 'unknown')}")
+        self.log(f"BasePredictor构造函数 - 接收到的y类型: {type(y)}, 长度: {len(y) if hasattr(y, '__len__') else 'unknown'}")
+        
+        # 确保X和y是numpy数组
+        self.X = np.array(X) if not isinstance(X, np.ndarray) else X
+        self.y = np.array(y) if not isinstance(y, np.ndarray) else y
+        
+        # 调试：记录转换后的数据
+        self.log(f"BasePredictor构造函数 - 转换后的X形状: {self.X.shape}")
+        self.log(f"BasePredictor构造函数 - 转换后的y形状: {self.y.shape}")
+        
         self.config = config or TrainingConfig()
         self.log_widget = log_widget
         self.plot_widget = plot_widget
-        self.logger = logger
         
         # 模型相关
         self.model = None
@@ -351,8 +362,8 @@ class GLRInput:
     
     @classmethod
     def get_features(cls):
-        return ("地层压力", "生产指数", "井底温度", "期望产量", "含水率", "原油密度", "油气比",
-                "泡点压力", "井口压力")
+        return ("地层压力Pr", "生产指数IP", "井底温度BHT", "期望产量QF", "含水率BSW", "原油密度API", "油气比GOR",
+                "泡点压力Pb", "井口压力WHP")
 
 
 @dataclass
@@ -488,26 +499,70 @@ class GLRPredictor(BasePredictor):
             self.log("警告: 测试数据包含NaN值")
         
     def test(self) -> Dict[str, Any]:
-        """测试模型 - GLR特殊实现，因为数据已经预处理过"""
+        """测试模型 - GLR特殊实现"""
         if not self.is_trained:
             raise ValueError("Model must be trained before testing")
+        
+        # 确保数据是numpy数组
+        if hasattr(self, 'X_test') and self.X_test is not None:
+            self.X_test = np.array(self.X_test) if not isinstance(self.X_test, np.ndarray) else self.X_test
+        if hasattr(self, 'y_test') and self.y_test is not None:
+            self.y_test = np.array(self.y_test) if not isinstance(self.y_test, np.ndarray) else self.y_test
+        
+        # 检查数据有效性 - 优先使用测试数据
+        if hasattr(self, 'X_test') and hasattr(self, 'y_test') and self.X_test is not None and self.y_test is not None:
+            # 有外部设置的测试数据，使用测试数据进行检查
+            test_X = self.X_test
+            test_y = self.y_test
+        else:
+            # 使用内部原始数据
+            test_X = self.X
+            test_y = self.y
             
-        self.log(f"GLR测试开始 - X_test shape: {self.X_test.shape}, y_test shape: {self.y_test.shape}")
+        if test_X.size == 0 or len(test_y) == 0:
+            raise ValueError(f"测试数据为空: X shape: {test_X.shape}, y length: {len(test_y)}")
         
-        # 直接使用预处理过的测试数据，不需要再次预处理
-        y_pred = self.model.predict(self.X_test).flatten()
+        # 检查数据是否已经预处理过（通过特征维度判断）
+        # 预处理过的数据应该有54个特征（多项式变换后），原始数据只有9个特征
+        if (hasattr(self, 'X_test') and hasattr(self, 'y_test') and 
+            self.X_test is not None and self.X_test.size > 0 and 
+            len(self.X_test.shape) == 2 and self.X_test.shape[1] > 9):
+            # 数据已经过多项式变换和标准化，直接使用
+            self.log(f"GLR测试开始 - 使用预处理数据 X_test shape: {self.X_test.shape}, y_test shape: {self.y_test.shape}")
+            y_pred = self.model.predict(self.X_test).flatten()
+            test_metrics = self.evaluate(self.y_test, y_pred)
+            
+            result = {
+                'metrics': test_metrics,
+                'y_true': self.y_test,
+                'y_pred': y_pred,
+                'title': f"{self.model_info.task} Test Results"
+            }
+        else:
+            # 使用原始数据（需要预处理）
+            self.log(f"GLR测试开始 - 使用原始数据 test_X shape: {test_X.shape}, test_y shape: {len(test_y)}")
+            
+            # 确保test_X是2D数组
+            if len(test_X.shape) == 1:
+                # 如果是1D数组，需要根据预期的特征数重新整形
+                if test_X.size % 9 == 0:
+                    test_X = test_X.reshape(-1, 9)
+                    self.log(f"将1D数组重新整形为: {test_X.shape}")
+                else:
+                    raise ValueError(f"无法将数据重新整形为9个特征: 数据大小 {test_X.size} 不是9的倍数")
+            
+            y_pred = self._predict_batch(test_X)
+            test_metrics = self.evaluate(test_y, y_pred)
+            
+            result = {
+                'metrics': test_metrics,
+                'y_true': test_y,
+                'y_pred': y_pred,
+                'title': f"{self.model_info.task} Test Results"
+            }
+        
         self.log(f"GLR预测完成 - y_pred shape: {y_pred.shape}")
-        
-        test_metrics = self.evaluate(self.y_test, y_pred)
         self.log(f"GLR测试指标: {test_metrics}")
-        
-        result = {
-            'metrics': test_metrics,
-            'y_true': self.y_test,
-            'y_pred': y_pred,
-            'title': f"{self.model_info.task} Test Results"
-        }
-        
         self.log(f"GLR测试结果 - y_true长度: {len(result['y_true'])}, y_pred长度: {len(result['y_pred'])}")
         
         return result

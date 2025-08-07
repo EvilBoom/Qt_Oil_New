@@ -12,7 +12,7 @@ from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 import json
 import time
 import sys
-import sqlite3
+import sys
 sys.path.append(str(Path(__file__).parent.parent))
 
 # 导入数据处理器
@@ -226,22 +226,27 @@ class ModelTrainingThread(QThread):
     def _load_and_prepare_data(self):
         """加载和准备训练数据"""
         try:
+            # 创建数据库管理器实例
+            from DataManage.DataManage import DatabaseManager
+            db_manager = DatabaseManager(self.db_path)
+            
             # 合并多个表的数据
             all_dfs = []
-            conn = sqlite3.connect(self.db_path)
             
             for table_name in self.table_names:
                 try:
-                    df = pd.read_sql_query(f"SELECT * FROM \"{table_name}\"", conn)
-                    if not df.empty:
+                    # 使用 DatabaseManager 获取表数据
+                    rows = db_manager.execute_custom_query(f"SELECT * FROM \"{table_name}\"")
+                    if rows:
+                        df = pd.DataFrame(rows)
                         df['data_source'] = table_name
                         all_dfs.append(df)
                         self.trainingLogUpdated.emit(f"从表 {table_name} 加载了 {len(df)} 条记录")
+                    else:
+                        self.trainingLogUpdated.emit(f"表 {table_name} 为空")
                 except Exception as e:
                     self.trainingLogUpdated.emit(f"加载表 {table_name} 失败: {e}")
                     continue
-            
-            conn.close()
             
             if not all_dfs:
                 self.trainingError.emit("没有有效的数据表可用于训练")
@@ -685,6 +690,99 @@ class ContinuousLearningController(QObject):
         except Exception as e:
             logger.error(f"获取模型期望目标失败: {str(e)}")
             return []
+    
+    @Slot(str, result='QVariant')
+    def previewTableData(self, table_name):
+        """预览表数据"""
+        try:
+            # 使用 DatabaseManager 获取表数据
+            rows = self._db_manager.execute_custom_query(f"SELECT * FROM \"{table_name}\" LIMIT 20")
+            
+            if not rows:
+                return {
+                    "success": True,
+                    "columns": [],
+                    "rows": [],
+                    "message": "表为空"
+                }
+            
+            # 获取列名（从第一行的键中获取）
+            columns = list(rows[0].keys()) if rows else []
+            
+            # 格式化数据为二维数组
+            formatted_rows = []
+            for row in rows:
+                formatted_row = [str(row[col]) if row[col] is not None else "NULL" for col in columns]
+                formatted_rows.append(formatted_row)
+            
+            return {
+                "success": True,
+                "columns": columns,
+                "rows": formatted_rows,
+                "total_rows": len(rows)
+            }
+            
+        except Exception as e:
+            error_msg = f"预览表数据失败: {str(e)}"
+            logger.error(error_msg)
+            return {
+                "success": False,
+                "error": error_msg
+            }
+    
+    @Slot(result=list)
+    def getTrainingDataList(self):
+        """获取训练数据列表"""
+        try:
+            if hasattr(self, '_training_data') and self._training_data is not None:
+                # 确保 _training_data 是 DataFrame 对象
+                if isinstance(self._training_data, pd.DataFrame):
+                    data_list = self._training_data.head(100).to_dict('records')  # 只返回前100条用于显示
+                    return data_list
+                elif isinstance(self._training_data, list):
+                    # 如果是列表，直接返回前100个元素
+                    return self._training_data[:100]
+            return []
+        except Exception as e:
+            logger.error(f"获取训练数据列表失败: {str(e)}")
+            return []
+    
+    @Slot(str, result='QVariant')
+    def deleteTable(self, table_name):
+        """删除数据表"""
+        try:
+            # 先检查表是否存在
+            check_result = self._db_manager.execute_custom_query(
+                "SELECT name FROM sqlite_master WHERE type='table' AND name=?", 
+                (table_name,)
+            )
+            
+            if not check_result:
+                return {
+                    "success": False,
+                    "error": f"表 {table_name} 不存在"
+                }
+            
+            # 使用 DatabaseManager 执行删除操作
+            self._db_manager.execute_custom_query(f"DROP TABLE IF EXISTS \"{table_name}\"")
+            
+            logger.info(f"成功删除表: {table_name}")
+            
+            # 更新表列表
+            self.tablesListUpdated.emit(self.getAvailableTables())
+            
+            return {
+                "success": True,
+                "message": f"表 {table_name} 已删除"
+            }
+            
+        except Exception as e:
+            error_msg = f"删除表失败: {str(e)}"
+            logger.error(error_msg)
+            return {
+                "success": False,
+                "error": error_msg
+            }
     
     @Slot(result=list)
     def getAllSupportedTasks(self):
@@ -1134,34 +1232,90 @@ class ContinuousLearningController(QObject):
     def _load_external_predictor(self, model_path, model_type):
         """加载外部预测器 - 使用统一接口"""
         try:
-            path_obj = Path(model_path)
-            # 根据模型类型或路径特征判断使用哪个预测器
-            if "GLR" in model_type.upper() or "glr" in model_path.lower():
+            # 处理本地模型和外部模型的路径问题
+            if model_type == "local":
+                # 对于本地模型，model_path 是模型名称，需要构建完整路径
+                base_path = Path(__file__).parent.parent
+                
+                # 根据模型名称判断模型类型和对应的保存目录
+                if "GLR" in model_path.upper() or "glr" in model_path.lower():
+                    full_model_path = base_path / "GLRsave" / model_path
+                elif "TDH" in model_path.upper() or "tdh" in model_path.lower():
+                    full_model_path = base_path / "TDHsave" / model_path
+                elif "QF" in model_path.upper() or "qf" in model_path.lower():
+                    full_model_path = base_path / "QFsave" / model_path
+                else:
+                    # 如果无法从名称判断，尝试在所有目录中查找
+                    save_dirs = ["GLRsave", "TDHsave", "QFsave"]
+                    full_model_path = None
+                    for save_dir in save_dirs:
+                        potential_path = base_path / save_dir / model_path
+                        if potential_path.exists():
+                            full_model_path = potential_path
+                            break
+                    
+                    if full_model_path is None:
+                        self.testLogUpdated.emit(f"无法找到本地模型: {model_path}")
+                        return None
+                
+                self.testLogUpdated.emit(f"本地模型完整路径: {full_model_path}")
+                actual_model_path = str(full_model_path)
+            else:
+                # 对于外部模型，直接使用提供的路径
+                actual_model_path = model_path
+            
+            path_obj = Path(actual_model_path)
+            
+            # 根据模型路径特征判断使用哪个预测器
+            if "GLR" in actual_model_path.upper() or "glr" in actual_model_path.lower():
                 predictor = GLRPredictor([], [])
-                success = predictor.load_model(model_path)
+                success = predictor.load_model(actual_model_path)
                 if success:
                     self.testLogUpdated.emit("GLR预测器加载成功")
                     return predictor
                     
-            elif "TDH" in model_type.upper() or "tdh" in model_path.lower() or "head" in model_path.lower():
+            elif "TDH" in actual_model_path.upper() or "tdh" in actual_model_path.lower():
                 predictor = TDHPredictor([], [])
-                success = predictor.load_model(model_path)
+                success = predictor.load_model(actual_model_path)
                 if success:
                     self.testLogUpdated.emit("TDH预测器加载成功")
                     return predictor
                     
-            elif "QF" in model_type.upper() or "qf" in model_path.lower() or "production" in model_path.lower():
+            elif "QF" in actual_model_path.upper() or "qf" in actual_model_path.lower():
                 predictor = QFPredictor([], [])
-                success = predictor.load_model(model_path)
+                success = predictor.load_model(actual_model_path)
                 if success:
                     self.testLogUpdated.emit("QF预测器加载成功")
                     return predictor
             
-            self.testLogUpdated.emit(f"无法识别模型类型: {model_type}")
+            # 如果无法从路径判断，尝试根据文件内容判断
+            if path_obj.is_dir():
+                # 检查目录中的文件
+                if (path_obj / "GLR-Model.h5").exists():
+                    predictor = GLRPredictor([], [])
+                    success = predictor.load_model(actual_model_path)
+                    if success:
+                        self.testLogUpdated.emit("GLR预测器加载成功（根据文件内容判断）")
+                        return predictor
+                elif any((path_obj / f).exists() for f in ["TDH-SVR.joblib", "scaler.joblib"]):
+                    predictor = TDHPredictor([], [])
+                    success = predictor.load_model(actual_model_path)
+                    if success:
+                        self.testLogUpdated.emit("TDH预测器加载成功（根据文件内容判断）")
+                        return predictor
+                elif any((path_obj / f).exists() for f in ["QF-SVR.joblib"]):
+                    predictor = QFPredictor([], [])
+                    success = predictor.load_model(actual_model_path)
+                    if success:
+                        self.testLogUpdated.emit("QF预测器加载成功（根据文件内容判断）")
+                        return predictor
+            
+            self.testLogUpdated.emit(f"无法识别模型类型: {model_type}, 路径: {actual_model_path}")
             return None
             
         except Exception as e:
             self.testLogUpdated.emit(f"加载预测器失败: {str(e)}")
+            logger.exception(f"加载预测器异常: {e}")
             return None
     
     def _infer_task_type_from_model_type(self, model_type, model_path):
@@ -1202,40 +1356,51 @@ class ContinuousLearningController(QObject):
         try:
             if not self._excel_file_path:
                 return {"success": False, "error": "未选择数据文件"}
+            
             file_path = self._excel_file_path
             # 根据文件扩展名选择读取方法
             if file_path.lower().endswith('.csv'):
-                df = pd.read_csv(file_path)
+                df = pd.read_csv(file_path, encoding='utf-8')
             elif file_path.lower().endswith(('.xlsx', '.xls')):
                 df = pd.read_excel(file_path)
             else:
                 return {"success": False, "error": "不支持的文件格式，请选择Excel(.xlsx/.xls)或CSV(.csv)文件"}
+            
             # 确定表名
             if custom_table_name.strip():
                 table_name = custom_table_name.strip()
             else:
                 timestamp = int(time.time())
                 table_name = f"data_upload_{timestamp}"
+            
             # 用DatabaseManager批量插入
             data_list = df.to_dict(orient='records')
             if not data_list:
                 return {"success": False, "error": "数据文件为空"}
-            # 创建表（如果不存在）
+            
+            # 创建表（如果不存在），正确处理中文列名
             columns = df.columns.tolist()
+            # 使用双引号包围列名，确保支持中文字符
             col_defs = ', '.join([f'"{col}" TEXT' for col in columns])
             create_sql = f'CREATE TABLE IF NOT EXISTS "{table_name}" ({col_defs})'
+            
+            logger.info(f"创建表SQL: {create_sql}")
             self._db_manager.execute_custom_query(create_sql)
+            
             # 清空表再插入
             self._db_manager.execute_custom_query(f'DELETE FROM "{table_name}"')
             self._db_manager.batch_insert(table_name, data_list)
+            
             logger.info(f"数据文件成功上传到表: {table_name}")
             self.tablesListUpdated.emit(self.getAvailableTables())
+            
             return {
                 "success": True,
                 "table_name": table_name,
                 "records": len(df),
                 "columns": list(df.columns)
             }
+            
         except Exception as e:
             error_msg = f"数据文件上传失败: {str(e)}"
             logger.error(error_msg)
@@ -1261,7 +1426,8 @@ class ContinuousLearningController(QObject):
     def getTableFields(self, table_name):
         """获取指定表的字段（兼容原有接口）"""
         try:
-            result = self._db_manager.execute_custom_query(f"PRAGMA table_info('{table_name}')")
+            # 使用双引号包围表名，确保支持中文字符
+            result = self._db_manager.execute_custom_query(f'PRAGMA table_info("{table_name}")')
             fields = [row['name'] for row in result]
             self.fieldsListUpdated.emit(fields)
             return fields
@@ -1279,13 +1445,14 @@ class ContinuousLearningController(QObject):
             return []
     
     def _load_test_data(self, data_tables, features, target_label, feature_mapping, task_type=None):
-        """预览表数据"""
+        """加载测试数据"""
         try:
             # 合并所有数据表（使用DatabaseManager）
             all_data = []
             for table_name in data_tables:
                 try:
-                    rows = self._db_manager.execute_custom_query(f"SELECT * FROM '{table_name}'")
+                    # 使用双引号包围表名，确保支持中文字符
+                    rows = self._db_manager.execute_custom_query(f'SELECT * FROM "{table_name}"')
                     if rows:
                         df = pd.DataFrame(rows)
                         all_data.append(df)
@@ -1301,9 +1468,11 @@ class ContinuousLearningController(QObject):
             # ...existing code for feature mapping and validation...
             def get_model_feature_order(task_type):
                 if task_type == "glr":
-                    return ["Geopressure", "ProduceIndex", "BHT", "Qf", "BSW", "API", "GOR", "Pb", "WHP"]
-                elif task_type in ["production", "head"]:
-                    return ["phdm", "freq", "Pr", "IP", "BHT", "Qf", "BSW", "API", "GOR", "Pb", "WHP"]
+                    return GLRInput.get_features()
+                elif task_type in ["production"]:
+                    return QFInput.get_features()
+                elif task_type in ["head"]:
+                    return SVRInput.get_features()
                 else:
                     self.testLogUpdated.emit(f"警告: 未知任务类型 {task_type}")
                     return []
@@ -1352,11 +1521,36 @@ class ContinuousLearningController(QObject):
             if missing_cols:
                 self.testLogUpdated.emit(f"数据中缺少必要的列: {missing_cols}")
                 return None, None
-            X_test = combined_df[mapped_features].values
-            y_test = combined_df[target_label].values
-            valid_indices = ~(np.isnan(X_test).any(axis=1) | np.isnan(y_test))
-            X_test = X_test[valid_indices]
-            y_test = y_test[valid_indices]
+            # 确保数据类型为数值，并处理非数值数据
+            try:
+                # 先尝试转换为数值类型
+                feature_data = combined_df[mapped_features]
+                target_data = combined_df[target_label]
+                
+                # 将所有列转换为数值类型，非数值的会变成NaN
+                feature_data = feature_data.apply(pd.to_numeric, errors='coerce')
+                target_data = pd.to_numeric(target_data, errors='coerce')
+                
+                self.testLogUpdated.emit(f"数据类型转换完成")
+                self.testLogUpdated.emit(f"特征数据形状: {feature_data.shape}")
+                self.testLogUpdated.emit(f"目标数据形状: {target_data.shape}")
+                
+                X_test = feature_data.values
+                y_test = target_data.values
+                
+                # 现在可以安全地使用isnan检查
+                valid_indices = ~(np.isnan(X_test).any(axis=1) | np.isnan(y_test))
+                X_test = X_test[valid_indices]
+                y_test = y_test[valid_indices]
+                
+                # 统计无效数据
+                invalid_count = len(combined_df) - len(X_test)
+                if invalid_count > 0:
+                    self.testLogUpdated.emit(f"过滤掉 {invalid_count} 个包含缺失值或非数值的样本")
+                    
+            except Exception as e:
+                self.testLogUpdated.emit(f"数据类型转换失败: {str(e)}")
+                return None, None
             self.testLogUpdated.emit(f"有效测试样本: {len(X_test)} 个")
             if len(X_test) == 0:
                 self.testLogUpdated.emit("没有有效的测试样本")

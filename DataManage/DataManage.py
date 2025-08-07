@@ -94,6 +94,8 @@ class DatabaseManager:
             self._local.connection.execute("PRAGMA journal_mode = WAL")
             self._local.connection.execute("PRAGMA synchronous = NORMAL")
             self._local.connection.execute("PRAGMA cache_size = 10000")
+            # 设置编码支持中文
+            self._local.connection.execute("PRAGMA encoding = 'UTF-8'")
 
         return self._local.connection
 
@@ -411,14 +413,14 @@ class DatabaseManager:
         if not data_list:
             return False
 
-        # 获取列名
+        # 获取列名，确保正确引用包含中文的列名
         columns = list(data_list[0].keys())
-        columns_str = ', '.join(columns)
+        columns_str = ', '.join([f'"{col}"' for col in columns])  # 用双引号包围列名
         placeholders = ', '.join(['?' for _ in columns])
 
         with self.get_cursor() as cursor:
             cursor.executemany(
-                f"INSERT INTO {table_name} ({columns_str}) VALUES ({placeholders})",
+                f'INSERT INTO "{table_name}" ({columns_str}) VALUES ({placeholders})',
                 [list(item.values()) for item in data_list]
             )
 

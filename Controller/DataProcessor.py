@@ -54,11 +54,31 @@ class DataProcessor:
             df_work = df[required_cols].copy()
             cleaning_info["cleaning_steps"].append(f"选择了 {len(required_cols)} 个需要的列")
             
-            # 2. 处理无穷大值
-            infinite_mask = np.isinf(df_work.select_dtypes(include=[np.number]))
-            if infinite_mask.any().any():
-                df_work = df_work.replace([np.inf, -np.inf], np.nan)
-                cleaning_info["cleaning_steps"].append("将无穷大值替换为NaN")
+            # 2. 处理无穷大值和非数值数据
+            try:
+                # 首先识别数值列
+                numeric_cols = df_work.select_dtypes(include=[np.number]).columns
+                
+                if len(numeric_cols) > 0:
+                    # 仅对数值列检查无穷大值
+                    infinite_mask = np.isinf(df_work[numeric_cols])
+                    if infinite_mask.any().any():
+                        df_work[numeric_cols] = df_work[numeric_cols].replace([np.inf, -np.inf], np.nan)
+                        cleaning_info["cleaning_steps"].append("将数值列中的无穷大值替换为NaN")
+                
+                # 对于非数值列，尝试转换为数值类型
+                non_numeric_cols = [col for col in df_work.columns if col not in numeric_cols]
+                if non_numeric_cols:
+                    for col in non_numeric_cols:
+                        try:
+                            df_work[col] = pd.to_numeric(df_work[col], errors='coerce')
+                            cleaning_info["cleaning_steps"].append(f"将列 {col} 转换为数值类型")
+                        except Exception:
+                            logger.warning(f"列 {col} 无法转换为数值类型")
+                            
+            except Exception as e:
+                logger.warning(f"处理无穷大值时出现警告: {str(e)}")
+                cleaning_info["cleaning_steps"].append("无穷大值处理过程中遇到问题，已跳过")
             
             # 3. 记录缺失值情况
             missing_values = df_work.isnull().sum()
@@ -74,10 +94,42 @@ class DataProcessor:
             if len(df_work) == 0:
                 raise ValueError("数据清理后没有有效数据")
             
-            # 5. 确保数据类型正确
+            # 5. 确保数据类型正确，添加更强的类型转换
             try:
+                # 首先尝试将数据转换为数值型，处理可能的字符串数据
+                feature_data = df_work[features].copy()
+                target_data = df_work[target_label].copy()
+                
+                # 处理特征数据
+                for col in features:
+                    if col in feature_data.columns:
+                        # 尝试转换为数值型，如果失败则用 pandas.to_numeric 强制转换
+                        try:
+                            feature_data[col] = pd.to_numeric(feature_data[col], errors='coerce')
+                        except Exception:
+                            logger.warning(f"特征列 {col} 包含无法转换的数据，将使用 NaN 替代")
+                            feature_data[col] = pd.to_numeric(feature_data[col], errors='coerce')
+                
+                # 处理目标数据
+                try:
+                    target_data = pd.to_numeric(target_data, errors='coerce')
+                except Exception:
+                    logger.warning(f"目标列 {target_label} 包含无法转换的数据，将使用 NaN 替代")
+                    target_data = pd.to_numeric(target_data, errors='coerce')
+                
+                # 重新组合数据，移除转换后产生的 NaN
+                df_work = pd.concat([feature_data, target_data], axis=1)
+                df_work = df_work.dropna()
+                
+                if len(df_work) == 0:
+                    raise ValueError("数据类型转换后没有有效数据")
+                
+                # 重新提取转换后的数据
                 feature_data = df_work[features].astype(float)
                 target_data = df_work[target_label].astype(float)
+                
+                cleaning_info["cleaning_steps"].append("完成数据类型转换和NaN清理")
+                
             except (ValueError, TypeError) as e:
                 raise ValueError(f"数据类型转换失败: {str(e)}")
             
@@ -115,12 +167,22 @@ class DataProcessor:
             X = df_work[features].values
             y = df_work[target_label].values
             
-            # 8. 最终数据验证
-            if np.any(np.isnan(X)) or np.any(np.isnan(y)):
-                raise ValueError("清理后的数据仍包含NaN值")
+            # 8. 最终数据验证 - 使用安全的检查方法
+            try:
+                # 确保数据为数值类型
+                X = np.array(X, dtype=float)
+                y = np.array(y, dtype=float)
                 
-            if np.any(np.isinf(X)) or np.any(np.isinf(y)):
-                raise ValueError("清理后的数据仍包含无穷大值")
+                # 检查NaN值
+                if np.any(np.isnan(X)) or np.any(np.isnan(y)):
+                    raise ValueError("清理后的数据仍包含NaN值")
+                    
+                # 检查无穷大值
+                if np.any(np.isinf(X)) or np.any(np.isinf(y)):
+                    raise ValueError("清理后的数据仍包含无穷大值")
+                    
+            except (ValueError, TypeError) as e:
+                raise ValueError(f"最终数据验证失败: {str(e)}")
                 
             if len(X) == 0 or len(y) == 0:
                 raise ValueError("清理后没有数据")

@@ -77,13 +77,15 @@ Rectangle {
             // 测试控制
             Rectangle {
                 Layout.preferredWidth: 300
-                Layout.preferredHeight: 150
+                Layout.minimumHeight: 120
+                implicitHeight: testControlColumn.implicitHeight + 32
                 color: "white"
                 radius: 8
                 border.width: 1
                 border.color: "#dee2e6"
                 
                 ColumnLayout {
+                    id: testControlColumn
                     anchors.fill: parent
                     anchors.margins: 16
                     spacing: 12
@@ -138,13 +140,15 @@ Rectangle {
             // 测试信息
             Rectangle {
                 Layout.fillWidth: true
-                Layout.preferredHeight: 150
+                Layout.minimumHeight: 120
+                implicitHeight: testInfoColumn.implicitHeight + 32
                 color: "white"
                 radius: 8
                 border.width: 1
                 border.color: "#dee2e6"
                 
                 ColumnLayout {
+                    id: testInfoColumn
                     anchors.fill: parent
                     anchors.margins: 16
                     spacing: 8
@@ -191,37 +195,43 @@ Rectangle {
                     }
                     
                     // 测试结果摘要
-                    RowLayout {
+                    Column {
                         visible: Object.keys(root.testResults).length > 0 && !root.isTesting
+                        spacing: 4
                         
                         Text {
-                            text: root.isChinese ? "结果:" : "Results:"
-                            font.pixelSize: 11
+                            text: root.isChinese ? "测试结果:" : "Test Results:"
+                            font.pixelSize: 12
                             color: "#6c757d"
-                        }
-                        
-                        Text {
-                            text: {
-                                if (root.testResults.mape !== undefined) {
-                                    return `MAPE: ${root.testResults.mape.toFixed(2)}%`
-                                }
-                                return "N/A"
-                            }
-                            font.pixelSize: 11
-                            color: "#495057"
                             font.bold: true
                         }
                         
-                        Text {
-                            text: {
-                                if (root.testResults.r2 !== undefined) {
-                                    return `R²: ${root.testResults.r2.toFixed(4)}`
+                        Row {
+                            spacing: 12
+                            
+                            Text {
+                                text: {
+                                    if (root.testResults.mape !== undefined) {
+                                        return `MAPE: ${root.testResults.mape.toFixed(2)}%`
+                                    }
+                                    return "MAPE: N/A"
                                 }
-                                return ""
+                                font.pixelSize: 11
+                                color: "#495057"
+                                font.bold: true
                             }
-                            font.pixelSize: 11
-                            color: "#495057"
-                            font.bold: true
+                            
+                            Text {
+                                text: {
+                                    if (root.testResults.r2 !== undefined) {
+                                        return `R²: ${root.testResults.r2.toFixed(4)}`
+                                    }
+                                    return "R²: N/A"
+                                }
+                                font.pixelSize: 11
+                                color: "#495057"
+                                font.bold: true
+                            }
                         }
                     }
                 }
@@ -536,7 +546,9 @@ Rectangle {
         Rectangle {
             id: resultsSection
             Layout.fillWidth: true
-            Layout.preferredHeight: resultsSection.resultsExpanded ? 200 : 50
+            Layout.minimumHeight: 50
+            implicitHeight: resultsSection.resultsExpanded ? 
+                (resultsSectionColumn.implicitHeight + 32) : 50
             color: "white"
             radius: 8
             border.width: 1
@@ -545,6 +557,7 @@ Rectangle {
             property bool resultsExpanded: false
             
             ColumnLayout {
+                id: resultsSectionColumn
                 anchors.fill: parent
                 anchors.margins: 16
                 spacing: 12
@@ -569,20 +582,29 @@ Rectangle {
                 }
                 
                 // 详细结果（可展开）
-                RowLayout {
+                ScrollView {
                     Layout.fillWidth: true
                     Layout.fillHeight: true
+                    Layout.minimumHeight: 150
                     visible: resultsSection.resultsExpanded
+                    contentWidth: availableWidth
+                    clip: true
+                    
+                    RowLayout {
+                        width: parent.width
+                        spacing: 12
                     
                     // 评估指标
                     Rectangle {
                         Layout.preferredWidth: 200
-                        Layout.fillHeight: true
+                        Layout.minimumHeight: 120
+                        implicitHeight: metricsColumn.implicitHeight + 24
                         border.width: 1
                         border.color: "#ced4da"
                         radius: 4
                         
                         ColumnLayout {
+                            id: metricsColumn
                             anchors.fill: parent
                             anchors.margins: 12
                             spacing: 8
@@ -664,12 +686,14 @@ Rectangle {
                     // 模型信息
                     Rectangle {
                         Layout.preferredWidth: 250
-                        Layout.fillHeight: true
+                        Layout.minimumHeight: 120
+                        implicitHeight: modelInfoColumn.implicitHeight + 24
                         border.width: 1
                         border.color: "#ced4da"
                         radius: 4
                         
                         ColumnLayout {
+                            id: modelInfoColumn
                             anchors.fill: parent
                             anchors.margins: 12
                             spacing: 8
@@ -722,12 +746,14 @@ Rectangle {
                     // 测试配置
                     Rectangle {
                         Layout.fillWidth: true
-                        Layout.fillHeight: true
+                        Layout.minimumHeight: 120
+                        implicitHeight: testConfigColumn.implicitHeight + 24
                         border.width: 1
                         border.color: "#ced4da"
                         radius: 4
                         
                         ColumnLayout {
+                            id: testConfigColumn
                             anchors.fill: parent
                             anchors.margins: 12
                             spacing: 8
@@ -780,7 +806,8 @@ Rectangle {
                             }
                         }
                     }
-                }
+                    } // RowLayout 结束
+                } // ScrollView 结束
             }
         }
     }
@@ -796,6 +823,11 @@ Rectangle {
         root.testProgress = 0
         root.testResults = {}
         addLog(root.isChinese ? "开始模型测试..." : "Starting model testing...")
+        
+        // 数据验证提示
+        addLog(root.isChinese ? 
+            "提示：请确保测试数据中所有特征列都是数值类型" : 
+            "Tip: Please ensure all feature columns in test data are numeric")
         
         // 确定使用的模型路径
         let modelToUse = root.selectedModelPath && root.selectedModelPath.length > 0 ? 
@@ -865,6 +897,21 @@ Rectangle {
         
         function onTestLogUpdated(logMessage) {
             root.addLog(logMessage)
+            
+            // 如果遇到数据类型错误，提供用户友好的提示
+            if (logMessage.includes("ufunc 'isnan' not supported") || 
+                logMessage.includes("数据类型转换失败") ||
+                logMessage.includes("加载测试数据失败")) {
+                
+                let helpMessage = root.isChinese ? 
+                    "数据格式提示：请确保所有特征列都是数值类型。如果数据中包含文本、空白或特殊字符，请先清理数据。" :
+                    "Data Format Tip: Please ensure all feature columns are numeric. If data contains text, blanks, or special characters, please clean the data first."
+                    
+                // 延迟添加提示消息，避免与错误消息同时显示
+                Qt.callLater(function() {
+                    root.addLog(helpMessage)
+                })
+            }
         }
     }
     

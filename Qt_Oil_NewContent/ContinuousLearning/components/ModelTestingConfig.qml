@@ -12,6 +12,26 @@ Rectangle {
     property bool isChinese: true
     property int currentProjectId: -1
     property var continuousLearningController
+    property bool _initialized: false
+    
+    // 监听 continuousLearningController 的变化
+    onContinuousLearningControllerChanged: {
+        console.log("=== ModelTestingConfig: continuousLearningController changed ===")
+        console.log("New controller:", continuousLearningController)
+        console.log("Controller type:", typeof continuousLearningController)
+        console.log("Controller is null?", continuousLearningController === null)
+        console.log("Controller is undefined?", continuousLearningController === undefined)
+        
+        if (continuousLearningController && !_initialized) {
+            _initialized = true
+            console.log("Controller became available, initializing...")
+            Qt.callLater(function() {
+                refreshDataTables()
+                updateFinalInputFeatures()
+                addLog(isChinese ? "模型测试配置页面已加载，控制器已初始化" : "Model testing configuration page loaded, controller initialized")
+            })
+        }
+    }
     
     // 配置相关属性
     property string selectedTask: ""           // 选择的测试任务
@@ -80,8 +100,11 @@ Rectangle {
         anchors.fill: parent
         anchors.margins: 24
         contentWidth: availableWidth
+        contentHeight: mainColumn.implicitHeight
+        clip: true
         
         ColumnLayout {
+            id: mainColumn
             width: parent.width
             spacing: 24
             
@@ -124,13 +147,15 @@ Rectangle {
                 
                 Rectangle {
                     Layout.fillWidth: true
-                    Layout.preferredHeight: 120
+                    Layout.minimumHeight: 80
+                    implicitHeight: taskSelectionColumn.implicitHeight + 32
                     color: "white"
                     radius: 8
                     border.width: 1
                     border.color: "#dee2e6"
                     
                     ColumnLayout {
+                        id: taskSelectionColumn
                         anchors.fill: parent
                         anchors.margins: 16
                         spacing: 12
@@ -240,13 +265,15 @@ Rectangle {
                 
                 Rectangle {
                     Layout.fillWidth: true
-                    Layout.preferredHeight: 200
+                    Layout.minimumHeight: 160
+                    implicitHeight: modelSelectionColumn.implicitHeight + 32
                     color: "white"
                     radius: 8
                     border.width: 1
                     border.color: "#dee2e6"
                     
                     ColumnLayout {
+                        id: modelSelectionColumn
                         anchors.fill: parent
                         anchors.margins: 16
                         spacing: 12
@@ -263,12 +290,14 @@ Rectangle {
                             // 本地训练模型选择
                             Rectangle {
                                 Layout.fillWidth: true
-                                Layout.preferredHeight: 120
+                                Layout.minimumHeight: 80
+                                implicitHeight: localModelColumn.implicitHeight + 24
                                 border.width: 1
                                 border.color: "#ced4da"
                                 radius: 6
                                 
                                 ColumnLayout {
+                                    id: localModelColumn
                                     anchors.fill: parent
                                     anchors.margins: 12
                                     spacing: 8
@@ -372,12 +401,14 @@ Rectangle {
                             // 外部模型选择（文件或文件夹）
                             Rectangle {
                                 Layout.preferredWidth: 300
-                                Layout.preferredHeight: 120
+                                Layout.minimumHeight: 80
+                                implicitHeight: externalModelColumn.implicitHeight + 24
                                 border.width: 1
                                 border.color: "#ced4da"
                                 radius: 6
                                 
                                 ColumnLayout {
+                                    id: externalModelColumn
                                     anchors.fill: parent
                                     anchors.margins: 12
                                     spacing: 8
@@ -437,13 +468,15 @@ Rectangle {
                 
                 Rectangle {
                     Layout.fillWidth: true
-                    Layout.preferredHeight: 300
+                    Layout.minimumHeight: 250
+                    implicitHeight: testDataRow.implicitHeight + 32
                     color: "white"
                     radius: 8
                     border.width: 1
                     border.color: "#dee2e6"
                     
                     RowLayout {
+                        id: testDataRow
                         anchors.fill: parent
                         anchors.margins: 16
                         spacing: 16
@@ -472,6 +505,7 @@ Rectangle {
                             Rectangle {
                                 Layout.fillWidth: true
                                 Layout.fillHeight: true
+                                Layout.minimumHeight: 150
                                 border.width: 1
                                 border.color: "#ced4da"
                                 radius: 4
@@ -523,6 +557,7 @@ Rectangle {
                             Rectangle {
                                 Layout.fillWidth: true
                                 Layout.fillHeight: true
+                                Layout.minimumHeight: 150
                                 border.width: 1
                                 border.color: "#ced4da"
                                 radius: 4
@@ -585,13 +620,15 @@ Rectangle {
                 
                 Rectangle {
                     Layout.fillWidth: true
-                    Layout.preferredHeight: 350
+                    Layout.minimumHeight: 280
+                    implicitHeight: featureSelectionRow.implicitHeight + 32
                     color: "white"
                     radius: 8
                     border.width: 1
                     border.color: "#dee2e6"
                     
                     RowLayout {
+                        id: featureSelectionRow
                         anchors.fill: parent
                         anchors.margins: 16
                         spacing: 16
@@ -611,6 +648,7 @@ Rectangle {
                             Rectangle {
                                 Layout.fillWidth: true
                                 Layout.fillHeight: true
+                                Layout.minimumHeight: 200
                                 border.width: 1
                                 border.color: "#ced4da"
                                 radius: 4
@@ -679,6 +717,7 @@ Rectangle {
                             Rectangle {
                                 Layout.fillWidth: true
                                 Layout.fillHeight: true
+                                Layout.minimumHeight: 200
                                 border.width: 1
                                 border.color: "#ced4da"
                                 radius: 4
@@ -734,13 +773,15 @@ Rectangle {
                 // 调试信息显示
                 Rectangle {
                     Layout.fillWidth: true
-                    Layout.preferredHeight: 30
+                    Layout.minimumHeight: 20
+                    implicitHeight: debugText.implicitHeight + 16
                     color: "#f0f0f0"
                     border.width: 1
                     border.color: "#ccc"
                     visible: true  // 强制显示以便调试
                     
                     Text {
+                        id: debugText
                         anchors.centerIn: parent
                         text: `调试: modelExpectedFeatures.length=${root.modelExpectedFeatures.length}, selectedDataTables.length=${root.selectedDataTables.length}`
                         font.pixelSize: 10
@@ -760,13 +801,15 @@ Rectangle {
                 // 映射状态提示
                 Rectangle {
                     Layout.fillWidth: true
-                    Layout.preferredHeight: 40
+                    Layout.minimumHeight: 32
+                    implicitHeight: mappingStatusRow.implicitHeight + 24
                     color: root.checkFeatureMappingComplete() ? "#d1f2eb" : "#fff3cd"
                     border.width: 1
                     border.color: root.checkFeatureMappingComplete() ? "#28a745" : "#ffc107"
                     radius: 6
                     
                     RowLayout {
+                        id: mappingStatusRow
                         anchors.fill: parent
                         anchors.margins: 12
                         spacing: 8
@@ -809,13 +852,15 @@ Rectangle {
                 
                 Rectangle {
                     Layout.fillWidth: true
-                    Layout.preferredHeight: 300
+                    Layout.minimumHeight: 200
+                    implicitHeight: Math.max(200, featureMappingScrollView.contentHeight + 16)
                     color: "white"
                     radius: 8
                     border.width: 1
                     border.color: "#dee2e6"
                     
                     ScrollView {
+                        id: featureMappingScrollView
                         anchors.fill: parent
                         anchors.margins: 8
                         contentWidth: Math.max(availableWidth, featureMappingFlow.implicitWidth)
@@ -969,13 +1014,15 @@ Rectangle {
                 
                 Rectangle {
                     Layout.fillWidth: true
-                    Layout.preferredHeight: 140
+                    Layout.minimumHeight: 120
+                    implicitHeight: configSummaryColumn.implicitHeight + 32
                     color: "#f8f9fa"
                     border.width: 1
                     border.color: "#dee2e6"
                     radius: 6
                     
                     ColumnLayout {
+                        id: configSummaryColumn
                         anchors.fill: parent
                         anchors.margins: 16
                         spacing: 8
@@ -1066,7 +1113,8 @@ Rectangle {
                 // 特征映射状态提示
                 Rectangle {
                     Layout.fillWidth: true
-                    Layout.preferredHeight: 40
+                    Layout.minimumHeight: 32
+                    implicitHeight: finalMappingStatusRow.implicitHeight + 24
                     color: {
                         if (root.modelExpectedFeatures.length === 0) return "transparent"
                         return root.checkFeatureMappingComplete() ? "#d1f2eb" : "#fff3cd"
@@ -1080,6 +1128,7 @@ Rectangle {
                     visible: root.modelExpectedFeatures.length > 0
                     
                     RowLayout {
+                        id: finalMappingStatusRow
                         anchors.fill: parent
                         anchors.margins: 12
                         spacing: 8
@@ -1123,10 +1172,27 @@ Rectangle {
                         text: root.isChinese ? "开始测试" : "Start Testing"
                         enabled: root.isConfigurationComplete()
                         
+                        // 监控按钮状态变化
+                        onEnabledChanged: {
+                            console.log("=== 开始测试按钮状态变化 ===")
+                            console.log("Enabled:", enabled)
+                            console.log("isConfigurationComplete():", root.isConfigurationComplete())
+                        }
+                        
                         onClicked: {
+                            console.log("=== 开始测试按钮被点击 ===")
+                            console.log("Time:", new Date().toLocaleTimeString())
+                            console.log("isConfigurationComplete():", root.isConfigurationComplete())
+                            console.log("About to call validateConfiguration()...")
+                            
                             if (root.validateConfiguration()) {
+                                console.log("Configuration validation passed!")
                                 root.configurationComplete = true
+                                console.log("Emitting startTestingRequested signal...")
                                 root.startTestingRequested()
+                                console.log("startTestingRequested signal emitted")
+                            } else {
+                                console.log("Configuration validation failed!")
                             }
                         }
                         
@@ -1247,16 +1313,23 @@ Rectangle {
     
     function refreshDataTables() {
         if (!root.continuousLearningController) {
-            console.log("Controller not initialized")
+            console.log("Controller not initialized, skipping table refresh")
             return
         }
         
-        let tables = root.continuousLearningController.getAvailableTables()
-        root.availableDataTables = tables.filter(t => t.startsWith('data_') || t.startsWith('test_'))
-        
-        addLog(root.isChinese ? 
-            `发现 ${root.availableDataTables.length} 个测试数据表` :
-            `Found ${root.availableDataTables.length} test data tables`)
+        try {
+            let tables = root.continuousLearningController.getAvailableTables()
+            root.availableDataTables = tables.filter(t => t.startsWith('data_') || t.startsWith('test_'))
+            
+            addLog(root.isChinese ? 
+                `发现 ${root.availableDataTables.length} 个测试数据表` :
+                `Found ${root.availableDataTables.length} test data tables`)
+        } catch (error) {
+            console.log("Error refreshing data tables:", error)
+            addLog(root.isChinese ? 
+                `刷新数据表失败: ${error}` :
+                `Failed to refresh data tables: ${error}`)
+        }
     }
     
     function updateCommonFeatures() {
@@ -1266,41 +1339,53 @@ Rectangle {
             return
         }
         
-        let common = null
-        for (let table of root.selectedDataTables) {
-            let columns = root.continuousLearningController.getTableFields(table)
-            if (common === null) {
-                common = new Set(columns)
-            } else {
-                common = new Set([...common].filter(col => columns.includes(col)))
-            }
+        if (!root.continuousLearningController) {
+            console.log("Controller not initialized, skipping common features update")
+            return
         }
         
-        root.commonFeatures = common ? Array.from(common).sort() : []
-        
-        // 智能设置预测目标
-        if (root.selectedTask && root.commonFeatures.length > 0) {
-            let possibleTargets = root.continuousLearningController.getModelExpectedTargets(root.selectedTask)
-            
-            for (let target of possibleTargets) {
-                if (root.commonFeatures.includes(target)) {
-                    root.targetLabel = target
-                    break
+        try {
+            let common = null
+            for (let table of root.selectedDataTables) {
+                let columns = root.continuousLearningController.getTableFields(table)
+                if (common === null) {
+                    common = new Set(columns)
+                } else {
+                    common = new Set([...common].filter(col => columns.includes(col)))
                 }
             }
             
-            // 如果没有找到预期目标，使用自动匹配
-            if (!root.targetLabel || root.targetLabel.length === 0) {
-                root.autoMatchTargetLabel()
+            root.commonFeatures = common ? Array.from(common).sort() : []
+            
+            // 智能设置预测目标
+            if (root.selectedTask && root.commonFeatures.length > 0) {
+                let possibleTargets = root.continuousLearningController.getModelExpectedTargets(root.selectedTask)
+                
+                for (let target of possibleTargets) {
+                    if (root.commonFeatures.includes(target)) {
+                        root.targetLabel = target
+                        break
+                    }
+                }
+                
+                // 如果没有找到预期目标，使用自动匹配
+                if (!root.targetLabel || root.targetLabel.length === 0) {
+                    root.autoMatchTargetLabel()
+                }
             }
+            
+            // 当特征发生变化时，重新更新特征映射
+            root.updateFeatureMapping()
+            
+            addLog(root.isChinese ? 
+                `共有特征: ${root.commonFeatures.length}个` :
+                `Common features: ${root.commonFeatures.length}`)
+        } catch (error) {
+            console.log("Error updating common features:", error)
+            addLog(root.isChinese ? 
+                `更新共有特征失败: ${error}` :
+                `Failed to update common features: ${error}`)
         }
-        
-        // 当特征发生变化时，重新更新特征映射
-        root.updateFeatureMapping()
-        
-        addLog(root.isChinese ? 
-            `共有特征: ${root.commonFeatures.length}个` :
-            `Common features: ${root.commonFeatures.length}`)
     }
     
     function updateFeatureMapping() {
@@ -1482,33 +1567,45 @@ Rectangle {
             return
         }
         
-        let autoSelectedLabel = ""
-        
-        // 根据选择的任务类型进行自动匹配
-        if (root.selectedTask === "扬程预测" || root.selectedTask === "Head Prediction") {
-            // 对于扬程预测，寻找包含 head、TDH、扬程 等关键词的特征
-            const headPatterns = ["head", "tdh", "扬程", "举升高度", "lift"]
-            autoSelectedLabel = findMatchingFeature(headPatterns)
-        } else if (root.selectedTask === "产量预测" || root.selectedTask === "Production Prediction") {
-            // 对于产量预测，寻找包含 production、QF、产量、流量 等关键词的特征
-            const productionPatterns = ["production", "qf", "产量", "流量", "flow", "rate"]
-            autoSelectedLabel = findMatchingFeature(productionPatterns)
-        } else if (root.selectedTask === "气液比预测" || root.selectedTask === "GLR Prediction") {
-            // 对于气液比预测，寻找包含 GLR、气液比、ratio 等关键词的特征
-            const glrPatterns = ["glr", "气液比", "gas", "liquid", "ratio"]
-            autoSelectedLabel = findMatchingFeature(glrPatterns)
+        if (!root.continuousLearningController) {
+            console.log("Controller not initialized, skipping auto match target label")
+            return
         }
         
-        // 如果找到了匹配的标签，自动设置
-        if (autoSelectedLabel && autoSelectedLabel !== root.targetLabel) {
-            root.targetLabel = autoSelectedLabel
-            // 从已选特征中移除目标标签
-            root.selectedFeatures = root.selectedFeatures.filter(f => f !== autoSelectedLabel)
-            root.updateFeatureMapping()
+        try {
+            let autoSelectedLabel = ""
             
+            // 根据选择的任务类型进行自动匹配
+            if (root.selectedTask === "扬程预测" || root.selectedTask === "Head Prediction") {
+                // 对于扬程预测，寻找包含 head、TDH、扬程 等关键词的特征
+                const headPatterns = ["head", "tdh", "扬程", "举升高度", "lift"]
+                autoSelectedLabel = findMatchingFeature(headPatterns)
+            } else if (root.selectedTask === "产量预测" || root.selectedTask === "Production Prediction") {
+                // 对于产量预测，寻找包含 production、QF、产量、流量 等关键词的特征
+                const productionPatterns = ["production", "qf", "产量", "流量", "flow", "rate"]
+                autoSelectedLabel = findMatchingFeature(productionPatterns)
+            } else if (root.selectedTask === "气液比预测" || root.selectedTask === "GLR Prediction") {
+                // 对于气液比预测，寻找包含 GLR、气液比、ratio 等关键词的特征
+                const glrPatterns = ["glr", "气液比", "gas", "liquid", "ratio"]
+                autoSelectedLabel = findMatchingFeature(glrPatterns)
+            }
+            
+            // 如果找到了匹配的标签，自动设置
+            if (autoSelectedLabel && autoSelectedLabel !== root.targetLabel) {
+                root.targetLabel = autoSelectedLabel
+                // 从已选特征中移除目标标签
+                root.selectedFeatures = root.selectedFeatures.filter(f => f !== autoSelectedLabel)
+                root.updateFeatureMapping()
+                
+                addLog(root.isChinese ? 
+                    `自动匹配预测标签: ${autoSelectedLabel}` :
+                    `Auto-matched prediction label: ${autoSelectedLabel}`)
+            }
+        } catch (error) {
+            console.log("Error in autoMatchTargetLabel:", error)
             addLog(root.isChinese ? 
-                `自动匹配预测标签: ${autoSelectedLabel}` :
-                `Auto-matched prediction label: ${autoSelectedLabel}`)
+                `自动匹配预测标签失败: ${error}` :
+                `Failed to auto-match prediction label: ${error}`)
         }
     }
     
@@ -1627,9 +1724,16 @@ Rectangle {
     }
     
     Component.onCompleted: {
-        refreshDataTables()
-        root.updateFinalInputFeatures()
-        addLog(root.isChinese ? "模型测试配置页面已加载" : "Model testing configuration page loaded")
+        // 延迟执行，确保 controller 已经初始化
+        Qt.callLater(function() {
+            if (root.continuousLearningController) {
+                refreshDataTables()
+                root.updateFinalInputFeatures()
+                addLog(root.isChinese ? "模型测试配置页面已加载" : "Model testing configuration page loaded")
+            } else {
+                console.log("Controller not available at Component.onCompleted, will retry when controller is available")
+            }
+        })
         
         // 调试信息
         console.log("ModelTestingConfig loaded")

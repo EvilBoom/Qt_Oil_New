@@ -488,10 +488,18 @@ Window {
                     Loader {
                         id: continuousLearningLoader
                         source: "ContinuousLearning/ContinuousLearningPage.qml"
+                        active: true  // 显式设置为活跃状态
                         
                         property int projectId: mainWindow.currentProjectId
                         property bool isChineseMode: mainWindow.isChinese
                         property string pendingModule: ""  // 待设置的模块
+                        
+                        Component.onCompleted: {
+                            console.log("=== ContinuousLearning Loader Component.onCompleted ===")
+                            console.log("Source:", source)
+                            console.log("Active:", active)
+                            console.log("Status:", status)
+                        }
                         
                         onLoaded: {
                             console.log("MainWindow: Loading ContinuousLearningPage")
@@ -516,11 +524,36 @@ Window {
                         }
                         
                         onStatusChanged: {
+                            console.log("=== ContinuousLearning Loader statusChanged ===")
+                            console.log("New Status:", status)
+                            console.log("Source:", source)
+                            console.log("Active:", active)
+                            
                             if (status === Loader.Error) {
-                                console.log("Error loading ContinuousLearning page")
+                                console.log("ERROR: Error loading ContinuousLearning page")
+                                console.log("Source component:", sourceComponent)
+                                if (sourceComponent && sourceComponent.errorString) {
+                                    console.log("Error details:", sourceComponent.errorString())
+                                }
                             } else if (status === Loader.Ready) {
-                                console.log("ContinuousLearning page loaded successfully")
+                                console.log("SUCCESS: ContinuousLearning page loaded successfully")
+                            } else if (status === Loader.Loading) {
+                                console.log("INFO: ContinuousLearning page is loading...")
+                            } else if (status === Loader.Null) {
+                                console.log("INFO: ContinuousLearning Loader is null")
                             }
+                        }
+                        
+                        onActiveChanged: {
+                            console.log("=== ContinuousLearning Loader activeChanged ===")
+                            console.log("Active:", active)
+                            console.log("Status:", status)
+                        }
+                        
+                        onSourceChanged: {
+                            console.log("=== ContinuousLearning Loader sourceChanged ===")
+                            console.log("New source:", source)
+                            console.log("Active:", active)
                         }
                     }
                 }

@@ -369,7 +369,6 @@ Rectangle {
                                     text: root.isChinese ? "模型测试" : "Model Testing"
                                     
                                     onClicked: {
-                                    onClicked: {
                                         console.log("=== 模型测试按钮被点击 ===")
                                         console.log("点击时间:", new Date().toLocaleTimeString())
                                         console.log("当前 currentModule:", root.currentModule)
@@ -377,7 +376,6 @@ Rectangle {
                                         root.currentModule = "model_testing"
                                         console.log("设置后 currentModule:", root.currentModule)
                                         console.log("设置成功:", root.currentModule === "model_testing")
-                                    }
                                     }
                                 }
                             }
@@ -627,6 +625,34 @@ Rectangle {
                         item.continuousLearningController = root.continuousLearningController
                         console.log("ModelTesting page loaded with controller:", root.continuousLearningController)
                     }
+                }
+                
+                // 监听控制器变化和活跃状态变化
+                onActiveChanged: {
+                    console.log("ModelTestingLoader active changed to:", active)
+                    if (active && item) {
+                        item.continuousLearningController = root.continuousLearningController
+                        console.log("ModelTesting controller updated on activation:", root.continuousLearningController)
+                    }
+                }
+                
+                onStatusChanged: {
+                    console.log("ModelTestingLoader status changed to:", status)
+                    if (status === Loader.Error) {
+                        console.log("ERROR: Failed to load ModelTesting component")
+                        console.log("Source URL:", source)
+                        console.log("Error details:", sourceComponent ? sourceComponent.errorString() : "No error details available")
+                    } else if (status === Loader.Ready) {
+                        console.log("ModelTesting component loaded successfully")
+                    } else if (status === Loader.Loading) {
+                        console.log("Loading ModelTesting component...")
+                    } else if (status === Loader.Null) {
+                        console.log("ModelTesting loader is null")
+                    }
+                }
+                
+                onSourceChanged: {
+                    console.log("ModelTestingLoader source changed to:", source)
                 }
                 
                 Connections {

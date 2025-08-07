@@ -33,23 +33,28 @@ Rectangle {
     
     ScrollView {
         anchors.fill: parent
-        contentWidth: parent.width
+        anchors.margins: 24
+        contentWidth: availableWidth
+        contentHeight: mainColumn.implicitHeight
+        clip: true
         
         ColumnLayout {
+            id: mainColumn
             width: parent.width
             spacing: 20
-            anchors.margins: 24
             
             // 页面标题
             Rectangle {
                 Layout.fillWidth: true
-                Layout.preferredHeight: 60
+                Layout.minimumHeight: 50
+                implicitHeight: titleRow.implicitHeight + 32
                 color: "white"
                 radius: 8
                 border.width: 1
                 border.color: "#dee2e6"
                 
                 RowLayout {
+                    id: titleRow
                     anchors.fill: parent
                     anchors.margins: 16
                     
@@ -72,13 +77,15 @@ Rectangle {
             // 数据文件上传区域
             Rectangle {
                 Layout.fillWidth: true
-                Layout.preferredHeight: 340
+                Layout.minimumHeight: 300
+                implicitHeight: uploadColumn.implicitHeight + 40
                 color: "white"
                 radius: 8
                 border.width: 1
                 border.color: "#dee2e6"
                 
                 ColumnLayout {
+                    id: uploadColumn
                     anchors.fill: parent
                     anchors.margins: 20
                     spacing: 16
@@ -99,13 +106,15 @@ Rectangle {
                     // 模板下载区域
                     Rectangle {
                         Layout.fillWidth: true
-                        Layout.preferredHeight: 100
+                        Layout.minimumHeight: 80
+                        implicitHeight: templateColumn.implicitHeight + 24
                         color: "#f8f9fa"
                         radius: 6
                         border.width: 1
                         border.color: "#e9ecef"
                         
                         ColumnLayout {
+                            id: templateColumn
                             anchors.fill: parent
                             anchors.margins: 12
                             spacing: 8
@@ -375,13 +384,15 @@ Rectangle {
             // 数据表管理区域
             Rectangle {
                 Layout.fillWidth: true
-                Layout.preferredHeight: 300
+                Layout.minimumHeight: 250
+                implicitHeight: tablesManagementColumn.implicitHeight + 40
                 color: "white"
                 radius: 8
                 border.width: 1
                 border.color: "#dee2e6"
                 
                 ColumnLayout {
+                    id: tablesManagementColumn
                     anchors.fill: parent
                     anchors.margins: 20
                     spacing: 16
@@ -407,6 +418,7 @@ Rectangle {
                         id: tablesListView
                         Layout.fillWidth: true
                         Layout.fillHeight: true
+                        Layout.minimumHeight: 150
                         
                         model: root.availableTables
                         
@@ -507,13 +519,15 @@ Rectangle {
             // 数据预览区域
             Rectangle {
                 Layout.fillWidth: true
-                Layout.preferredHeight: 400
+                Layout.minimumHeight: 350
+                implicitHeight: previewColumn.implicitHeight + 40
                 color: "white"
                 radius: 8
                 border.width: 1
                 border.color: "#dee2e6"
                 
                 ColumnLayout {
+                    id: previewColumn
                     anchors.fill: parent
                     anchors.margins: 20
                     spacing: 12
@@ -529,6 +543,7 @@ Rectangle {
                     Rectangle {
                         Layout.fillWidth: true
                         Layout.fillHeight: true
+                        Layout.minimumHeight: 250
                         color: "#f8f9fa"
                         border.width: 1
                         border.color: "#dee2e6"
@@ -538,8 +553,9 @@ Rectangle {
                             id: tableScrollView
                             anchors.fill: parent
                             anchors.margins: 2
-                            contentWidth: tableView.width
-                            contentHeight: tableView.height
+                            contentWidth: Math.max(availableWidth, tableView.implicitWidth)
+                            contentHeight: Math.max(availableHeight, tableView.implicitHeight)
+                            clip: true
                             
                             // 表格视图
                             Column {
