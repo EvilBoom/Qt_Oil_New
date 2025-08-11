@@ -7,16 +7,16 @@
   },
   "ExpandedNodes": [
     "",
-    "\\DataManage",
-    "\\DataManage\\config",
-    "\\DataManage\\models",
-    "\\DataManage\\services",
+    "\\Controller",
     "\\Qt_Oil_NewContent",
+    "\\Qt_Oil_NewContent\\Common",
+    "\\Qt_Oil_NewContent\\Common\\Components",
     "\\Qt_Oil_NewContent\\DeviceRecommendation",
-    "\\Qt_Oil_NewContent\\OilWellManagement\\components",
+    "\\Qt_Oil_NewContent\\DeviceRecommendation\\Components",
+    "\\Qt_Oil_NewContent\\DeviceRecommendation\\Steps",
     "\\Qt_Oil_NewContent\\WellStructure",
     "\\Qt_Oil_NewContent\\WellStructure\\components"
   ],
-  "SelectedNode": "\\Temp.py",
+  "SelectedNode": "\\main.py",
   "PreviewInSolutionExplorer": false
 }

@@ -283,13 +283,44 @@ class ExcelImportController(QObject):
             import_params: 导入参数对象，包含wellId等信息
         """
         try:
+            # 🔥 解析参数对象 - 处理QJSValue类型
+            from PySide6.QtQml import QJSValue  
+
+
+            if isinstance(import_params, QJSValue):
+                # 🔥 将QJSValue转换为Python字典
+                if import_params.isObject():
+                    well_id = int(import_params.property('wellId').toNumber())
+                    source_depth_unit = import_params.property('sourceDepthUnit').toString()
+                    target_depth_unit = import_params.property('targetDepthUnit').toString()
+                    is_metric = import_params.property('isMetric').toBool()
+                    perform_unit_conversion = import_params.property('performUnitConversion').toBool()
+                
+                    logger.info(f"🔧 从QJSValue解析参数:")
+                    logger.info(f"  - wellId: {well_id}")
+                    logger.info(f"  - sourceDepthUnit: {source_depth_unit}")
+                    logger.info(f"  - targetDepthUnit: {target_depth_unit}")
+                    logger.info(f"  - isMetric: {is_metric}")
+                    logger.info(f"  - performUnitConversion: {perform_unit_conversion}")
+                else:
+                    # 如果不是对象，可能是数字（井ID）
+                    # 如果不是对象，可能是数字（井ID）
+                    well_id = int(import_params.toNumber())
+                    source_depth_unit = 'auto'
+                    target_depth_unit = 'ft'
+                    is_metric = False
+                    perform_unit_conversion = False
+                    logger.info(f"🔧 从QJSValue解析为数字: {well_id}")
+
             # 🔥 解析参数对象
-            if isinstance(import_params, dict):
+            elif isinstance(import_params, dict):
                 well_id = import_params.get('wellId', -1)
                 source_depth_unit = import_params.get('sourceDepthUnit', 'auto')
                 target_depth_unit = import_params.get('targetDepthUnit', 'ft')
                 is_metric = import_params.get('isMetric', False)
                 perform_unit_conversion = import_params.get('performUnitConversion', True)
+                logger.info(f"🔧 从dict解析参数: {import_params}")
+
             elif isinstance(import_params, int):
                 # 🔥 兼容旧版本调用方式
                 well_id = import_params
@@ -354,9 +385,10 @@ class ExcelImportController(QObject):
                     'row_count': len(import_data),
                     'status': 'success',
                     'imported_by': 'current_user',  # TODO: 获取当前用户
-                    'source_unit': source_depth_unit,
-                    'target_unit': target_depth_unit,
-                    'unit_conversion': perform_unit_conversion
+                    # 🔥 移除这些字段，因为模型不支持：
+                    # 'source_unit': source_depth_unit,
+                    # 'target_unit': target_depth_unit,
+                    # 'unit_conversion': perform_unit_conversion
                 }
 
                 # 添加统计信息到导入记录

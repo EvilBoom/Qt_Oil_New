@@ -67,11 +67,6 @@ Rectangle {
             }
         }
 
-        function onCalculationCompleted(result) {
-            calculationResult = result
-            calculationResultDialog.showResult(result)
-        }
-
         function onVisualizationReady(vizData) {
             if (vizData.type === 'sketch') {
                 sketchView.updateSketch(vizData.data)
@@ -82,6 +77,20 @@ Rectangle {
                 trajectoryChartDialog.updateChart(vizData.data)
                 trajectoryChartDialog.open()
             }
+        }
+        // 🔥 添加计算完成的信号处理
+        function onCalculationCompleted(result) {
+            console.log("=== WellStructurePage接收到计算完成信号 ===")
+            console.log("计算结果:", JSON.stringify(result))
+
+            // 保存计算结果
+            calculationResult = result
+
+            // 更新按钮状态
+            updateButtonStates()
+
+            // 显示成功消息
+            showMessage(isChineseMode ? "计算完成！点击按钮查看结果" : "Calculation completed! Click button to view results")
         }
 
         function onError(errorMsg) {
@@ -189,7 +198,7 @@ Rectangle {
 
                 Button {
                     id: calculateBtn
-                    text: isChineseMode ? "🧮 计算深度" : "🧮 Calculate Depths"
+                    text: "🧮 计算深度"
                     enabled: trajectoryData.length > 0
                     onClicked: {
                         // 使用默认参数进行计算
@@ -201,6 +210,16 @@ Rectangle {
                             min_distance_from_bottom: 20
                         }
                         wellStructureController.calculateDepths(params)
+
+                        // 🔥 延迟一点时间让计算完成，然后显示结果
+                        Qt.callLater(function() {
+                            if (calculationResult) {
+                                calculationResultDialog.showResult(calculationResult)
+                            } else {
+                                // 如果还没有结果，可以显示一个临时的计算中状态
+                                calculationResultDialog.show()
+                            }
+                        })
                     }
                 }
 
@@ -619,6 +638,10 @@ Rectangle {
         }
     }
 
+    function onCalculationCompleted(result) {
+        calculationResult = result
+        calculationResultDialog.showResult(result)
+    }
 
     // 辅助函数
     function loadWellList() {
@@ -671,10 +694,7 @@ Rectangle {
         showMessage(isChineseMode ? "功能开发中..." : "Function under development...")
     }
 
-    // 当计算完成时
-    function onCalculationCompleted(result) {
-        calculationDialog.showResult(result)
-    }
+
 
     // 连接井控制器获取井列表
     Connections {

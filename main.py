@@ -18,6 +18,7 @@ from Controller.WellStructureController import WellStructureController
 from Controller.ExcelImportController import ExcelImportController
 from Controller.PumpCurvesController import PumpCurvesController
 from Controller.ContinuousLearningController import ContinuousLearningController
+from Controller.KnowledgeGraphController import KnowledgeGraphController
 
 # 导入数据库服务
 from DataManage.services.database_service import DatabaseService

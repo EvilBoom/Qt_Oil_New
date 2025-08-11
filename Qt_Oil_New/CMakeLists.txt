@@ -14,8 +14,13 @@ qt6_add_qml_module(Qt_Oil_New
     VERSION 1.0
     RESOURCE_PREFIX "/qt/qml"
     QML_FILES
+<<<<<<< Updated upstream
         "EventListSimulator.qml"
         "Constants.qml"
+=======
+        "Constants.qml"
+        "EventListSimulator.qml"
+>>>>>>> Stashed changes
         "EventListModel.qml"
 )
 

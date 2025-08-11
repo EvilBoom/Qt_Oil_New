@@ -28,7 +28,6 @@ Window {
         console.log("CalculationResultDialog单位制切换为:", isMetric ? "公制" : "英制")
         updateDisplayUnits()
     }
-
     // 🔥 连接单位制控制器
     Connections {
         target: unitSystemController
@@ -40,10 +39,7 @@ Window {
             updateDisplayUnits()
         }
     }
-
-    // 🔥 注释掉或删除所有自动监听计算完成的Connections
-    // 只保留手动调用的showResult方法
-    /*
+    // 🔥 新增：连接WellStructureController的信号
     Connections {
         target: wellStructureController
         enabled: wellStructureController !== null
@@ -87,9 +83,8 @@ Window {
             resultSaved = false
         }
     }
-    */
 
-    // 🔥 保留WellController的信号连接，用于保存结果的反馈
+    // 🔥 新增：连接WellController的信号
     Connections {
         target: wellController
         enabled: wellController !== null
@@ -125,8 +120,7 @@ Window {
         }
     }
 
-    // 🔥 删除所有自动监听全局控制器的Connections
-    /*
+    // 🔥 新增：连接全局wellStructureController信号（备用）
     Connections {
         target: typeof wellStructureController !== "undefined" ? wellStructureController : null
         enabled: target !== null && !root.wellStructureController
@@ -139,6 +133,7 @@ Window {
         }
     }
 
+    // 🔥 新增：连接全局wellController信号（备用）
     Connections {
         target: typeof wellController !== "undefined" ? wellController : null
         enabled: target !== null && !root.wellController
@@ -150,7 +145,16 @@ Window {
             }
         }
     }
-    */
+    // 在现有的 Connections 后添加单位制监听
+    Connections {
+        target: unitSystemController
+        enabled: unitSystemController !== null
+
+        function onUnitSystemChanged(isMetric) {
+            root.isMetric = isMetric
+            console.log("单位制切换为:", isMetric ? "公制" : "英制")
+        }
+    }
 
     // 监听计算结果变化，但不自动保存（通过信号触发）
     onCalculationResultChanged: {
@@ -358,7 +362,6 @@ Window {
                     }
                 }
             }
-            
             // 🔥 添加单位转换详情卡片
             GroupBox {
                 Layout.fillWidth: true
@@ -494,7 +497,6 @@ Window {
             }
         }
     }
-    
     // 🔥 =====================================
     // 🔥 单位转换和格式化函数
     // 🔥 =====================================
@@ -660,37 +662,12 @@ Window {
         // 这里可以集成Toast组件或其他UI提示
     }
 
-    // 🔥 修改显示计算结果函数，确保只有手动调用才显示
+    // 显示计算结果
     function showResult(result) {
-        console.log("=== 手动显示计算结果 ===")
+        console.log("=== 显示计算结果 ===")
         console.log("result:", JSON.stringify(result))
-        
-        // 🔥 如果result是简单的数字对象，转换为标准格式
-        if (result && typeof result === "object") {
-            // 检查是否有pump_hanging_depth属性，如果没有则可能是简化的数据格式
-            if (!result.pump_hanging_depth && result.pumpDepth) {
-                // 转换简化格式到标准格式
-                var standardResult = {
-                    pump_hanging_depth: result.pumpDepth || result.pump_hanging_depth,
-                    perforation_depth: result.perforationDepth || result.perforation_depth,
-                    pump_measured_depth: result.pumpMeasuredDepth || result.pump_measured_depth,
-                    total_depth_tvd: result.totalDepthTvd || result.total_depth_tvd,
-                    total_depth_md: result.totalDepthMd || result.total_depth_md,
-                    max_inclination: result.maxInclination || result.max_inclination,
-                    max_dls: result.maxDls || result.max_dls,
-                    calculation_date: result.calculationDate || result.calculation_date || new Date().toISOString(),
-                    calculation_method: result.calculationMethod || result.calculation_method || "default",
-                    parameters: result.parameters || "{}"
-                }
-                calculationResult = standardResult
-            } else {
-                calculationResult = result
-            }
-        } else {
-            console.warn("无效的计算结果格式:", result)
-            calculationResult = null
-        }
 
+        calculationResult = result
         resultSaved = false
         show()
     }
@@ -825,4 +802,5 @@ Window {
         console.log("导出计算结果:", JSON.stringify(exportData, null, 2))
         showMessage(isChineseMode ? "导出功能开发中..." : "Export feature in development...", false)
     }
+
 }

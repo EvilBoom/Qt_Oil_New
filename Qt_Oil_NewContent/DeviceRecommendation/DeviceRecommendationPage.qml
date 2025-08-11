@@ -245,20 +245,39 @@ Page {
                 }
 
                 // 导出按钮（仅在最后一步显示）
+                // Button {
+                //     id: exportReportButton
+                //     text: isChineseMode ? "导出报告" : "Export Report"
+                //     background: Rectangle {
+                //             color: exportReportButton.pressed ? "#2a5cad" :
+                //                    exportReportButton.hovered ? "#3a7cdb" :
+                //                    "#3465a4"
+                //             radius: 6
+                //             border.color: exportReportButton.hovered ? "#81a2be" : "#5c85b6"
+                //             border.width: 1
+                //     }
+                //     visible: currentStep === steps.length - 1
+                //     highlighted: true
+                //     onClicked: exportReport()
+                // }
+                // 知识图谱按钮（从Step3开始显示）
                 Button {
-                    id: exportReportButton
-                    text: isChineseMode ? "导出报告" : "Export Report"
+                    id: knowledgeGraphButton
+                    text: "🧠 " + (isChineseMode ? "知识图谱" : "Knowledge Graph")
+                    flat: true
+                    visible: currentStep >= 2  // 从Step3开始显示
+                    Material.foreground: Material.primary
+
                     background: Rectangle {
-                            color: exportReportButton.pressed ? "#2a5cad" :
-                                   exportReportButton.hovered ? "#3a7cdb" :
-                                   "#3465a4"
-                            radius: 6
-                            border.color: exportReportButton.hovered ? "#81a2be" : "#5c85b6"
-                            border.width: 1
+                        color: knowledgeGraphButton.pressed ? Material.color(Material.Blue, Material.Shade100) :
+                               knowledgeGraphButton.hovered ? Material.color(Material.Blue, Material.Shade50) :
+                               "transparent"
+                        radius: 6
+                        border.color: Material.primary
+                        border.width: 1
                     }
-                    visible: currentStep === steps.length - 1
-                    highlighted: true
-                    onClicked: exportReport()
+
+                    onClicked: openKnowledgeGraphWindow()
                 }
             }
 
@@ -816,12 +835,17 @@ Page {
     }
 
     function showMessage(text, type) {
-        messageLoader.setSource("../Components/MessageDialog.qml", {
-            "message": text,
+        messageLoader.setSource("../Common/Components/MessageDialog.qml", {
+            "messageText": text,        // 🔥 修复：使用正确的属性名
             "messageType": type,
             "autoClose": true,
-            "duration": 3000
-        })
+            "autoCloseDelay": 3000     // 🔥 修复：使用正确的属性名
+            })
+    
+            // 🔥 确保组件加载完成后显示
+            if (messageLoader.item) {
+                messageLoader.item.open()
+            }
     }
 
     // 🔥 修复：正确的性能分析页面函数，创建独立窗口
@@ -1046,5 +1070,114 @@ Page {
             }
         }
         return null
+    }
+    // 🔥 新增：打开知识图谱窗口（修复版本）
+    function openKnowledgeGraphWindow() {
+        console.log("=== 打开知识图谱窗口 ===")
+        console.log("当前步骤:", currentStep, "步骤ID:", steps[currentStep].id)
+
+        // 🔥 使用相对路径，确保文件能被找到
+        var windowComponent = Qt.createComponent("Components/KnowledgeGraphWindow.qml")
+
+        if (windowComponent.status === Component.Loading) {
+            console.log("知识图谱窗口组件正在加载...")
+            windowComponent.statusChanged.connect(function() {
+                if (windowComponent.status === Component.Ready) {
+                    createKnowledgeGraphWindow(windowComponent)
+                } else if (windowComponent.status === Component.Error) {
+                    console.error("知识图谱窗口组件加载失败:", windowComponent.errorString())
+                    showMessage(isChineseMode ? "无法打开知识图谱窗口: " + windowComponent.errorString() : "Cannot open knowledge graph window: " + windowComponent.errorString(), "error")
+                }
+            })
+        } else if (windowComponent.status === Component.Ready) {
+            createKnowledgeGraphWindow(windowComponent)
+        } else if (windowComponent.status === Component.Error) {
+            console.error("无法创建知识图谱窗口组件:", windowComponent.errorString())
+            showMessage(isChineseMode ? "知识图谱功能暂时不可用: " + windowComponent.errorString() : "Knowledge graph temporarily unavailable: " + windowComponent.errorString(), "error")
+        }
+    }
+
+    function createKnowledgeGraphWindow(component) {
+        try {
+            var knowledgeWindow = component.createObject(null, {
+                isChineseMode: root.isChineseMode,
+                isMetric: root.isMetric,
+                currentStepData: root.stepData,
+                currentStepId: steps[currentStep].id,
+                selectionConstraints: root.selectionConstraints
+            })
+
+            if (knowledgeWindow) {
+                console.log("✅ 知识图谱窗口创建成功")
+
+                // 连接窗口关闭信号
+                knowledgeWindow.windowClosed.connect(function() {
+                    console.log("知识图谱窗口已关闭")
+                    knowledgeWindow.destroy()
+                })
+
+                // 连接推荐接受信号
+                knowledgeWindow.recommendationAccepted.connect(function(recommendation) {
+                    console.log("接收到知识图谱推荐:", JSON.stringify(recommendation))
+                    handleKnowledgeGraphRecommendation(recommendation)
+                })
+
+                // 显示窗口
+                knowledgeWindow.show()
+                knowledgeWindow.raise()
+                knowledgeWindow.requestActivate()
+
+                console.log("知识图谱窗口已显示")
+            } else {
+                console.error("知识图谱窗口创建失败")
+                showMessage(isChineseMode ? "无法创建知识图谱窗口" : "Cannot create knowledge graph window", "error")
+            }
+        } catch (error) {
+            console.error("创建知识图谱窗口时出错:", error)
+            showMessage(isChineseMode ? "知识图谱窗口打开失败: " + error : "Failed to open knowledge graph window: " + error, "error")
+        }
+    }
+    // 🔥 新增：处理知识图谱推荐
+    function handleKnowledgeGraphRecommendation(recommendation) {
+        console.log("处理知识图谱推荐:", JSON.stringify(recommendation))
+
+        try {
+            // 根据推荐类型执行相应操作
+            if (recommendation.method) {
+                // 举升方式推荐
+                if (stepLoader.item && typeof stepLoader.item.applyRecommendation === "function") {
+                    stepLoader.item.applyRecommendation(recommendation)
+                }
+            } else if (recommendation.pumpType) {
+                // 泵型推荐
+                if (stepLoader.item && typeof stepLoader.item.applyPumpRecommendation === "function") {
+                    stepLoader.item.applyPumpRecommendation(recommendation)
+                }
+            } else if (recommendation.optimizationType) {
+                // 优化建议
+                applyOptimizationRecommendation(recommendation)
+            }
+
+            showMessage(isChineseMode ? "推荐建议已应用" : "Recommendation applied", "success")
+
+        } catch (error) {
+            console.error("应用推荐建议时出错:", error)
+            showMessage(isChineseMode ? "应用推荐失败" : "Failed to apply recommendation", "error")
+        }
+    }
+
+    function applyOptimizationRecommendation(recommendation) {
+        console.log("应用优化建议:", recommendation.optimizationType)
+
+        // 更新约束条件
+        if (recommendation.optimizationType === "efficiency") {
+            selectionConstraints["minEfficiency"] = recommendation.minEfficiency
+            console.log("更新效率约束:", recommendation.minEfficiency)
+        }
+
+        // 通知当前步骤组件约束条件已更新
+        if (stepLoader.item) {
+            stepLoader.item.constraints = selectionConstraints
+        }
     }
 }
