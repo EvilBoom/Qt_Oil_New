@@ -83,6 +83,8 @@ class Application(QObject):
         self.continuous_learning_controller = ContinuousLearningController()
 
         self.unit_system_controller = UnitSystemController()
+        self.knowledge_graph_controller = KnowledgeGraphController()
+
 
         # 存储用户信息
         self.current_user = ""
@@ -126,6 +128,7 @@ class Application(QObject):
         self.engine.rootContext().setContextProperty("continuousLearningController", self.continuous_learning_controller)
 
         self.engine.rootContext().setContextProperty("unitSystemController", self.unit_system_controller)
+        self.engine.rootContext().setContextProperty("knowledgeGraphController", self.knowledge_graph_controller)
 
         # 连接Excel导入控制器信号
         self.excel_import_controller.templateGenerated.connect(self.on_template_generated)
@@ -254,6 +257,9 @@ class Application(QObject):
             self.engine.rootContext().setContextProperty("deviceController", self.device_controller)
             self.engine.rootContext().setContextProperty("deviceRecommendationController", self.device_recommendation_controller)
             self.engine.rootContext().setContextProperty("continuousLearningController", self.continuous_learning_controller)
+            self.engine.rootContext().setContextProperty("knowledgeGraphController", self.knowledge_graph_controller)
+            self.engine.rootContext().setContextProperty("pumpCurvesController", self.pump_curves_controller)  # 🔥 修复：添加缺失的注册
+            self.engine.rootContext().setContextProperty("unitSystemController", self.unit_system_controller)  # 🔥 修复：添加缺失的注册
             # 加载主窗口
             self.engine.load(QUrl.fromLocalFile(str(main_qml)))
 
