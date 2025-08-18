@@ -206,10 +206,10 @@ Rectangle {
             Item { Layout.fillWidth: true }
 
             // 🔥 添加单位切换器
-            CommonComponents.UnitSwitcher {
-                isChinese: root.isChineseMode
-                showLabel: false
-            }
+            // CommonComponents.UnitSwitcher {
+            //     isChinese: root.isChineseMode
+            //     showLabel: false
+            // }
 
             // 🔥 修改筛选条件显示，添加单位转换
             Rectangle {

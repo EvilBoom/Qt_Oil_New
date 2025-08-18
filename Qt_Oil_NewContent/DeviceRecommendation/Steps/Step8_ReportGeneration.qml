@@ -62,7 +62,7 @@ Rectangle {
     // 🔥 修复：更新Component.onCompleted
     Component.onCompleted: {
         console.log("=== Step8 报告生成初始化 ===")
-        console.log("stepData:", JSON.stringify(stepData))
+        //console.log("stepData:", JSON.stringify(stepData))
         console.log("wellId:", wellId)
         if ((!stepData.well || !stepData.well.wellName) && controller && controller.loadWellsWithParameters) {
             // 假设有 currentProjectId 属性
@@ -311,46 +311,46 @@ Rectangle {
 
             Item { Layout.fillWidth: true }
             // 🔥 添加单位切换器
-            CommonComponents.UnitSwitcher {
-                isChinese: root.isChineseMode
-                showLabel: false
-            }
+            // CommonComponents.UnitSwitcher {
+            //     isChinese: root.isChineseMode
+            //     showLabel: false
+            // }
             Button {
                 text: "选择井信息"
                 onClicked: root.showWellDialog = true
                 visible: root.wellsList.length > 0
             }
             // 模板选择
-            ComboBox {
-                id: templateSelector
-                Layout.preferredWidth: 150
-                model: [
-                    isChineseMode ? "标准报告" : "Standard Report",
-                    isChineseMode ? "详细报告" : "Detailed Report",
-                    isChineseMode ? "简要报告" : "Brief Report"
-                ]
-                onCurrentIndexChanged: {
-                    switch(currentIndex) {
-                        case 0: selectedTemplate = "standard"; break
-                        case 1: selectedTemplate = "detailed"; break
-                        case 2: selectedTemplate = "brief"; break
-                    }
-                    generateReport()
-                }
-            }
+            // ComboBox {
+            //     id: templateSelector
+            //     Layout.preferredWidth: 150
+            //     model: [
+            //         isChineseMode ? "标准报告" : "Standard Report",
+            //         isChineseMode ? "详细报告" : "Detailed Report",
+            //         isChineseMode ? "简要报告" : "Brief Report"
+            //     ]
+            //     onCurrentIndexChanged: {
+            //         switch(currentIndex) {
+            //             case 0: selectedTemplate = "standard"; break
+            //             case 1: selectedTemplate = "detailed"; break
+            //             case 2: selectedTemplate = "brief"; break
+            //         }
+            //         generateReport()
+            //     }
+            // }
 
             // 编辑按钮
-            Button {
-                text: isEditing ? (isChineseMode ? "完成编辑" : "Done Editing")
-                               : (isChineseMode ? "编辑报告" : "Edit Report")
-                enabled: reportGenerated
-                onClicked: {
-                    isEditing = !isEditing
-                    if (!isEditing) {
-                        saveEditedContent()
-                    }
-                }
-            }
+            // Button {
+            //     text: isEditing ? (isChineseMode ? "完成编辑" : "Done Editing")
+            //                    : (isChineseMode ? "编辑报告" : "Edit Report")
+            //     enabled: reportGenerated
+            //     onClicked: {
+            //         isEditing = !isEditing
+            //         if (!isEditing) {
+            //             saveEditedContent()
+            //         }
+            //     }
+            // }
 
             // 导出按钮组
             Row {
@@ -705,16 +705,16 @@ Rectangle {
                 Row {
                     spacing: 12
 
-                    Button {
-                        text: isChineseMode ? "保存草稿" : "Save Draft"
-                        flat: true
-                        onClicked: saveDraft()
-                    }
+                    // Button {
+                    //     text: isChineseMode ? "保存草稿" : "Save Draft"
+                    //     flat: true
+                    //     onClicked: saveDraft()
+                    // }
 
-                    Button {
-                        text: isChineseMode ? "打印预览" : "Print Preview"
-                        onClicked: showPrintPreview()
-                    }
+                    // Button {
+                    //     text: isChineseMode ? "打印预览" : "Print Preview"
+                    //     onClicked: showPrintPreview()
+                    // }
 
                     Button {
                         text: isChineseMode ? "完成" : "Finish"
@@ -2540,7 +2540,7 @@ Rectangle {
             exportPath: exportPathString  // 传递字符串而不是QUrl对象
         }
 
-        console.log("最终传递给控制器的数据:", JSON.stringify(reportData, null, 2))
+        // console.log("最终传递给控制器的数据:", JSON.stringify(reportData, null, 2))
 
         // 调用控制器导出
         if (controller && controller.exportReport) {

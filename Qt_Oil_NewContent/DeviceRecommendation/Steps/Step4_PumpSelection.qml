@@ -223,21 +223,21 @@ Rectangle {
             Item { Layout.fillWidth: true }
 
             // 筛选条件
-            ComboBox {
-                id: manufacturerFilter
-                Layout.preferredWidth: 150
-                model: ["All Manufacturers", "Baker Hughes", "Schlumberger", "Weatherford", "Borets"]
-                displayText: isChineseMode ? "制造商筛选" : currentText
-                onCurrentIndexChanged: filterPumps()
-            }
+            // ComboBox {
+            //     id: manufacturerFilter
+            //     Layout.preferredWidth: 150
+            //     model: ["All Manufacturers", "Baker Hughes", "Schlumberger", "Weatherford", "Borets"]
+            //     displayText: isChineseMode ? "制造商筛选" : currentText
+            //     onCurrentIndexChanged: filterPumps()
+            // }
 
-            ComboBox {
-                id: seriesFilter
-                Layout.preferredWidth: 120
-                model: ["All Series", "400 Series", "500 Series", "600 Series", "700 Series"]
-                displayText: isChineseMode ? "系列筛选" : currentText
-                onCurrentIndexChanged: filterPumps()
-            }
+            // ComboBox {
+            //     id: seriesFilter
+            //     Layout.preferredWidth: 120
+            //     model: ["All Series", "400 Series", "500 Series", "600 Series", "700 Series"]
+            //     displayText: isChineseMode ? "系列筛选" : currentText
+            //     onCurrentIndexChanged: filterPumps()
+            // }
         }
 
         // 🔥 保持老版本的要求参数显示逻辑

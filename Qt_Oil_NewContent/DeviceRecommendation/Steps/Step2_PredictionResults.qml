@@ -66,11 +66,11 @@ Rectangle {
             Item { Layout.fillWidth: true }
 
             // 🔥 添加单位切换器
-            CommonComponents.UnitSwitcher {
-                isChinese: root.isChineseMode
-                showLabel: false
-                labelText: ""
-            }
+            // CommonComponents.UnitSwitcher {
+            //     isChinese: root.isChineseMode
+            //     showLabel: false
+            //     labelText: ""
+            // }
 
             // 重新计算按钮
             Button {

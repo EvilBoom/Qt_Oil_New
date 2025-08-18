@@ -184,11 +184,11 @@ Page {
                 Item { Layout.fillWidth: true }
 
                 // 🔥 添加单位切换器
-                CommonComponents.UnitSwitcher {
-                    isChinese: root.isChineseMode
-                    showLabel: true
-                    labelText: isChineseMode ? "单位:" : "Units:"
-                }
+                // CommonComponents.UnitSwitcher {
+                //     isChinese: root.isChineseMode
+                //     showLabel: true
+                //     labelText: isChineseMode ? "单位:" : "Units:"
+                // }
 
                 // 井选择下拉框
                 ComboBox {

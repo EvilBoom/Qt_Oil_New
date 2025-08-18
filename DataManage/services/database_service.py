@@ -1107,6 +1107,8 @@ class DatabaseService(QObject):
 
             # 转换设备类型
             try:
+                # 全部换成小写
+                device_type_str = device_type_str.lower()
                 device_type = DeviceType(device_type_str)
             except ValueError:
                 raise ValueError(f"无效的设备类型: {device_type_str}")
@@ -3291,22 +3293,61 @@ class DatabaseService(QObject):
     def get_devices_by_lift_method(self, device_type: str = None, lift_method: str = None, status: str = 'active'):
         """根据举升方式获取设备 - 修复版本"""
         session = self.get_session()  # 🔥 修复：使用正确的会话获取方法
+
         try:
             query = session.query(Device).filter(Device.is_deleted == False)
-        
+            devices_temp = query.all()
+
             if device_type:
                 try:
-                    device_type_enum = DeviceType(device_type.upper())  # 🔥 修复：转为大写
-                    query = query.filter(Device.device_type == device_type_enum)
-                except ValueError:
-                    logger.warning(f"无效的设备类型: {device_type}")
+                    # 🔥 修复：统一转换为小写处理
+                    device_type_lower = device_type.lower()
+                    if device_type_lower == 'pump':
+                        device_type_enum = DeviceType.PUMP
+                    elif device_type_lower == 'motor':
+                        device_type_enum = DeviceType.MOTOR
+                    elif device_type_lower == 'protector':
+                        device_type_enum = DeviceType.PROTECTOR
+                    elif device_type_lower == 'separator':
+                        device_type_enum = DeviceType.SEPARATOR
+                    else:
+                        logger.warning(f"无效的设备类型: {device_type}")
+                        device_type_enum = None
+
+                    if device_type_enum:
+                        query = query.filter(Device.device_type == device_type_enum)
+                        logger.info(f"✅ 设备类型筛选成功: {device_type} -> {device_type_enum}")
+           
+                except ValueError as e:
+                    logger.warning(f"设备类型转换失败: {device_type}, 错误: {e}")
         
             if lift_method:
                 try:
-                    lift_method_enum = LiftMethod(lift_method.upper())  # 🔥 修复：转为大写
-                    query = query.filter(Device.lift_method == lift_method_enum)
-                except ValueError:
-                    logger.warning(f"无效的举升方式: {lift_method}")
+                    # 🔥 修复：统一转换为小写处理
+                    lift_method_lower = lift_method.lower()
+                    if lift_method_lower == 'esp':
+                        lift_method_enum = LiftMethod.ESP
+                    elif lift_method_lower == 'pcp':
+                        lift_method_enum = LiftMethod.PCP
+                    elif lift_method_lower == 'srp':
+                        lift_method_enum = LiftMethod.SRP
+                    elif lift_method_lower == 'gas_lift':
+                        lift_method_enum = LiftMethod.GAS_LIFT
+                    elif lift_method_lower == 'beam_pump':
+                        lift_method_enum = LiftMethod.BEAM_PUMP
+                    elif lift_method_lower == 'hydraulic':
+                        lift_method_enum = LiftMethod.HYDRAULIC
+                    elif lift_method_lower == 'jet':
+                        lift_method_enum = LiftMethod.JET
+                    else:
+                        logger.warning(f"无效的举升方式: {lift_method}")
+                        lift_method_enum = None
+                
+                    if lift_method_enum:
+                        query = query.filter(Device.lift_method == lift_method_enum)
+                        logger.info(f"✅ 举升方式筛选成功: {lift_method} -> {lift_method_enum}")
+                except ValueError as e:
+                    logger.warning(f"举升方式转换失败: {lift_method}, 错误: {e}")
         
             if status:
                 query = query.filter(Device.status == status)

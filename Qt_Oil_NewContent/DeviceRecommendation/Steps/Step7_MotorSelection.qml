@@ -270,42 +270,42 @@ Rectangle {
             Item { Layout.fillWidth: true }
             
             // 电压选择
-            ComboBox {
-                id: voltageSelector
-                Layout.preferredWidth: 120
-                model: ["2300V", "3300V", "4160V", "6600V"]
-                currentIndex: 1
-                onCurrentTextChanged: {
-                    selectedVoltage = parseInt(currentText)
-                    filterMotors()
-                }
-            }
+            // ComboBox {
+            //     id: voltageSelector
+            //     Layout.preferredWidth: 120
+            //     model: ["2300V", "3300V", "4160V", "6600V"]
+            //     currentIndex: 1
+            //     onCurrentTextChanged: {
+            //         selectedVoltage = parseInt(currentText)
+            //         filterMotors()
+            //     }
+            // }
             
-            // 频率选择
-            ComboBox {
-                id: frequencySelector
-                Layout.preferredWidth: 100
-                model: ["50 Hz", "60 Hz"]
-                currentIndex: 1
-                onCurrentTextChanged: {
-                    selectedFrequency = parseInt(currentText)
-                    filterMotors()
-                }
-            }
+            // // 频率选择
+            // ComboBox {
+            //     id: frequencySelector
+            //     Layout.preferredWidth: 100
+            //     model: ["50 Hz", "60 Hz"]
+            //     currentIndex: 1
+            //     onCurrentTextChanged: {
+            //         selectedFrequency = parseInt(currentText)
+            //         filterMotors()
+            //     }
+            // }
             // 🔥 添加调试按钮来验证单位转换
-            Button {
-                text: "🔍 调试套管数据"
-                onClicked: {
-                    console.log("=== 套管数据调试 ===")
-                    console.log("生产套管内径 (英寸):", productionCasingInnerDiameter)
-                    console.log("生产套管内径 (毫米):", inchesToMm(productionCasingInnerDiameter))
+            // Button {
+            //     text: "🔍 调试套管数据"
+            //     onClicked: {
+            //         console.log("=== 套管数据调试 ===")
+            //         console.log("生产套管内径 (英寸):", productionCasingInnerDiameter)
+            //         console.log("生产套管内径 (毫米):", inchesToMm(productionCasingInnerDiameter))
 
-                    // 测试单位转换
-                    console.log("=== 单位转换测试 ===")
-                    console.log("157.07 mm →", mmToInches(157.07).toFixed(3), "英寸")
-                    console.log("6.18 英寸 →", inchesToMm(6.18).toFixed(1), "mm")
-                }
-            }
+            //         // 测试单位转换
+            //         console.log("=== 单位转换测试 ===")
+            //         console.log("157.07 mm →", mmToInches(157.07).toFixed(3), "英寸")
+            //         console.log("6.18 英寸 →", inchesToMm(6.18).toFixed(1), "mm")
+            //     }
+            // }
         }
         
         // 电机要求卡片

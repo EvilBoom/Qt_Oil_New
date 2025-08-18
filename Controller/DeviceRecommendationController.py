@@ -15,10 +15,13 @@ from DataManage.models.production_parameters import ProductionParameters, Produc
 
 from PySide6.QtCore import QObject, Signal, Slot, QTimer, Property
 from .MLPredictionService import MLPredictionService, PredictionInput, PredictionResults
-
+import matplotlib.pyplot as plt
+import matplotlib
+import matplotlib.patches as patches
 import numpy as np
 NUMPY_AVAILABLE = True
-
+# 中文字体兼容
+matplotlib.rcParams['font.sans-serif'] = ['SimHei']  # 设置中文字体
 # 添加Word文档生成支持
 try:
     from docx import Document
@@ -792,7 +795,7 @@ class DeviceRecommendationController(QObject):
         
             # 🔥 从数据库获取指定举升方式的泵数据
             pumps = self._db_service.get_devices_by_lift_method(
-                device_type='PUMP', 
+                device_type='pump', 
                 lift_method=lift_method.lower(),
                 status='active'
             )
@@ -1846,7 +1849,7 @@ class DeviceRecommendationController(QObject):
         """导出报告"""
         try:
             logger.info("=== 开始导出报告 ===")
-            logger.info(f"报告数据: {report_data}")
+            # logger.info(f"报告数据: {report_data}")
             
             self._set_busy(True)
             
@@ -1934,8 +1937,12 @@ class DeviceRecommendationController(QObject):
                 return False
         
             logger.info(f"开始生成Word文档: {file_path}")
+            # 把file_path中文件名称去掉，然后作为保存路径
+            save_path = os.path.dirname(file_path)
+            if not os.path.exists(save_path):
+                os.makedirs(save_path)
             # 生成图片文件
-            chart_images = self._generate_chart_images(step_data)
+            chart_images = self._generate_chart_images(step_data, save_path)
         
             # 创建Word文档
             doc = Document()
@@ -2150,13 +2157,17 @@ class DeviceRecommendationController(QObject):
             # 设置字体大小为三号字（三号字对应16磅）
             run23.font.size = Pt(14)
             # 插入井结构草图
-            if chart_images.get('well_sketch'):
-                doc.add_heading("2.3 井结构草图", level=3)
-                paragraph = doc.add_paragraph()
-                run = paragraph.add_run()  # 直接创建一个新的Run对象（无需访问runs[0]）
-                run.add_picture(chart_images['well_sketch'], width=Inches(5.5))
-            else:
-                doc.add_paragraph("暂无草图数据 - 需要轨迹和套管数据来生成井身结构草图")
+            well_sketch_path = chart_images.get('well_sketch')
+            paragraph = doc.add_paragraph()
+            paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            run = paragraph.add_run()
+                
+            abs_image_path = os.path.abspath(well_sketch_path)
+            logger.info(f"插入井结构草图: {abs_image_path}")
+                
+            # 🔥 设置合适的尺寸
+            run.add_picture(abs_image_path, width=Inches(5.5), height=Inches(7.0))
+
             # 添加图片说明
             caption_para = doc.add_paragraph()
             caption_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
@@ -2179,9 +2190,18 @@ class DeviceRecommendationController(QObject):
             trajectory_data = step_data.get('trajectory_data', [])
         
             if trajectory_data:
+                trajectory_image_path = chart_images.get('well_trajectory')
                 paragraph = doc.add_paragraph()
+                paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
                 run = paragraph.add_run()
-                run.add_picture(chart_images['well_trajectory'], width=Inches(6.0))
+                    
+                # 🔥 关键修复：使用绝对路径和合适的尺寸
+                abs_image_path = os.path.abspath(trajectory_image_path)
+                logger.info(f"插入井轨迹图片: {abs_image_path}")
+                    
+                # 🔥 设置合适的图片尺寸，避免过大
+                run.add_picture(abs_image_path, width=Inches(6.0), height=Inches(4.0))
+
                 # 添加图片说明
                 caption_para = doc.add_paragraph()
                 caption_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
@@ -2295,10 +2315,14 @@ class DeviceRecommendationController(QObject):
             ipr_curve_data = prediction.get('iprCurve', [])
         
             if ipr_curve_data:
-                doc.add_paragraph()
+                ipr_image_path = chart_images.get('ipr_curve')
+                paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
                 paragraph = doc.add_paragraph()
                 run = paragraph.add_run()
-                run.add_picture(chart_images['ipr_curve'], width=Inches(5.5))
+                abs_image_path = os.path.abspath(ipr_image_path)
+                logger.info(f"插入IPR曲线图: {abs_image_path}")
+                
+                run.add_picture(abs_image_path, width=Inches(5.5), height=Inches(4.0))
                 # 添加图片说明
                 caption_para = doc.add_paragraph()
                 caption_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
@@ -2766,45 +2790,37 @@ class DeviceRecommendationController(QObject):
         run.font.size = Pt(10)
     
         header_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    
-    def _generate_chart_images(self, step_data: dict) -> dict:
+
+    def _generate_chart_images(self, step_data: dict, temp_save_path: str) -> dict:
         """生成图表图片文件"""
-        import matplotlib.pyplot as plt
-        import tempfile
-        import os
-        # 中文字体兼容
-        import matplotlib
-        matplotlib.rcParams['font.sans-serif'] = ['SimHei']  # 设置中文字体
-
-
         chart_images = {}
-        temp_dir = tempfile.mkdtemp()
-    
         try:
             # 1. 生成井结构草图
             if step_data.get('well_sketch') and step_data.get('casing_data'):
-                well_sketch_path = os.path.join(temp_dir, 'well_sketch.png')
+                well_sketch_path = os.path.join(temp_save_path, 'well_sketch.png')
                 self._create_well_sketch_image(step_data, well_sketch_path)
                 chart_images['well_sketch'] = well_sketch_path
             
             # 2. 🔥 新增：生成井轨迹图
             trajectory_data = step_data.get('trajectory_data', [])
+            calculation_data = step_data.get('calculation', {})
+
             if trajectory_data and len(trajectory_data) > 0:
-                trajectory_path = os.path.join(temp_dir, 'well_trajectory.png')
-                self._create_well_trajectory_image(trajectory_data, step_data, trajectory_path)
+                trajectory_path = os.path.join(temp_save_path, 'well_trajectory.png')
+                self._create_well_trajectory_image(trajectory_data, calculation_data, trajectory_path)
                 chart_images['well_trajectory'] = trajectory_path
 
             # 2. 生成IPR曲线图
             ipr_data = step_data.get('prediction', {}).get('iprCurve', [])
             if ipr_data:
-                ipr_path = os.path.join(temp_dir, 'ipr_curve.png')
+                ipr_path = os.path.join(temp_save_path, 'ipr_curve.png')
                 self._create_ipr_curve_image(ipr_data, step_data, ipr_path)
                 chart_images['ipr_curve'] = ipr_path
         
             # 3. 生成泵性能曲线图
             pump_curves = step_data.get('pump_curves', {})
             if pump_curves.get('has_data'):
-                pump_path = os.path.join(temp_dir, 'pump_curves.png')
+                pump_path = os.path.join(temp_save_path, 'pump_curves.png')
                 self._create_pump_curves_image(pump_curves, pump_path)
                 chart_images['pump_curves'] = pump_path
         
@@ -2813,119 +2829,165 @@ class DeviceRecommendationController(QObject):
     
         return chart_images
 
-    def _create_well_trajectory_image(self, trajectory_data: list, step_data: dict, output_path: str):
-        """创建井轨迹图"""
-        import matplotlib.pyplot as plt
-        import numpy as np
-
+    def _create_well_trajectory_image(self, trajectory_data: list, calculation_data: dict, output_path: str):
+        """创建井轨迹图 - 修复版本"""
+    
         if not trajectory_data or len(trajectory_data) == 0:
-            logger.warning("无轨迹数据，无法生成井轨迹图")
             return
 
-        fig, ax = plt.subplots(1, 1, figsize=(10, 7))
+        fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(15, 8))
 
         try:
-            # 提取轨迹数据
-            tvd_values = []
-            horizontal_displacement = []
-            md_values = []
-        
-            # 计算水平位移
-            cumulative_horizontal = 0
-        
+            # 🔥 修复：数据预处理和单位转换
+            processed_data = []
             for i, point in enumerate(trajectory_data):
+                # 🔥 关键修复：数据清理和单位转换
                 tvd = point.get('tvd', 0)
                 md = point.get('md', 0)
+                inclination = point.get('inclination', 0)
+                azimuth = point.get('azimuth', 0)
             
-                if i > 0:
-                    # 计算水平增量
-                    prev_tvd = trajectory_data[i-1].get('tvd', 0)
-                    prev_md = trajectory_data[i-1].get('md', 0)
-                
-                    delta_md = md - prev_md
-                    delta_tvd = tvd - prev_tvd
-                
-                    # 使用勾股定理计算水平增量
-                    if delta_md > delta_tvd:
-                        delta_horizontal = np.sqrt(delta_md**2 - delta_tvd**2)
-                        cumulative_horizontal += delta_horizontal
-            
-                tvd_values.append(tvd)
-                horizontal_displacement.append(cumulative_horizontal)
-                md_values.append(md)
 
-            # 🔥 绘制井轨迹
-            ax.plot(horizontal_displacement, tvd_values, 'b-', linewidth=3, 
-                   label='井轨迹', marker='o', markersize=3, alpha=0.7)
+                tvd_m = tvd * 0.3048
+                md_m = md * 0.3048
+
+            
+                processed_data.append({
+                    'tvd': tvd_m,
+                    'md': md_m,
+                    'inclination': inclination,
+                    'azimuth': azimuth,
+                    'index': i
+                })
+
+            # 🔥 修复：按照前端JavaScript逻辑计算水平位移
+            tvd_values = []
+            md_values = []
+            horizontal_displacement = []
+            cumulative_horizontal = 0
+        
+            for i, point in enumerate(processed_data):
+                current_tvd = point['tvd']
+                current_md = point['md']
+            
+                # 🔥 关键修复：按照前端逻辑计算水平位移
+                if i > 0:
+                    prev_tvd = processed_data[i-1]['tvd']
+                    prev_md = processed_data[i-1]['md']
+                
+                    delta_md = current_md - prev_md
+                    delta_tvd = current_tvd - prev_tvd
+                
+                    # 🔥 与前端JavaScript完全一致的计算方式
+                    delta_horizontal = np.sqrt(max(0, delta_md * delta_md - delta_tvd * delta_tvd))
+                    cumulative_horizontal += delta_horizontal
+            
+                horizontal_displacement.append(cumulative_horizontal)
+                tvd_values.append(current_tvd)
+                md_values.append(current_md)
+
+            print(f"📊 轨迹统计: 最大垂深={max(tvd_values):.1f}m, 最大水平位移={max(horizontal_displacement):.1f}m")
+        
+            # 🔥 添加调试信息
+            print(f"🔍 前5个点的MD: {[d['md'] for d in processed_data[:5]]}")
+            print(f"🔍 前5个点的TVD: {[d['tvd'] for d in processed_data[:5]]}")
+            print(f"🔍 前5个点的水平位移: {horizontal_displacement[:5]}")
+        
+            # 计算几个关键点的增量
+            for i in range(1, min(6, len(processed_data))):
+                delta_md = processed_data[i]['md'] - processed_data[i-1]['md']
+                delta_tvd = processed_data[i]['tvd'] - processed_data[i-1]['tvd']
+                delta_h = np.sqrt(max(0, delta_md * delta_md - delta_tvd * delta_tvd))
+                print(f"🔍 点{i}: ΔMD={delta_md:.1f}, ΔTVD={delta_tvd:.1f}, ΔH={delta_h:.1f}")
+
+            # 🔥 绘制井轨迹剖面图 (ax1)
+            ax1.plot(horizontal_displacement, tvd_values, 'b-', linewidth=3, 
+                    label='井轨迹', marker='o', markersize=2, alpha=0.8)
 
             # 🔥 标记关键深度点
-            calc_info = step_data.get('calculation', {})
+            calc_info = calculation_data
         
             # 标记泵挂深度
             pump_depth = calc_info.get('pump_hanging_depth', 0)
+            if pump_depth > 1000:  # 转换单位
+                pump_depth = pump_depth * 0.3048
+            
             if pump_depth > 0:
-                # 找到对应的水平位移
-                pump_horizontal = self._find_horizontal_at_depth(trajectory_data, pump_depth)
-                ax.scatter([pump_horizontal], [pump_depth], c='red', s=100, 
-                          marker='s', label='泵挂深度', zorder=5)
-                ax.annotate(f'泵挂: {pump_depth:.0f}m', 
+                pump_horizontal = self._find_horizontal_at_depth_corrected(horizontal_displacement, tvd_values, pump_depth)
+                ax1.scatter([pump_horizontal], [pump_depth], c='red', s=120, 
+                          marker='s', label='泵挂深度', zorder=5, edgecolors='darkred', linewidth=2)
+                ax1.annotate(f'泵挂: {pump_depth:.0f}m', 
                            xy=(pump_horizontal, pump_depth),
-                           xytext=(pump_horizontal + 50, pump_depth - 100),
-                           fontsize=10, fontweight='bold', color='red',
+                           xytext=(pump_horizontal + max(horizontal_displacement)*0.1 + 50, pump_depth - max(tvd_values)*0.05),
+                           fontsize=11, fontweight='bold', color='red',
+                           bbox=dict(boxstyle="round,pad=0.3", facecolor='white', edgecolor='red', alpha=0.8),
                            arrowprops=dict(arrowstyle='->', color='red', lw=1.5))
 
             # 标记射孔深度
             perf_depth = calc_info.get('perforation_depth', 0)
+            if perf_depth > 1000:  # 转换单位
+                perf_depth = perf_depth * 0.3048
+            
             if perf_depth > 0:
-                perf_horizontal = self._find_horizontal_at_depth(trajectory_data, perf_depth)
-                ax.scatter([perf_horizontal], [perf_depth], c='green', s=100, 
-                          marker='^', label='射孔深度', zorder=5)
-                ax.annotate(f'射孔: {perf_depth:.0f}m', 
+                perf_horizontal = self._find_horizontal_at_depth_corrected(horizontal_displacement, tvd_values, perf_depth)
+                ax1.scatter([perf_horizontal], [perf_depth], c='green', s=120, 
+                          marker='^', label='射孔深度', zorder=5, edgecolors='darkgreen', linewidth=2)
+                ax1.annotate(f'射孔: {perf_depth:.0f}m', 
                            xy=(perf_horizontal, perf_depth),
-                           xytext=(perf_horizontal + 50, perf_depth + 100),
-                           fontsize=10, fontweight='bold', color='green',
+                           xytext=(perf_horizontal + max(horizontal_displacement)*0.1 + 50, perf_depth + max(tvd_values)*0.05),
+                           fontsize=11, fontweight='bold', color='green',
+                           bbox=dict(boxstyle="round,pad=0.3", facecolor='white', edgecolor='green', alpha=0.8),
                            arrowprops=dict(arrowstyle='->', color='green', lw=1.5))
 
             # 🔥 绘制井口
-            ax.scatter([0], [0], c='orange', s=150, marker='*', 
-                      label='井口', zorder=6)
-            ax.annotate('井口', xy=(0, 0), xytext=(20, -50),
-                       fontsize=12, fontweight='bold', color='orange')
+            ax1.scatter([0], [0], c='orange', s=200, marker='*', 
+                      label='井口', zorder=6, edgecolors='darkorange', linewidth=2)
+            ax1.annotate('井口', xy=(0, 0), xytext=(20, -max(tvd_values)*0.05),
+                       fontsize=12, fontweight='bold', color='orange',
+                       bbox=dict(boxstyle="round,pad=0.3", facecolor='white', edgecolor='orange', alpha=0.8))
 
-            # 🔥 设置坐标轴
-            ax.set_xlabel('水平位移 (m)', fontsize=12)
-            ax.set_ylabel('垂直深度 (m)', fontsize=12)
-            ax.set_title('井轨迹剖面图', fontsize=16, fontweight='bold')
+            # 🔥 设置第一个子图
+            ax1.set_xlabel('水平位移 (m)', fontsize=12, fontweight='bold')
+            ax1.set_ylabel('垂直深度 (m)', fontsize=12, fontweight='bold')
+            ax1.set_title('井轨迹剖面图', fontsize=16, fontweight='bold')
+            ax1.invert_yaxis()  # Y轴反向
+            ax1.grid(True, alpha=0.3, linestyle='--')
+            ax1.legend(loc='upper right', fontsize=10, framealpha=0.9)
+
+            # 🔥 绘制测深vs垂深对比图 (ax2)
+            ax2.plot(md_values, tvd_values, 'g-', linewidth=3, 
+                    label='MD vs TVD', marker='s', markersize=2, alpha=0.8)
         
-            # Y轴反向（深度向下）
-            ax.invert_yaxis()
-        
-            # 网格和图例
-            ax.grid(True, alpha=0.3, linestyle='--')
-            ax.legend(loc='upper right', fontsize=10)
+            # 绘制45度线（理想直井）
+            max_depth = max(max(md_values), max(tvd_values))
+            ax2.plot([0, max_depth], [0, max_depth], 'r--', linewidth=2, 
+                    alpha=0.5, label='理想直井 (TVD=MD)')
 
-            # 🔥 添加统计信息文本框
-            stats = self._calculate_trajectory_stats(trajectory_data, calc_info)
-            stats_text = f"""轨迹统计信息:
-    • 总测深: {stats['max_md']:.0f} m
-    • 最大垂深: {stats['max_tvd']:.0f} m  
-    • 最大水平位移: {stats['max_horizontal']:.0f} m
-    • 最大井斜角: {stats.get('max_inclination', 0):.1f}°
-    • 轨迹点数: {stats['total_points']} 个"""
-
-            ax.text(0.02, 0.98, stats_text, transform=ax.transAxes, 
-                   fontsize=9, verticalalignment='top',
-                   bbox=dict(boxstyle='round,pad=0.5', facecolor='lightblue', alpha=0.8))
+            ax2.set_xlabel('测深 MD (m)', fontsize=12, fontweight='bold')
+            ax2.set_ylabel('垂直深度 TVD (m)', fontsize=12, fontweight='bold')
+            ax2.set_title('测深 vs 垂深对比', fontsize=16, fontweight='bold')
+            ax2.grid(True, alpha=0.3, linestyle='--')
+            ax2.legend(loc='upper left', fontsize=10, framealpha=0.9)
 
             # 🔥 设置合适的坐标轴比例
-            ax.set_aspect('equal', adjustable='box')
+            max_horizontal = max(horizontal_displacement)
+            if max_horizontal < max(tvd_values) * 0.01:  # 水平位移很小（小于1%）
+                # 扩大显示范围以便观察
+                ax1.set_xlim(-max(tvd_values)*0.05, max(tvd_values)*0.15)
+            else:
+                ax1.set_xlim(-max_horizontal*0.1, max_horizontal*1.2)
         
-            # 🔥 优化保存参数
-            plt.tight_layout(pad=1.0)  # 减少边距
+            ax1.set_ylim(max(tvd_values)*1.05, -max(tvd_values)*0.05)
+        
+            # 第二个图：设置相等比例
+            ax2.set_aspect('equal', adjustable='box')
+
+            # 🔥 优化布局
+            plt.tight_layout(pad=2.0)
             
             # 保存图片
-            plt.savefig(output_path, dpi=300, bbox_inches='tight', 
-                       facecolor='white', edgecolor='none',pad_inches=0.1)
+            plt.savefig(output_path, dpi=300, bbox_inches='tight',
+                       facecolor='white', edgecolor='none', pad_inches=0.1)
             plt.close()
         
             logger.info(f"井轨迹图生成成功: {output_path}")
@@ -2934,106 +2996,250 @@ class DeviceRecommendationController(QObject):
             logger.error(f"生成井轨迹图失败: {e}")
             plt.close()
 
-    def _find_horizontal_at_depth(self, trajectory_data: list, target_depth: float) -> float:
-        """根据垂深查找对应的水平位移"""
-        if not trajectory_data:
+    def _find_horizontal_at_depth_corrected(self, horizontal_displacement: list, tvd_values: list, target_depth: float) -> float:
+        """根据垂深查找对应的水平位移 - 新版本"""
+        if not tvd_values or not horizontal_displacement:
             return 0
+
+        # 找到最接近目标深度的点
+        min_diff = float('inf')
+        closest_horizontal = 0
     
-        cumulative_horizontal = 0
+        for i, tvd in enumerate(tvd_values):
+            diff = abs(tvd - target_depth)
+            if diff < min_diff:
+                min_diff = diff
+                closest_horizontal = horizontal_displacement[i]
     
-        for i, point in enumerate(trajectory_data):
-            tvd = point.get('tvd', 0)
-        
-            # 计算累积水平位移
-            if i > 0:
-                prev_tvd = trajectory_data[i-1].get('tvd', 0)
-                prev_md = trajectory_data[i-1].get('md', 0)
-                curr_md = point.get('md', 0)
-            
-                delta_md = curr_md - prev_md
-                delta_tvd = tvd - prev_tvd
-            
-                if delta_md > delta_tvd:
-                    delta_horizontal = np.sqrt(delta_md**2 - delta_tvd**2)
-                    cumulative_horizontal += delta_horizontal
-        
-            # 如果找到目标深度附近的点
-            if abs(tvd - target_depth) < 10:  # 10米的容差
-                return cumulative_horizontal
-    
-        # 如果没找到精确匹配，返回最后的水平位移
-        return cumulative_horizontal
+        return closest_horizontal
 
     def _create_well_sketch_image(self, step_data: dict, output_path: str):
         """创建井结构草图"""
-        import matplotlib.pyplot as plt
-        import matplotlib.patches as patches
-    
-        fig, ax = plt.subplots(1, 1, figsize=(6, 9))
-    
-        # 获取数据
+        print("井结构草图的step_data", step_data)
+        """创建井结构草图 - 公制单位版本"""
+        fig, ax = plt.subplots(1, 1, figsize=(7, 12))  # 🔥 设置图像宽度为7英寸
+
+        # 🔥 修复：支持两种数据格式
+        # 格式1：直接的 casing_data 和 calculation
         casing_data = step_data.get('casing_data', [])
         calc_info = step_data.get('calculation', {})
     
-        # 绘制套管
-        for casing in casing_data:
-            if casing.get('is_deleted'):
-                continue
-            
+        # 格式2：嵌套在 well_sketch 中的数据
+        if not casing_data and 'well_sketch' in step_data:
+            well_sketch = step_data['well_sketch']
+            if isinstance(well_sketch, str):
+                import json
+                well_sketch = json.loads(well_sketch)
+        
+            # 从 well_sketch 中提取套管数据
+            sketch_casings = well_sketch.get('casings', [])
+            casing_data = []
+        
+            for casing in sketch_casings:
+                # 转换数据格式 - 转换为公制
+                converted_casing = {
+                    'casing_type': casing.get('type', 'Unknown'),
+                    'top_depth': casing.get('top_depth', 0) * 0.3048,  # 英尺转米
+                    'bottom_depth': casing.get('bottom_depth', 0) * 0.3048,  # 英尺转米
+                    'outer_diameter': casing.get('outer_diameter', 7) * 25.4,  # 英寸转毫米
+                    'inner_diameter': casing.get('inner_diameter', 6) * 25.4,   # 英寸转毫米
+                    'is_deleted': False
+                }
+                casing_data.append(converted_casing)
+    
+        # 🔥 修复：从多个源获取计算信息
+        if not calc_info:
+            calc_info = {
+                'pump_hanging_depth': step_data.get('pump_hanging_depth', 0),
+                'perforation_depth': step_data.get('perforation_depth', 0)
+            }
+        
+            if 'parameters' in step_data:
+                params = step_data['parameters']
+                calc_info.update({
+                    'pump_hanging_depth': params.get('pumpDepth', 0),
+                    'perforation_depth': params.get('perforationDepth', 0)
+                })
+
+        print(f"🔧 处理后的套管数据数量: {len(casing_data)}")
+        print(f"🔧 计算信息: {calc_info}")
+
+        # 🔥 关键修复：计算绘制范围（公制单位）
+        if casing_data:
+            all_depths = []
+            all_diameters = []  # 现在是毫米单位
+        
+            for casing in casing_data:
+                if not casing.get('is_deleted'):
+                    # 深度转换为米
+                    top_depth = casing.get('top_depth', 0)
+                    bottom_depth = casing.get('bottom_depth', 0)
+                    # 如果深度值很大，可能是英尺，需要转换
+                    if top_depth > 1000 or bottom_depth > 1000:
+                        top_depth = top_depth * 0.3048
+                        bottom_depth = bottom_depth * 0.3048
+                
+                    all_depths.extend([top_depth, bottom_depth])
+                
+                    # 直径处理（毫米单位）
+                    outer_diameter = casing.get('outer_diameter', 177.8)
+                    inner_diameter = casing.get('inner_diameter', 157.1)
+                    # 如果直径值很小，可能是英寸，需要转换
+                    if outer_diameter < 50:
+                        outer_diameter = outer_diameter * 25.4
+                        inner_diameter = inner_diameter * 25.4
+                
+                    all_diameters.extend([outer_diameter, inner_diameter])
+        
+            max_depth = max(all_depths) if all_depths else 1000
+            max_diameter = max(all_diameters) if all_diameters else 350  # 毫米
+            min_diameter = min(all_diameters) if all_diameters else 150  # 毫米
+        
+            print(f"🎯 绘制范围: 最大深度={max_depth}m, 直径范围={min_diameter}-{max_diameter}mm")
+        else:
+            max_depth = 1000
+            max_diameter = 350
+            min_diameter = 150
+
+        # 🔥 修复：按外径从大到小排序，确保正确的绘制层次
+        sorted_casings = sorted([c for c in casing_data if not c.get('is_deleted')], 
+                               key=lambda x: x.get('outer_diameter', 0), reverse=True)
+
+        # 🔥 修复：绘制套管（公制单位）
+        colors = ['#D2691E', '#FFD700', '#32CD32', '#FF6347', '#9370DB']  # 不同颜色
+    
+        for i, casing in enumerate(sorted_casings):
             top_depth = casing.get('top_depth', 0)
             bottom_depth = casing.get('bottom_depth', 1000)
-            outer_diameter = casing.get('outer_diameter', 177.8) / 25.4  # 转换为英寸
-            inner_diameter = casing.get('inner_diameter', 152.4) / 25.4
         
-            # 绘制套管外壁
-            rect_outer = patches.Rectangle((-outer_diameter/2, -bottom_depth), 
-                                         outer_diameter, bottom_depth - top_depth,
-                                         linewidth=1, edgecolor='black', 
-                                         facecolor='lightgray', alpha=0.7)
+            # 🔥 深度单位转换（确保为米）
+            if top_depth > 1000 or bottom_depth > 1000:
+                # 可能是英尺，转换为米
+                top_depth = top_depth * 0.3048
+                bottom_depth = bottom_depth * 0.3048
+        
+            # 🔥 直径单位处理（确保为毫米）
+            outer_diameter = casing.get('outer_diameter', 177.8)
+            inner_diameter = casing.get('inner_diameter', 157.1)
+        
+            if outer_diameter < 50:
+                # 可能是英寸，转换为毫米
+                outer_diameter = outer_diameter * 25.4
+                inner_diameter = inner_diameter * 25.4
+        
+            print(f"🔧 绘制套管: {casing['casing_type']}, 外径={outer_diameter:.1f}mm, 内径={inner_diameter:.1f}mm, 深度={top_depth:.1f}-{bottom_depth:.1f}m")
+
+            # 🔥 修复：正确的坐标计算（公制单位）
+            # Y轴：深度（向下为正，单位：米）
+            y_top = -top_depth
+            y_bottom = -bottom_depth
+            height = y_bottom - y_top  # 负值，因为bottom_depth > top_depth
+        
+            # X轴：以0为中心的对称绘制（单位：毫米）
+            x_left_outer = -outer_diameter/2
+            x_left_inner = -inner_diameter/2
+        
+            # 🔥 绘制套管外壁
+            rect_outer = patches.Rectangle(
+                (x_left_outer, y_top), 
+                outer_diameter, 
+                height,
+                linewidth=2, 
+                edgecolor='black', 
+                facecolor=colors[i % len(colors)], 
+                alpha=0.7,
+                label=f"{casing['casing_type']} {outer_diameter:.0f}mm"
+            )
             ax.add_patch(rect_outer)
         
-            # 绘制套管内壁（井眼）
-            rect_inner = patches.Rectangle((-inner_diameter/2, -bottom_depth), 
-                                         inner_diameter, bottom_depth - top_depth,
-                                         linewidth=1, edgecolor='black', 
-                                         facecolor='white')
+            # 🔥 绘制套管内壁（井眼）
+            rect_inner = patches.Rectangle(
+                (x_left_inner, y_top), 
+                inner_diameter, 
+                height,
+                linewidth=1, 
+                edgecolor='gray', 
+                facecolor='lightblue', 
+                alpha=0.3
+            )
             ax.add_patch(rect_inner)
         
-            # 添加标签
-            ax.text(outer_diameter/2 + 0.5, -top_depth - 50, 
-                   f"{casing.get('casing_type', 'Casing')}\n{outer_diameter:.1f}\"",
-                   fontsize=8, ha='left')
-    
-        # 标记重要深度
+            # 🔥 添加套管标签（避免重叠）
+            label_x = outer_diameter/2 + 20  # 偏移20mm
+            label_y = y_top + height/2  # 标签放在套管中间
+        
+            ax.annotate(
+                f"{casing['casing_type']}\n{outer_diameter:.0f}mm", 
+                xy=(outer_diameter/2, label_y),
+                xytext=(label_x, label_y),
+                fontsize=9, 
+                ha='left', 
+                va='center',
+                bbox=dict(boxstyle="round,pad=0.3", facecolor='white', alpha=0.8),
+                arrowprops=dict(arrowstyle='->', color='gray', lw=0.5)
+            )
+
+        # 🔥 标记重要深度（公制单位）
         pump_depth = calc_info.get('pump_hanging_depth', 0)
         perf_depth = calc_info.get('perforation_depth', 0)
     
+        # 如果深度值很大，可能是英尺，需要转换
+        if pump_depth > 1000:
+            pump_depth = pump_depth * 0.3048
+        if perf_depth > 1000:
+            perf_depth = perf_depth * 0.3048
+
         if pump_depth > 0:
-            ax.axhline(y=-pump_depth, color='red', linestyle='--', linewidth=2)
-            ax.text(0, -pump_depth + 20, f'泵挂深度: {pump_depth:.0f}m', 
-                   ha='center', fontweight='bold', color='red')
-    
+            ax.axhline(y=-pump_depth, color='red', linestyle='--', linewidth=2, alpha=0.8)
+            ax.text(-max_diameter/3, -pump_depth + max_depth*0.02, f'泵挂深度: {pump_depth:.0f}m', 
+                   ha='left', va='bottom', fontweight='bold', color='red',
+                   bbox=dict(boxstyle="round,pad=0.3", facecolor='white', alpha=0.8))
+
         if perf_depth > 0:
-            ax.axhline(y=-perf_depth, color='green', linestyle='--', linewidth=2)
-            ax.text(0, -perf_depth + 20, f'射孔深度: {perf_depth:.0f}m', 
-                   ha='center', fontweight='bold', color='green')
+            ax.axhline(y=-perf_depth, color='green', linestyle='--', linewidth=2, alpha=0.8)
+            ax.text(-max_diameter/3, -perf_depth + max_depth*0.02, f'射孔深度: {perf_depth:.0f}m', 
+                   ha='left', va='bottom', fontweight='bold', color='green',
+                   bbox=dict(boxstyle="round,pad=0.3", facecolor='white', alpha=0.8))
+
+        # 🔥 修复：设置坐标轴范围（公制单位）
+        # X轴：套管直径范围（毫米）- 使用1.2倍范围
+        diameter_range = max_diameter - min_diameter
+        x_center = 0
+        x_half_range = max_diameter * 0.6  # 稍微扩大显示范围
+        ax.set_xlim(-x_half_range, x_half_range)
     
-        # 设置坐标轴
-        ax.set_xlabel('水平距离 (in)')
-        ax.set_ylabel('深度 (m)')
-        ax.set_title('井身结构示意图', fontsize=14, fontweight='bold')
-        ax.grid(True, alpha=0.3)
-        ax.invert_yaxis()  # Y轴反向，深度向下
+        # Y轴：深度范围（米）
+        y_margin = max_depth * 0.1
+        ax.set_ylim(-max_depth - y_margin, y_margin)
     
-        plt.tight_layout()
+        # 🔥 设置坐标轴标签和标题（公制单位）
+        ax.set_xlabel('水平距离 (mm)', fontsize=12)
+        ax.set_ylabel('深度 (m)', fontsize=12)
+        ax.set_title('井身结构示意图', fontsize=16, fontweight='bold', pad=20)
+    
+        # 🔥 美化网格
+        ax.grid(True, alpha=0.3, linestyle='-', linewidth=0.5)
+        ax.set_axisbelow(True)  # 网格在图形后面
+    
+        # 🔥 添加图例
+        if sorted_casings:
+            ax.legend(loc='upper right', fontsize=10, framealpha=0.9)
+    
+        # 🔥 调整布局
+        # plt.tight_layout()
+    
+        # 🔥 添加调试信息
+        print(f"📊 图形范围: X({ax.get_xlim()}), Y({ax.get_ylim()})")
+        print(f"📊 绘制了 {len(sorted_casings)} 个套管")
+
         plt.savefig(output_path, dpi=300, bbox_inches='tight',
                pad_inches=0.1)
         plt.close()
 
     def _create_ipr_curve_image(self, ipr_data: list, step_data: dict, output_path: str):
-        """创建IPR曲线图"""
-        import matplotlib.pyplot as plt
-    
+        print("IPR曲线图的ipr_data", ipr_data)
+        print("IPR曲线图的step_data", step_data)
+        """创建IPR曲线图"""  
         if not ipr_data:
             return
     
@@ -3074,9 +3280,8 @@ class DeviceRecommendationController(QObject):
         plt.close()
 
     def _create_pump_curves_image(self, pump_curves: dict, output_path: str):
-        """创建泵性能曲线图"""
-        import matplotlib.pyplot as plt
-    
+        print("泵性能曲线图的pump_curves", pump_curves)
+        """创建泵性能曲线图"""   
         curves = pump_curves.get('baseCurves', {})
         if not curves.get('flow'):
             return
@@ -3139,9 +3344,9 @@ class DeviceRecommendationController(QObject):
                 logger.warning(f"清理临时文件失败: {e}")
 
 
-    def _calculate_trajectory_stats(self, trajectory_data, calc_info):
-        """计算轨迹统计数据"""
-        if not trajectory_data:
+    def _calculate_trajectory_stats(self, processed_data, calc_info):
+        """计算轨迹统计数据 - 修正版"""
+        if not processed_data:
             return {
                 'total_points': 0,
                 'max_tvd': 0,
@@ -3150,35 +3355,48 @@ class DeviceRecommendationController(QObject):
                 'max_dls': 0,
                 'max_horizontal': 0
             }
+
+        tvd_values = [d['tvd'] for d in processed_data]
+        md_values = [d['md'] for d in processed_data]
+        inc_values = [d['inclination'] for d in processed_data]
     
-        tvd_values = [d.get('tvd', 0) for d in trajectory_data if d.get('tvd', 0) > 0]
-        md_values = [d.get('md', 0) for d in trajectory_data if d.get('md', 0) > 0]
-        inc_values = [d.get('inclination', 0) for d in trajectory_data]
-        dls_values = [d.get('dls', 0) for d in trajectory_data]
-    
-        # 计算最大水平位移
+        # 🔥 修复：使用与前端一致的水平位移计算
         max_horizontal = 0
         cum_horizontal = 0
-        for i in range(1, len(trajectory_data)):
-            prev_tvd = trajectory_data[i-1].get('tvd', 0)
-            curr_tvd = trajectory_data[i].get('tvd', 0)
-            prev_md = trajectory_data[i-1].get('md', 0)
-            curr_md = trajectory_data[i].get('md', 0)
+        for i in range(1, len(processed_data)):
+            current_md = processed_data[i]['md']
+            current_tvd = processed_data[i]['tvd']
+            prev_md = processed_data[i-1]['md']
+            prev_tvd = processed_data[i-1]['tvd']
         
-            delta_md = curr_md - prev_md
-            delta_tvd = curr_tvd - prev_tvd
+            delta_md = current_md - prev_md
+            delta_tvd = current_tvd - prev_tvd
         
-            # 计算水平增量
-            delta_horizontal = (delta_md ** 2 - delta_tvd ** 2) ** 0.5 if delta_md ** 2 > delta_tvd ** 2 else 0
+            # 与前端JavaScript一致的计算
+            delta_horizontal = np.sqrt(max(0, delta_md * delta_md - delta_tvd * delta_tvd))
             cum_horizontal += delta_horizontal
             max_horizontal = max(max_horizontal, cum_horizontal)
-    
+
+        # 计算DLS (Dog Leg Severity)
+        dls_values = []
+        for i in range(1, len(processed_data)):
+            prev_inc = processed_data[i-1]['inclination']
+            curr_inc = processed_data[i]['inclination']
+            prev_az = processed_data[i-1]['azimuth']
+            curr_az = processed_data[i]['azimuth']
+        
+            # 简化DLS计算
+            delta_inc = curr_inc - prev_inc
+            delta_az = curr_az - prev_az
+            dls = np.sqrt(delta_inc**2 + (np.sin(np.radians(curr_inc)) * delta_az)**2)
+            dls_values.append(dls)
+
         return {
-            'total_points': len(trajectory_data),
-            'max_tvd': max(tvd_values) if tvd_values else 0,
-            'max_md': max(md_values) if md_values else 0,
-            'max_inclination': max(inc_values) if inc_values else calc_info.get('max_inclination', 0),
-            'max_dls': max(dls_values) if dls_values else calc_info.get('max_dls', 0),
+            'total_points': len(processed_data),
+            'max_tvd': max(tvd_values),
+            'max_md': max(md_values),
+            'max_inclination': max(inc_values),
+            'max_dls': max(dls_values) if dls_values else 0,
             'max_horizontal': max_horizontal
         }
 
