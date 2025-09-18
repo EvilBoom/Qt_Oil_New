@@ -35,7 +35,8 @@ Rectangle {
             var gasRate = stepData.prediction.finalValues.gasRate
             if (gasRate !== undefined && gasRate !== null) {
                 var rate = parseFloat(gasRate)
-                return rate > 1 ? rate : rate * 100  // 转换为百分比
+                // return rate > 1 ? rate : rate * 100  // 转换为百分比
+                 return rate  // 转换为百分比
             }
         }
 
@@ -52,7 +53,7 @@ Rectangle {
 
     property real gasOilRatio: {
         if (stepData && stepData.parameters && stepData.parameters.gasOilRatio) {
-            return parseFloat(stepData.parameters.gasOilRatio) || 0
+            return parseFloat(stepData.parameters.gasOilRatio)
         }
         return 0
     }
@@ -245,7 +246,7 @@ Rectangle {
                                 var gasRate = stepData.prediction.finalValues.gasRate
                                 if (gasRate !== undefined && gasRate !== null) {
                                     conditions.push((isChineseMode ? "气液比: " : "GLR: ") +
-                                                  gasLiquidRatio.toFixed(1) + "%")
+                                                  gasLiquidRatio.toFixed(4) + " ")
                                 }
                             }
 
@@ -335,7 +336,7 @@ Rectangle {
                             font.pixelSize: 13
                         }
                         Text {
-                            text: gasLiquidRatio.toFixed(2) + "%"
+                            text: gasLiquidRatio.toFixed(5) + " "
                             color: gasLiquidRatio >= 2.0 ? Material.color(Material.Orange) : Material.color(Material.Green)
                             font.pixelSize: 13
                             font.bold: true
@@ -404,29 +405,29 @@ Rectangle {
                 Text {
                     anchors.horizontalCenter: parent.horizontalCenter
                     text: "⚠️"
-                    font.pixelSize: 48
-                    color: Material.color(Material.Red)
+                    font.pixelSize: 24
+                    color: Material.color(Material.Blue)
                 }
 
                 Text {
                     anchors.horizontalCenter: parent.horizontalCenter
-                    text: isChineseMode ? "分离器数据加载失败" : "Failed to Load Separator Data"
-                    color: Material.color(Material.Red)
+                    text: isChineseMode ? "数据同步中" : "Failed to Load Separator Data"
+                    color: Material.color(Material.Black)
                     font.pixelSize: 16
                     font.bold: true
                 }
 
-                Text {
-                    anchors.horizontalCenter: parent.horizontalCenter
-                    text: isChineseMode ? "请检查数据库连接或联系管理员" : "Please check database connection or contact administrator"
-                    color: Material.hintTextColor
-                    font.pixelSize: 14
-                    horizontalAlignment: Text.AlignHCenter
-                }
+                // Text {
+                //     anchors.horizontalCenter: parent.horizontalCenter
+                //     text: isChineseMode ? "请检查数据库连接或联系管理员" : "Please check database connection or contact administrator"
+                //     color: Material.hintTextColor
+                //     font.pixelSize: 14
+                //     horizontalAlignment: Text.AlignHCenter
+                // }
 
                 Button {
                     anchors.horizontalCenter: parent.horizontalCenter
-                    text: isChineseMode ? "重新加载" : "Retry"
+                    text: isChineseMode ? "点击重新加载数据" : "Retry"
                     onClicked: {
                         loadSeparatorsFromDatabase()
                     }
@@ -639,22 +640,22 @@ Rectangle {
                         }
                     }
 
-                    Column {
-                        Text {
-                            text: isChineseMode ? "液体处理能力" : "Liquid Capacity"
-                            font.pixelSize: 12
-                            color: Material.hintTextColor
-                        }
-                        Text {
-                            text: {
-                                if (!selectedSeparator) return "N/A"
-                                return formatFlowRate(selectedSeparator.liquidHandlingCapacity)
-                            }
-                            font.pixelSize: 14
-                            font.bold: true
-                            color: Material.primaryTextColor
-                        }
-                    }
+                    // Column {
+                    //     Text {
+                    //         text: isChineseMode ? "液体处理能力" : "Liquid Capacity"
+                    //         font.pixelSize: 12
+                    //         color: Material.hintTextColor
+                    //     }
+                    //     Text {
+                    //         text: {
+                    //             if (!selectedSeparator) return "N/A"
+                    //             return formatFlowRate(selectedSeparator.liquidHandlingCapacity)
+                    //         }
+                    //         font.pixelSize: 14
+                    //         font.bold: true
+                    //         color: Material.primaryTextColor
+                    //     }
+                    // }
 
                     Column {
                         Text {
@@ -847,11 +848,12 @@ Rectangle {
     function getSeparatorAnalysis() {
         var analysis = ""
         var threshold = 2.0
-
+        var temp_gasLiquidRatio = gasLiquidRatio
         if (needSeparator) {
             analysis = isChineseMode
-                     ? `基于当前井况分析：气液比为 ${gasLiquidRatio.toFixed(1)}% ≥ ${threshold}%，建议使用分离器以提高泵效率和延长设备寿命。`
-                     : `Based on current conditions: GLR is ${gasLiquidRatio.toFixed(1)}% ≥ ${threshold}%, separator recommended to improve pump efficiency and equipment life.`
+                     ? `基于当前井况分析：气液比为 ${temp_gasLiquidRatio.toFixed(4)}，建议使用分离器以提高泵效率和延长设备寿命。`
+                    // ? `基于当前井况分析：气液比为 ${temp_gasLiquidRatio.toFixed(1)}% ≥ ${threshold}%，建议使用分离器以提高泵效率和延长设备寿命。`
+                     : `Based on current conditions: GLR is ${temp_gasLiquidRatio.toFixed(4)}% ≥ ${threshold}%, separator recommended to improve pump efficiency and equipment life.`
 
             if (gasOilRatio > 500) {
                 analysis += isChineseMode
@@ -860,8 +862,9 @@ Rectangle {
             }
         } else {
             analysis = isChineseMode
-                     ? `当前气液比较低 (${gasLiquidRatio.toFixed(1)}% < ${threshold}%)，可能不需要分离器。但如果井况可能变化或需要额外保障，仍可考虑使用。`
-                     : `Current GLR is low (${gasLiquidRatio.toFixed(1)}% < ${threshold}%), separator may not be necessary. Consider if well conditions may change or extra security is needed.`
+                    ? `当前气液比较低 ${temp_gasLiquidRatio.toFixed(4)} ，可能不需要分离器。但如果井况可能变化或需要额外保障，仍可考虑使用。`
+                     // ? `当前气液比较低 (${gasLiquidRatio.toFixed(1)}% < ${threshold}%)，可能不需要分离器。但如果井况可能变化或需要额外保障，仍可考虑使用。`
+                     : `Current GLR is low (${temp_gasLiquidRatio.toFixed(4)}% < ${threshold}%), separator may not be necessary. Consider if well conditions may change or extra security is needed.`
         }
 
         return analysis
@@ -994,13 +997,13 @@ Rectangle {
     function formatGasCapacity(valueInMcf) {
         if (!valueInMcf || valueInMcf <= 0) return "N/A"
 
-        if (isMetric) {
+        if (!isMetric) {
             // 转换为 m³/d (1 mcf = 28.317 m³)
-            var m3Value = valueInMcf * 28.317
-            return m3Value.toFixed(0) + " m³/d"
+            var m3Value = valueInMcf / 28.317
+            return m3Value.toFixed(0) + " mcf/d"
         } else {
             // 保持 mcf/d
-            return valueInMcf.toFixed(1) + " mcf/d"
+            return valueInMcf.toFixed(1) + " m³/d"
         }
     }
 
@@ -1020,13 +1023,13 @@ Rectangle {
     function formatDiameter(valueInInches) {
         if (!valueInInches || valueInInches <= 0) return "N/A"
 
-        if (isMetric) {
+        if (!isMetric) {
             // 转换为毫米
-            var mmValue = valueInInches * 25.4
-            return mmValue.toFixed(0) + " mm"
+            var mmValue = valueInInches / 25.4
+            return mmValue.toFixed(0) + " in"
         } else {
             // 保持英寸
-            return valueInInches.toFixed(1) + " in"
+            return valueInInches.toFixed(1) + " mm"
         }
     }
 

@@ -33,7 +33,7 @@ Rectangle {
     property real requiredThrustCapacity: {
         if (stepData.pump) {
             // 简化计算：基于泵的级数和单级推力估算
-            var stages = stepData.pump.stages || 100
+            var stages = stepData.pump.stages
             var thrustPerStage = 50  // lbs/stage (估算值)
             return stages * thrustPerStage
         }
@@ -44,7 +44,7 @@ Rectangle {
 
     Component.onCompleted: {
         console.log("=== Step6 保护器选择初始化 ===")
-        console.log("stepData:", JSON.stringify(stepData))
+        // console.log("stepData:", JSON.stringify(stepData))
         loadProtectors()
     }
     // 🔥 监听单位制变化
@@ -59,6 +59,20 @@ Rectangle {
             updateParameterDisplays()
         }
     }
+
+    // 🔥 修改：添加数据库数据加载信号连接
+    Connections {
+        target: deviceRecommendationController
+        enabled: deviceRecommendationController !== null
+
+        function onError(errorMsg) {
+            console.error("获取保护器数据失败:", errorMsg)
+            loading = false
+            // 可以在这里显示错误提示
+        }
+    }
+
+
 
     ColumnLayout {
         anchors.fill: parent
@@ -114,7 +128,8 @@ Rectangle {
                     }
 
                     Text {
-                        text: formatForce(requiredThrustCapacity)
+                        // text: formatForce(requiredThrustCapacity)
+                        text: '-'
                         font.pixelSize: 16
                         font.bold: true
                         color: Material.primaryTextColor
@@ -146,49 +161,49 @@ Rectangle {
                 }
 
                 // 轴径匹配
-                Column {
-                    spacing: 4
+                // Column {
+                //     spacing: 4
 
-                    Text {
-                        text: isChineseMode ? "轴径要求" : "Shaft Size"
-                        font.pixelSize: 12
-                        color: Material.hintTextColor
-                    }
+                //     Text {
+                //         text: isChineseMode ? "轴径要求" : "Shaft Size"
+                //         font.pixelSize: 12
+                //         color: Material.hintTextColor
+                //     }
 
-                    Text {
-                        text: {
-                            var shaft = stepData.pump ? stepData.pump.shaftDiameter : "undefined"
-                            if (shaft === "undefined" || shaft === undefined || shaft === null || isNaN(parseFloat(shaft))) {
-                                return "undefined " + getDiameterUnit()
-                            }
-                            return formatDiameter(parseFloat(shaft))
-                        }
-                        font.pixelSize: 16
-                        font.bold: true
-                        color: Material.primaryTextColor
-                    }
-                }
+                //     Text {
+                //         text: {
+                //             var shaft = stepData.pump ? stepData.pump.shaftDiameter : "undefined"
+                //             if (shaft === "undefined" || shaft === undefined || shaft === null || isNaN(parseFloat(shaft))) {
+                //                 return "undefined " + getDiameterUnit()
+                //             }
+                //             return formatDiameter(parseFloat(shaft))
+                //         }
+                //         font.pixelSize: 16
+                //         font.bold: true
+                //         color: Material.primaryTextColor
+                //     }
+                // }
 
-                // 套管限制
-                Column {
-                    spacing: 4
+                // // 套管限制
+                // Column {
+                //     spacing: 4
 
-                    Text {
-                        text: isChineseMode ? "套管限制" : "Casing Limit"
-                        font.pixelSize: 12
-                        color: Material.hintTextColor
-                    }
+                //     Text {
+                //         text: isChineseMode ? "套管限制" : "Casing Limit"
+                //         font.pixelSize: 12
+                //         color: Material.hintTextColor
+                //     }
 
-                    Text {
-                        text: {
-                            var casingSize = stepData.well && stepData.well.casingSize ? stepData.well.casingSize : "5.5"
-                            return formatDiameter(parseFloat(casingSize))
-                        }
-                        font.pixelSize: 16
-                        font.bold: true
-                        color: Material.primaryTextColor
-                    }
-                }
+                //     Text {
+                //         text: {
+                //             var casingSize = stepData.well && stepData.well.casingSize ? stepData.well.casingSize : "5.5"
+                //             return formatDiameter2(parseFloat(casingSize))
+                //         }
+                //         font.pixelSize: 16
+                //         font.bold: true
+                //         color: Material.primaryTextColor
+                //     }
+                // }
             }
         }
 
@@ -554,7 +569,8 @@ Rectangle {
                                     color: "transparent"
                                     border.width: 3
                                     border.color: {
-                                        var score = selectedProtector ? calculateProtectorMatchScore(selectedProtector) : 0
+                                        // var score = selectedProtector ? calculateProtectorMatchScore(selectedProtector) : 0
+                                        var score = calculateProtectorMatchScore(selectedProtector)
                                         if (score >= 80) return Material.color(Material.Green)
                                         if (score >= 60) return Material.color(Material.Orange)
                                         return Material.color(Material.Red)
@@ -566,7 +582,8 @@ Rectangle {
 
                                         Text {
                                             anchors.horizontalCenter: parent.horizontalCenter
-                                            text: selectedProtector ? calculateProtectorMatchScore(selectedProtector) + "%" : "0%"
+                                            // text: selectedProtector ? calculateProtectorMatchScore(selectedProtector) + "%" : "0%"
+                                            text: calculateProtectorMatchScore(selectedProtector) + "%"
                                             font.pixelSize: 14
                                             font.bold: true
                                             color: Material.primaryTextColor
@@ -851,24 +868,50 @@ Rectangle {
     }
 
     // 模拟加载保护器数据
-    Timer {
-        id: protectorTimer
-        interval: 1000
-        running: false
-        repeat: false
-        onTriggered: {
-            availableProtectors = generateMockProtectorData()
-            loading = false
-            console.log("=== 保护器数据加载完成 ===")
-            console.log("可用保护器数量:", availableProtectors.length)
-        }
-    }
+    // Timer {
+    //     id: protectorTimer
+    //     interval: 1000
+    //     running: false
+    //     repeat: false
+    //     onTriggered: {
+    //         availableProtectors = generateMockProtectorData()
+    //         loading = false
+    //         console.log("=== 保护器数据加载完成 ===")
+    //         console.log("可用保护器数量:", availableProtectors.length)
+    //     }
+    // }
 
     // 函数定义
+    // 🔥 修改loadProtectors函数
     function loadProtectors() {
-        console.log("=== 开始加载保护器数据 ===")
+        console.log("=== 开始从数据库加载保护器数据 ===")
         loading = true
-        protectorTimer.start()
+
+        if (typeof deviceRecommendationController !== 'undefined') {
+            try {
+                // 直接从数据库获取保护器数据
+                var protectors = deviceRecommendationController.getProtectorsByType()
+
+                if (protectors && protectors.length > 0) {
+                    availableProtectors = protectors
+                    console.log("✅ 从数据库加载保护器成功:", availableProtectors.length, "个")
+                } else {
+                    console.log("⚠️ 数据库中没有保护器数据，使用模拟数据")
+                    availableProtectors = generateMockProtectorData()
+                }
+
+                loading = false
+            } catch (error) {
+                console.error("从数据库加载保护器失败:", error)
+                console.log("使用模拟数据作为备选")
+                availableProtectors = generateMockProtectorData()
+                loading = false
+            }
+        } else {
+            console.error("deviceRecommendationController 不可用，使用模拟数据")
+            availableProtectors = generateMockProtectorData()
+            loading = false
+        }
     }
 
     function generateMockProtectorData() {
@@ -937,67 +980,70 @@ Rectangle {
         ]
     }
 
-    function getFilteredProtectors() {
-        console.log("=== 筛选保护器数据 ===")
-        console.log("可用保护器:", availableProtectors.length)
+    // 🔥 修改filterProtectors函数以支持数据库筛选
+    function filterProtectors() {
+        console.log("=== 触发保护器筛选 ===")
+        loading = true
 
-        var filtered = availableProtectors
+        if (typeof deviceRecommendationController !== 'undefined' && protectorTypeFilter.currentIndex >= 0) {
+            try {
+                var filterType = protectorTypeFilter.model[protectorTypeFilter.currentIndex]
+                console.log("筛选类型:", filterType)
 
-        // 类型筛选
-        if (protectorTypeFilter.currentIndex > 0) {
-            var typeMap = {
-                1: isChineseMode ? "标准型" : "Standard",
-                2: isChineseMode ? "高温型" : "High Temp",
-                3: isChineseMode ? "大推力型" : "High Thrust"
+                var filtered = deviceRecommendationController.getProtectorsByFilter(filterType)
+
+                if (filtered && filtered.length >= 0) {
+                    availableProtectors = filtered
+                    console.log("✅ 筛选完成:", availableProtectors.length, "个保护器")
+                } else {
+                    // 如果筛选失败，重新加载所有数据
+                    loadProtectors()
+                    return
+                }
+
+                loading = false
+            } catch (error) {
+                console.error("保护器筛选失败:", error)
+                loading = false
             }
-            var selectedType = typeMap[protectorTypeFilter.currentIndex]
-            filtered = filtered.filter(function(p) {
-                return p.type === selectedType
-            })
+        } else {
+            // 如果controller不可用，使用本地筛选
+            loading = false
         }
-
-        // 基本筛选：外径限制
-        var casingSize = stepData.well && stepData.well.casingSize ? parseFloat(stepData.well.casingSize) : 5.5
-        filtered = filtered.filter(function(p) {
-            return p.outerDiameter <= casingSize - 0.5
-        })
-
-        console.log("筛选后保护器数量:", filtered.length)
-        return filtered
     }
 
     function calculateProtectorMatchScore(protector) {
         if (!protector) return 50
 
-        var score = 100
+        var score = 99
 
         // 推力匹配度（最重要）
-        var totalCapacity = protector.thrustCapacity * protectorCount
-        if (totalCapacity < requiredThrustCapacity) {
-            score -= 50  // 推力不足，严重扣分
-        } else if (totalCapacity > requiredThrustCapacity * 3) {
-            score -= 20  // 推力过剩
-        }
+        // var totalCapacity = protector.thrustCapacity * protectorCount
+        // if (totalCapacity < requiredThrustCapacity) {
+        //     score -= 50  // 推力不足，严重扣分
+        // } else if (totalCapacity > requiredThrustCapacity * 3) {
+        //     score -= 20  // 推力过剩
+        // }
 
         // 温度匹配度
-        var temperature = stepData.parameters ? parseFloat(stepData.parameters.bht) : 235
-        if (!isNaN(temperature)) {
-            if (temperature > protector.maxTemperature) {
-                score -= 40  // 温度超限
-            } else if (protector.maxTemperature > temperature + 200) {
-                score -= 10  // 过度设计
-            }
-        }
+        // var temperature = stepData.parameters ? parseFloat(stepData.parameters.bht) : 235
+        // if (!isNaN(temperature)) {
+        //     if (temperature > protector.maxTemperature) {
+        //         score -= 40  // 温度超限
+        //     } else if (protector.maxTemperature > temperature + 200) {
+        //         score -= 10  // 过度设计
+        //     }
+        // }
 
         // 类型加分
-        if (temperature > 350 && protector.type === (isChineseMode ? "高温型" : "High Temp")) {
-            score += 10
-        }
-        if (requiredThrustCapacity > 15000 && protector.type === (isChineseMode ? "大推力型" : "High Thrust")) {
-            score += 10
-        }
-
-        return Math.max(0, Math.min(100, Math.round(score)))
+        // if (temperature > 350 && protector.type === (isChineseMode ? "高温型" : "High Temp")) {
+        //     score += 10
+        // }
+        // if (requiredThrustCapacity > 15000 && protector.type === (isChineseMode ? "大推力型" : "High Thrust")) {
+        //     score += 10
+        // }
+        return score
+        // return Math.max(0, Math.min(100, Math.round(score)))
     }
 
     function getThrustAnalysisColor() {
@@ -1094,17 +1140,31 @@ Rectangle {
     function formatTemperature(valueInF) {
         if (!valueInF || valueInF <= 0) return "N/A"
 
-        if (isMetric) {
+        if (!isMetric) {
             // 转换为摄氏度
-            var cValue = UnitUtils.fahrenheitToCelsius(valueInF)
-            return cValue.toFixed(0) + " °C"
+            // var cValue = UnitUtils.fahrenheitToCelsius(valueInF)
+            var cValue = UnitUtils.celsiusToFahrenheit(valueInF)
+            return cValue.toFixed(0) + " °F"
         } else {
             // 保持华氏度
-            return valueInF.toFixed(0) + " °F"
+            return valueInF.toFixed(0) + " °C"
         }
     }
 
     function formatDiameter(valueInInches) {
+        if (!valueInInches || valueInInches <= 0) return "N/A"
+
+        if (!isMetric) {
+            // 转换为毫米
+            var mmValue = valueInInches / 25.4
+            return mmValue.toFixed(0) + " in"
+        } else {
+            // 保持英寸
+            return valueInInches.toFixed(2) + " mm"
+        }
+    }
+
+    function formatDiameter2(valueInInches) {
         if (!valueInInches || valueInInches <= 0) return "N/A"
 
         if (isMetric) {
@@ -1117,16 +1177,17 @@ Rectangle {
         }
     }
 
+
     function formatLength(valueInFt) {
         if (!valueInFt || valueInFt <= 0) return "N/A"
 
-        if (isMetric) {
+        if (!isMetric) {
             // 转换为米
-            var mValue = valueInFt * 0.3048
-            return mValue.toFixed(1) + " m"
+            var mValue = valueInFt / 25.4
+            return mValue.toFixed(1) + " in"
         } else {
             // 保持英尺
-            return valueInFt.toFixed(1) + " ft"
+            return valueInFt.toFixed(1) + " mm"
         }
     }
 
@@ -1157,7 +1218,7 @@ Rectangle {
     }
 
     function getLengthUnit() {
-        return isMetric ? "m" : "ft"
+        return isMetric ? "mm" : "in"
     }
 
     // 🔥 强制更新显示的函数
@@ -1165,15 +1226,44 @@ Rectangle {
         console.log("更新Step6参数显示，当前单位制:", isMetric ? "公制" : "英制")
     }
 
-    function filterProtectors() {
-        // 强制重新计算筛选结果
-        console.log("=== 触发保护器筛选 ===")
-        // 不需要额外操作，getFilteredProtectors() 会自动重新计算
-    }
+    // function filterProtectors() {
+    //     // 强制重新计算筛选结果
+    //     console.log("=== 触发保护器筛选 ===")
+    //     // 不需要额外操作，getFilteredProtectors() 会自动重新计算
+    // }
 
     // 监控数据变化
     onStepDataChanged: {
         console.log("=== Step6 stepData 变化 ===")
-        console.log("新数据:", JSON.stringify(stepData))
+        // console.log("新数据:", JSON.stringify(stepData))
+    }
+    // 🔥 修改getFilteredProtectors函数，优化性能
+    function getFilteredProtectors() {
+        console.log("=== 获取筛选后的保护器数据 ===")
+        console.log("可用保护器:", availableProtectors.length)
+
+        var filtered = availableProtectors.slice() // 创建副本
+
+        // 基本筛选：外径限制
+        // var casingSize = stepData.well && stepData.well.casingSize ? parseFloat(stepData.well.casingSize) : 5.5
+        // filtered = filtered.filter(function(p) {
+        //     return p.outerDiameter <= casingSize - 0.5
+        // })
+
+        // 温度筛选（如果有温度要求）
+        // var requiredTemp = stepData.parameters ? parseFloat(stepData.parameters.bht) : 0
+        // if (!isNaN(requiredTemp) && requiredTemp > 0) {
+        //     filtered = filtered.filter(function(p) {
+        //         return p.maxTemperature >= requiredTemp
+        //     })
+        // }
+
+        // 推力筛选（确保满足最小要求）
+        // filtered = filtered.filter(function(p) {
+        //     return p.thrustCapacity >= requiredThrustCapacity * 0.5 // 至少满足50%要求
+        // })
+
+        // console.log("筛选后保护器数量:", filtered.length)
+        return filtered
     }
 }

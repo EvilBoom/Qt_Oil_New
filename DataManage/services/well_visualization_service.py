@@ -209,6 +209,8 @@ class WellVisualizationService:
         """
         生成井轨迹图数据（修复版本）
         """
+        # 输出trajectory_data
+        print("Trajectory Data Sample:", trajectory_data[:3])  # 打印前3条数据样本
         try:
             if not trajectory_data:
                 self.last_error = "没有轨迹数据"
@@ -296,15 +298,27 @@ class WellVisualizationService:
 
             # 3D轨迹数据（如果有北/东坐标）
             trajectory_3d = None
-            if any('north_south' in d and 'east_west' in d for d in trajectory_data):
-                north_coords = []
-                east_coords = []
-                for d in trajectory_data:
-                    north = d.get('north_south', 0)
-                    east = d.get('east_west', 0)
-                    north_coords.append(float(north) if north is not None else 0.0)
-                    east_coords.append(float(east) if east is not None else 0.0)
+            # 🔥 方案1：检查是否有有效的北东坐标
+            north_coords = []
+            east_coords = []
+            has_valid_coords = False
+        
+            for d in trajectory_data:
+                north = d.get('north_south', 0)
+                east = d.get('east_west', 0)
+            
+                north_val = float(north) if north is not None else 0.0
+                east_val = float(east) if east is not None else 0.0
+            
+                north_coords.append(north_val)
+                east_coords.append(east_val)
+            
+                # 检查是否有非零值
+                if abs(north_val) > 0.001 or abs(east_val) > 0.001:
+                    has_valid_coords = True
 
+            if has_valid_coords:
+                logger.info("使用真实的北东坐标生成3D轨迹")
                 trajectory_3d = {
                     'x': east_coords,
                     'y': north_coords,
@@ -312,6 +326,91 @@ class WellVisualizationService:
                     'name': '3D Trajectory',
                     'type': 'scatter3d'
                 }
+            else:
+                # 🔥 方案2：使用水平位移和方位角生成3D坐标
+                logger.info("北东坐标无效，使用计算方法生成3D轨迹")
+            
+                # 计算水平位移
+                X = [0.0]  # 初始水平位移
+                for i in range(1, len(MD)):
+                    delta_MD = MD[i] - MD[i-1]
+                    delta_TVD = TVD[i] - TVD[i-1]
+                
+                    delta_MD = float(delta_MD) if delta_MD is not None else 0.0
+                    delta_TVD = float(delta_TVD) if delta_TVD is not None else 0.0
+                
+                    # 计算水平位移增量
+                    displacement_squared = max(0, delta_MD**2 - delta_TVD**2)
+                    delta_X = np.sqrt(displacement_squared)
+                    X.append(X[-1] + delta_X)
+
+                # 生成3D坐标：假设井轨迹有一定的方位变化
+                synthetic_east = []
+                synthetic_north = []
+            
+                for i, h_disp in enumerate(X):
+                    if i < len(trajectory_data):
+                        # 尝试使用方位角
+                        azimuth = trajectory_data[i].get('azimuth', None)
+                        if azimuth is not None and float(azimuth) != 0:
+                            azimuth_rad = float(azimuth) * np.pi / 180.0
+                        else:
+                            # 🔥 如果没有方位角，创建一个渐变的方向
+                            # 让井轨迹呈现一个弯曲的形状
+                            progress = i / max(len(trajectory_data) - 1, 1)
+                            azimuth_rad = progress * np.pi / 6  # 最大30度偏转
+                    
+                        # 计算东北分量
+                        east_component = h_disp * np.sin(azimuth_rad)
+                        north_component = h_disp * np.cos(azimuth_rad)
+                    
+                        synthetic_east.append(east_component)
+                        synthetic_north.append(north_component)
+                    else:
+                        synthetic_east.append(0.0)
+                        synthetic_north.append(0.0)
+            
+                # 🔥 如果水平位移也很小，创建一个假的轨迹形状
+                max_horizontal = max(max(synthetic_east, default=0), max(synthetic_north, default=0))
+                if max_horizontal < 10:  # 如果水平位移太小
+                    logger.info("创建假设的井轨迹形状用于3D显示")
+                    max_depth = max(TVD) if TVD else 1000
+                
+                    for i in range(len(TVD)):
+                        progress = i / max(len(TVD) - 1, 1)
+                        # 创建一个S形曲线
+                        horizontal_offset = max_depth * 0.1 * np.sin(progress * np.pi)
+                    
+                        synthetic_east[i] = horizontal_offset * np.sin(progress * np.pi * 2)
+                        synthetic_north[i] = horizontal_offset * np.cos(progress * np.pi * 2)
+
+                trajectory_3d = {
+                    'x': synthetic_east,
+                    'y': synthetic_north,
+                    'z': tvd_array,
+                    'name': '3D Trajectory (Generated)',
+                    'type': 'scatter3d'
+                }
+            
+                logger.info(f"生成的3D坐标范围: 东向 {min(synthetic_east):.1f} ~ {max(synthetic_east):.1f}, 北向 {min(synthetic_north):.1f} ~ {max(synthetic_north):.1f}")
+
+            # if any('north_south' in d and 'east_west' in d for d in trajectory_data):
+            #     north_coords = []
+            #     east_coords = []
+            #     for d in trajectory_data:
+            #         north = d.get('north_south', 0)
+            #         east = d.get('east_west', 0)
+            #         north_coords.append(float(north) if north is not None else 0.0)
+            #         east_coords.append(float(east) if east is not None else 0.0)
+
+            #     trajectory_3d = {
+            #         'x': east_coords,
+            #         'y': north_coords,
+            #         'z': tvd_array,
+            #         'name': '3D Trajectory',
+            #         'type': 'scatter3d'
+            #     }
+
 
             # 计算水平位移数据，修复delta计算
             X = [0.0]  # 初始水平位移
@@ -330,6 +429,10 @@ class WellVisualizationService:
                 displacement_squared = max(0, delta_MD**2 - delta_TVD**2)
                 delta_X = np.sqrt(displacement_squared)
                 X.append(X[-1] + delta_X)
+
+            # X和tvd_array的数据都转换成公制
+            X = [round(x * 0.3048, 3) for x in X]  # 英尺转米
+            tvd_array = [round(tvd * 0.3048, 3) for tvd in tvd_array]  # 英尺转米
 
             # TVD vs 水平位移数据
             tvd_vs_md = {

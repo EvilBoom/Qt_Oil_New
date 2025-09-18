@@ -1,4 +1,4 @@
-# DataManage/models/casing.py
+﻿# DataManage/models/casing.py
 
 from sqlalchemy import Column, Integer, Float, String, ForeignKey, DateTime, Boolean
 from sqlalchemy.orm import relationship

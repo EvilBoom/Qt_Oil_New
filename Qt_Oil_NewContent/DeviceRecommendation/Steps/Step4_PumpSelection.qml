@@ -35,51 +35,6 @@ Rectangle {
 
     color: "transparent"
 
-    // 🔥 采用老版本的Component.onCompleted逻辑
-    // Component.onCompleted: {
-    //     console.log("=== Step4 组件加载完成 ===")
-    //     console.log("controller:", controller)
-    //     console.log("stepData:", JSON.stringify(stepData))
-    //     console.log("constraints:", JSON.stringify(constraints))
-
-    //     // 🔥 保持老版本的信号连接方式
-    //     if (controller) {
-    //         controller.pumpsLoaded.connect(onPumpsLoaded)
-    //         controller.error.connect(onError)
-    //     }
-
-    //     // 连接泵曲线控制器信号
-    //     if (typeof pumpCurvesController !== 'undefined' && pumpCurvesController) {
-    //         console.log("连接泵曲线控制器信号")
-    //         pumpCurvesController.curvesDataLoaded.connect(onCurvesDataLoaded)
-    //         pumpCurvesController.multiConditionComparisonReady.connect(onComparisonReady)
-    //         pumpCurvesController.performancePredictionCompleted.connect(onPredictionCompleted)
-    //         pumpCurvesController.systemCurveGenerated.connect(onSystemCurveGenerated)
-    //         pumpCurvesController.error.connect(onPumpCurvesError)
-    //     } else {
-    //         console.warn("pumpCurvesController 未定义或为空")
-    //     }
-    //     // 🔥 检查是否已经选择了举升方式
-    //     if (stepData.lift_method && stepData.lift_method.selectedMethod) {
-    //         console.log("检测到已选择举升方式:", stepData.lift_method.selectedMethod)
-
-    //         // 🔥 如果已筛选过泵，不要重复加载
-    //         if (stepData.lift_method.pumpsFiltered) {
-    //             console.log("泵已筛选，等待数据...")
-    //         } else {
-    //             // 重新筛选泵
-    //             loadPumpsForMethod()
-    //         }
-    //     } else {
-    //         console.warn("未选择举升方式，显示空列表")
-    //         availablePumps = []
-    //     }
-
-    //     // 🔥 更新约束条件以包含Step2的预测结果
-    //     updateConstraintsFromPrediction()
-
-    //     // loadPumpsForMethod()
-    // }
     // 🔥 修复Component.onCompleted
     Component.onCompleted: {
         console.log("=== Step4 组件加载完成 ===")
@@ -223,21 +178,21 @@ Rectangle {
             Item { Layout.fillWidth: true }
 
             // 筛选条件
-            // ComboBox {
-            //     id: manufacturerFilter
-            //     Layout.preferredWidth: 150
-            //     model: ["All Manufacturers", "Baker Hughes", "Schlumberger", "Weatherford", "Borets"]
-            //     displayText: isChineseMode ? "制造商筛选" : currentText
-            //     onCurrentIndexChanged: filterPumps()
-            // }
+            ComboBox {
+                id: manufacturerFilter
+                Layout.preferredWidth: 150
+                model: ["All Manufacturers", "Baker Hughes", "Schlumberger", "Weatherford", "Borets"]
+                displayText: isChineseMode ? "制造商筛选" : currentText
+                onCurrentIndexChanged: filterPumps()
+            }
 
-            // ComboBox {
-            //     id: seriesFilter
-            //     Layout.preferredWidth: 120
-            //     model: ["All Series", "400 Series", "500 Series", "600 Series", "700 Series"]
-            //     displayText: isChineseMode ? "系列筛选" : currentText
-            //     onCurrentIndexChanged: filterPumps()
-            // }
+            ComboBox {
+                id: seriesFilter
+                Layout.preferredWidth: 120
+                model: ["All Series", "400 Series", "500 Series", "600 Series", "700 Series"]
+                displayText: isChineseMode ? "系列筛选" : currentText
+                onCurrentIndexChanged: filterPumps()
+            }
         }
 
         // 🔥 保持老版本的要求参数显示逻辑
@@ -319,28 +274,28 @@ Rectangle {
                     }
                 }
 
-                Column {
-                    Text {
-                        text: isChineseMode ? "套管限制" : "Casing Limit"
-                        font.pixelSize: 12
-                        color: Material.hintTextColor
-                    }
-                    Text {
-                        text: {
-                            var casingSize = 5.5 // 默认英制值（inches）
+                // Column {
+                //     Text {
+                //         text: isChineseMode ? "套管限制" : "Casing Limit"
+                //         font.pixelSize: 12
+                //         color: Material.hintTextColor
+                //     }
+                //     Text {
+                //         text: {
+                //             var casingSize = 5.5 // 默认英制值（inches）
 
-                            // 从井结构数据获取套管尺寸
-                            if (stepData.well && stepData.well.casingSize) {
-                                casingSize = stepData.well.casingSize
-                            }
+                //             // 从井结构数据获取套管尺寸
+                //             if (stepData.well && stepData.well.casingSize) {
+                //                 casingSize = stepData.well.casingSize
+                //             }
 
-                            return formatDiameter(casingSize)
-                        }
-                        font.pixelSize: 14
-                        font.bold: true
-                        color: Material.primaryTextColor
-                    }
-                }
+                //             return formatDiameter(casingSize)
+                //         }
+                //         font.pixelSize: 14
+                //         font.bold: true
+                //         color: Material.primaryTextColor
+                //     }
+                // }
 
                 // 🔥 新增：气液比显示
                 Column {
@@ -350,15 +305,20 @@ Rectangle {
                         color: Material.hintTextColor
                     }
                     Text {
-                        text: {
-                            if (stepData.prediction && stepData.prediction.finalValues) {
-                                var gasRate = stepData.prediction.finalValues.gasRate
-                                if (gasRate !== undefined && gasRate !== null) {
-                                    return gasRate.toFixed(4)
-                                }
-                            }
-                            return "N/A"
+                        // text: {
+                        //     if (stepData.prediction && stepData.prediction.finalValues) {
+                        //         var gasRate = stepData.prediction.finalValues.gasRate
+                        //         if (gasRate !== undefined && gasRate !== null) {
+                        //             return gasRate.toFixed(4)
+                        //         }
+                        //     }
+                        //     return "N/A"
+                        // }
+                        text:{
+                            var gasRate = stepData.prediction.finalValues.gasRate
+                            return gasRate.toFixed(4)
                         }
+
                         font.pixelSize: 14
                         font.bold: true
                         color: Material.primaryTextColor
@@ -788,7 +748,7 @@ Rectangle {
                                                 Text {
                                                     text: {
                                                         if (selectedPump) {
-                                                            var actualHead = selectedStages * selectedPump.headPerStage
+                                                            var actualHead = selectedStages * (selectedPump.headPerStage/0.3048)
                                                             return formatLength(actualHead)
                                                         }
                                                         return "N/A"
@@ -797,7 +757,7 @@ Rectangle {
                                                     font.bold: true
                                                     color: {
                                                         var requiredHead = getRequiredTotalHead()
-                                                        var actualHead = selectedPump ? selectedStages * selectedPump.headPerStage : 0
+                                                        var actualHead = selectedPump ? selectedStages * (selectedPump.headPerStage/0.3048) : 0
 
                                                         if (requiredHead > 0 && actualHead >= requiredHead) {
                                                             return Material.color(Material.Green)
@@ -814,7 +774,7 @@ Rectangle {
                                             Text {
                                                 text: {
                                                     var requiredHead = getRequiredTotalHead()
-                                                    var actualHead = selectedPump ? selectedStages * selectedPump.headPerStage : 0
+                                                    var actualHead = selectedPump ? selectedStages * (selectedPump.headPerStage/0.3048) : 0
 
                                                     if (requiredHead > 0 && actualHead >= requiredHead) {
                                                         return "✓"
@@ -828,7 +788,7 @@ Rectangle {
                                                 font.bold: true
                                                 color: {
                                                     var requiredHead = getRequiredTotalHead()
-                                                    var actualHead = selectedPump ? selectedStages * selectedPump.headPerStage : 0
+                                                    var actualHead = selectedPump ? selectedStages * (selectedPump.headPerStage/0.3048) : 0
 
                                                     if (requiredHead > 0 && actualHead >= requiredHead) {
                                                         return Material.color(Material.Green)
@@ -1084,10 +1044,10 @@ Rectangle {
             var minProd = constraints.minProduction
             var maxProd = constraints.maxProduction
 
-            if (minProd < 1) {
-                minProd = minProd * 1000
-                maxProd = maxProd * 1000
-            }
+            // if (minProd < 1) {
+            //     minProd = minProd * 1000
+            //     maxProd = maxProd * 1000
+            // }
 
             requiredProduction = (minProd + maxProd) / 2
             requiredHead = constraints.pumpDepth || constraints.totalHead || 0
@@ -1095,11 +1055,20 @@ Rectangle {
 
         if (requiredProduction > 0) {
             console.log("产量约束筛选:", requiredProduction, "bbl/d")
+            requiredProduction = requiredProduction * 0.158987
+            var oldfiltered = filtered
             filtered = filtered.filter(function(pump) {
-                var pumpCanHandle = pump.minFlow <= requiredProduction * 1.2 && pump.maxFlow >= requiredProduction * 0.8
+                var pumpCanHandle = pump.minFlow * 0.9 <= requiredProduction  && pump.maxFlow * 1.1 >= requiredProduction
                 console.log("泵", pump.model, "流量范围:", pump.minFlow, "-", pump.maxFlow, "匹配:", pumpCanHandle)
                 return pumpCanHandle
             })
+            if(filtered.length == 0){
+                filtered = oldfiltered.filter(function(pump) {
+                    var pumpCanHandle = pump.minFlow * 0.9 <= requiredProduction  || pump.maxFlow * 1.1 >= requiredProduction
+                    console.log("泵", pump.model, "流量范围:", pump.minFlow, "-", pump.maxFlow, "匹配:", pumpCanHandle)
+                    return pumpCanHandle
+                })
+            }
         }
 
         if (requiredHead > 0) {
@@ -1110,7 +1079,14 @@ Rectangle {
                 console.log("泵", pump.model, "所需级数:", requiredStages, "最大级数:", pump.maxStages, "匹配:", canProvideHead)
                 return canProvideHead
             })
+            // 🔥 新增：按最小流量从小到大排序
+            filtered.sort(function(a, b) {
+                var aMinFlow = a.minFlow || 0
+                var bMinFlow = b.minFlow || 0
+                return aMinFlow - bMinFlow  // 升序排列：小的在前
+            })
         }
+
 
         console.log(`筛选结果: ${originalLength} -> ${filtered.length}`)
         return filtered
@@ -1241,7 +1217,8 @@ Rectangle {
         }
 
         // 计算所需级数（泵的headPerStage总是以ft为单位）
-        var calculatedStages = Math.ceil(requiredHeadFt / selectedPump.headPerStage)
+        var tempPumpHead = selectedPump.headPerStage / 0.3084
+        var calculatedStages = Math.ceil(requiredHeadFt / tempPumpHead)
         console.log("计算得出级数:", calculatedStages)
 
         // 确保级数在有效范围内

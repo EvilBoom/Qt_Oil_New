@@ -101,24 +101,24 @@ Rectangle {
             Item { Layout.fillWidth: true }
 
             // 置信度指示器
-            Rectangle {
-                width: 60
-                height: 20
-                radius: 10
-                color: getConfidenceColor()
-                visible: root.confidence > 0 || (resultData && resultData.confidence)
+            // Rectangle {
+            //     width: 60
+            //     height: 20
+            //     radius: 10
+            //     color: getConfidenceColor()
+            //     visible: root.confidence > 0 || (resultData && resultData.confidence)
 
-                Text {
-                    anchors.centerIn: parent
-                    text: {
-                        var conf = root.confidence || (resultData ? resultData.confidence : 0)
-                        return `${Math.round(conf * 100)}%`
-                    }
-                    font.pixelSize: 11
-                    color: "white"
-                    font.bold: true
-                }
-            }
+            //     Text {
+            //         anchors.centerIn: parent
+            //         text: {
+            //             var conf = root.confidence || (resultData ? resultData.confidence : 0)
+            //             return `${Math.round(conf * 100)}%`
+            //         }
+            //         font.pixelSize: 11
+            //         color: "white"
+            //         font.bold: true
+            //     }
+            // }
         }
 
         // 🔥 根据是否有title属性来决定显示模式

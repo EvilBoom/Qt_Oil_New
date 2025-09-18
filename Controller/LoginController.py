@@ -1,4 +1,4 @@
-# Controller/LoginController.py
+﻿# Controller/LoginController.py
 
 from PySide6.QtCore import QObject, Signal, Slot, Property
 from typing import List, Dict, Any
@@ -19,6 +19,7 @@ class LoginController(QObject):
     loginFailed = Signal(str)  # 错误信息
     projectListChanged = Signal()  # 项目列表变更信号
     languageChanged = Signal(bool)  # 语言变更信号 (True=中文, False=英文)
+    projectIdChanged = Signal(int)  # 🔥 新增：项目ID变更信号
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -31,6 +32,9 @@ class LoginController(QObject):
 
         # 当前语言设置 (True=中文, False=英文)
         self._current_language = True
+
+        # 🔥 新增：当前项目ID
+        self._current_project_id = -1
 
         # 连接项目控制器信号
         self._connect_signals()
@@ -50,6 +54,21 @@ class LoginController(QObject):
 
         # 连接错误信号
         self._project_controller.error.connect(self._on_project_error)
+    
+    # 🔥 新增：当前项目ID属性
+    def get_current_project_id(self) -> int:
+        """获取当前项目ID"""
+        return self._current_project_id
+
+    def set_current_project_id(self, project_id: int):
+        """设置当前项目ID"""
+        if self._current_project_id != project_id:
+            self._current_project_id = project_id
+            self.projectIdChanged.emit(project_id)
+            logger.info(f"当前项目ID已更新: {project_id}")
+
+    currentProjectId = Property(int, get_current_project_id, set_current_project_id, notify=projectIdChanged)
+
 
     def _on_projects_loaded(self, projects):
         """处理项目列表加载完成信号"""
@@ -184,3 +203,12 @@ class LoginController(QObject):
             logger.error(error_msg)
             self.loginFailed.emit(error_msg)
             return False
+
+    # 🔥 新增：获取项目信息的方法
+    @Slot(str, result='QVariant')
+    def getProjectByName(self, project_name: str):
+        """根据项目名获取项目信息"""
+        for project in self._project_list:
+            if project.get("project_name", "") == project_name:
+                return project
+        return {}

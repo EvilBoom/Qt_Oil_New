@@ -442,7 +442,7 @@ class DeviceController(QObject):
 
     @Slot(str, str, bool)
     def importFromExcel(self, file_url, device_type, is_metric=False):
-        """从Excel导入设备（修复版本）"""
+        """从Excel导入设备（支持双Sheet结构）"""
         self._setLoading(True)
 
         try:
@@ -451,12 +451,17 @@ class DeviceController(QObject):
             if not os.path.exists(file_path):
                 raise ValueError("文件不存在")
 
-            # 读取Excel文件
-            df = pd.read_excel(file_path)
-            excel_data = df.to_dict('records')
+            logger.info(f"开始导入设备: 文件={file_path}, 类型={device_type}, 公制={is_metric}")
 
-            # 🔥 调用修复后的数据库导入方法
-            result = self._db.import_devices_from_excel(excel_data, device_type, is_metric)
+            # 🔥 新增：检测Excel文件结构
+            workbook_sheets = self._detect_excel_structure(file_path)
+        
+            if workbook_sheets.get('has_performance_sheet'):
+                # 使用新的双Sheet结构处理
+                result = self._import_with_performance_data(file_path, device_type, is_metric, workbook_sheets)
+            else:
+                # 使用原有的单Sheet结构处理
+                result = self._import_legacy_format(file_path, device_type, is_metric)
 
             self.importCompleted.emit(
                 True,
@@ -476,11 +481,309 @@ class DeviceController(QObject):
                 self.errorOccurred.emit(f"导入错误详情:\n{error_details}")
 
         except Exception as e:
+            logger.error(f"导入失败: {str(e)}")
             self.importCompleted.emit(False, str(e), 0, 0)
             self.errorOccurred.emit(f"导入失败: {str(e)}")
 
         finally:
             self._setLoading(False)
+
+    def _detect_excel_structure(self, file_path: str) -> Dict[str, Any]:
+        """检测Excel文件结构"""
+        try:
+            # 获取所有工作表名称
+            xl_file = pd.ExcelFile(file_path)
+            sheet_names = xl_file.sheet_names
+        
+            structure = {
+                'sheet_names': sheet_names,
+                'has_performance_sheet': False,
+                'basic_sheet_name': None,
+                'performance_sheet_name': None
+            }
+        
+            # 检测是否包含性能数据表
+            performance_sheet_candidates = ['性能数据', 'Performance Data', 'Performance', '性能曲线']
+            basic_sheet_candidates = ['基本设备信息', 'Basic Info', 'Device Info', '设备信息']
+        
+            for sheet in sheet_names:
+                if sheet in performance_sheet_candidates:
+                    structure['has_performance_sheet'] = True
+                    structure['performance_sheet_name'] = sheet
+                elif sheet in basic_sheet_candidates:
+                    structure['basic_sheet_name'] = sheet
+        
+            # 如果没有明确的基本信息表，使用第一个表
+            if not structure['basic_sheet_name'] and sheet_names:
+                structure['basic_sheet_name'] = sheet_names[0]
+        
+            logger.info(f"检测到Excel结构: {structure}")
+            return structure
+        
+        except Exception as e:
+            logger.error(f"检测Excel结构失败: {str(e)}")
+            return {'sheet_names': [], 'has_performance_sheet': False}
+
+    def _import_with_performance_data(self, file_path: str, device_type: str, is_metric: bool, 
+                                      structure: Dict[str, Any]) -> Dict[str, Any]:
+        """使用新的双Sheet结构导入"""
+        try:
+            # 🔥 读取基本设备信息
+            basic_sheet_name = structure['basic_sheet_name']
+            basic_df = pd.read_excel(file_path, sheet_name=basic_sheet_name)
+        
+            # 🔥 读取性能数据
+            performance_sheet_name = structure['performance_sheet_name']
+            performance_df = pd.read_excel(file_path, sheet_name=performance_sheet_name)
+        
+            logger.info(f"基本信息表: {len(basic_df)} 行, 性能数据表: {len(performance_df)} 行")
+        
+            # 转换为记录格式
+            basic_records = basic_df.to_dict('records')
+            performance_records = performance_df.to_dict('records')
+        
+            # 🔥 按型号分组性能数据
+            performance_by_model = {}
+            for record in performance_records:
+                model = str(record.get('型号', '')).strip()
+                if model:
+                    if model not in performance_by_model:
+                        performance_by_model[model] = []
+                    performance_by_model[model].append(record)
+        
+            logger.info(f"性能数据分组: {list(performance_by_model.keys())}")
+        
+            # 🔥 处理每个设备记录
+            result = {
+                'success_count': 0,
+                'error_count': 0,
+                'errors': []
+            }
+        
+            for row_idx, basic_record in enumerate(basic_records, 2):  # 从第2行开始（第1行是表头）
+                try:
+                    # 获取设备型号
+                    device_model = str(basic_record.get('型号', '')).strip()
+                
+                    if not device_model:
+                        result['errors'].append({
+                            'row': row_idx,
+                            'error': '设备型号不能为空'
+                        })
+                        result['error_count'] += 1
+                        continue
+                
+                    # 🔥 构建设备数据（包含基本信息和性能数据）
+                    device_data = self._build_device_data_with_performance(
+                        basic_record, 
+                        performance_by_model.get(device_model, []), 
+                        device_type, 
+                        is_metric
+                    )
+                
+                    # 🔥 调用数据库保存
+                    device_id = self._save_device_to_database(device_data)
+                
+                    if device_id:
+                        result['success_count'] += 1
+                        logger.info(f"成功导入设备: {device_model} (ID: {device_id})")
+                    else:
+                        result['errors'].append({
+                            'row': row_idx,
+                            'error': f'保存设备失败: {device_model}'
+                        })
+                        result['error_count'] += 1
+                    
+                except Exception as e:
+                    result['errors'].append({
+                        'row': row_idx,
+                        'error': f'处理第{row_idx}行时出错: {str(e)}'
+                    })
+                    result['error_count'] += 1
+                    logger.error(f"处理第{row_idx}行失败: {str(e)}")
+        
+            return result
+        
+        except Exception as e:
+            logger.error(f"双Sheet导入失败: {str(e)}")
+            raise
+
+    def _import_legacy_format(self, file_path: str, device_type: str, is_metric: bool) -> Dict[str, Any]:
+        """使用原有的单Sheet结构导入"""
+        try:
+            # 读取Excel文件
+            df = pd.read_excel(file_path)
+            excel_data = df.to_dict('records')
+
+            # 调用原有的数据库导入方法
+            result = self._db.import_devices_from_(excel_data, device_type, is_metric)
+        
+            logger.info(f"单Sheet导入完成: 成功{result['success_count']}条")
+            return result
+        
+        except Exception as e:
+            logger.error(f"单Sheet导入失败: {str(e)}")
+            raise
+
+    def _build_device_data_with_performance(self, basic_record: Dict, performance_records: List[Dict], 
+                                             device_type: str, is_metric: bool) -> Dict[str, Any]:
+        """构建包含性能数据的设备信息"""
+        try:
+            # 🔥 构建基本设备数据
+            device_data = {
+                'device_type': device_type,
+                'manufacturer': str(basic_record.get('制造商', '')),
+                'model': str(basic_record.get('型号', '')),
+                'series': str(basic_record.get('系列', '')),
+                'serial_number': str(basic_record.get('序列号', '')),
+                'status': str(basic_record.get('状态', 'active')),
+                'description': str(basic_record.get('描述', '')),
+            }
+        
+            # 🔥 根据设备类型处理详细信息
+            if device_type == 'pump':
+                device_data['pump_details'] = self._build_pump_details(basic_record, performance_records, is_metric)
+            elif device_type == 'motor':
+                device_data['motor_details'] = self._build_motor_details(basic_record, is_metric)
+            elif device_type == 'protector':
+                device_data['protector_details'] = self._build_protector_details(basic_record, is_metric)
+            elif device_type == 'separator':
+                device_data['separator_details'] = self._build_separator_details(basic_record, is_metric)
+        
+            return device_data
+        
+        except Exception as e:
+            logger.error(f"构建设备数据失败: {str(e)}")
+            raise
+
+    def _build_pump_details(self, basic_record: Dict, performance_records: List[Dict], is_metric: bool) -> Dict[str, Any]:
+        """构建泵的详细信息（包含性能数据）"""
+        try:
+            # 🔥 基本参数
+            pump_details = {
+                'impeller_model': str(basic_record.get('叶轮型号', '')),
+                'displacement_min': self._parse_float(basic_record.get('最小流量(m³/d)' if is_metric else '最小流量(bbl/d)')),
+                'displacement_max': self._parse_float(basic_record.get('最大流量(m³/d)' if is_metric else '最大流量(bbl/d)')),
+                'single_stage_head': self._parse_float(basic_record.get('单级扬程(m)' if is_metric else '单级扬程(ft)')),
+                'single_stage_power': self._parse_float(basic_record.get('单级功率(kW)' if is_metric else '单级功率(HP)')),
+                'max_stages': self._parse_int(basic_record.get('最大级数')),
+                'efficiency': self._parse_float(basic_record.get('效率(%)')),
+                'outside_diameter': self._parse_float(basic_record.get('外径(mm)' if is_metric else '外径(in)')),
+                'shaft_diameter': self._parse_float(basic_record.get('轴径(mm)' if is_metric else '轴径(in)')),
+                'weight': self._parse_float(basic_record.get('重量(kg)' if is_metric else '重量(lbs)')),
+                'mounting_height': self._parse_float(basic_record.get('装配高度(mm)' if is_metric else '长度(in)'))
+            }
+        
+            # 🔥 处理性能曲线数据
+            if performance_records:
+                pump_details['performance_curves'] = self._process_pump_performance_data(performance_records, is_metric)
+                logger.info(f"为泵 {basic_record.get('型号')} 添加了 {len(performance_records)} 个性能数据点")
+        
+            return pump_details
+        
+        except Exception as e:
+            logger.error(f"构建泵详细信息失败: {str(e)}")
+            raise
+
+    def _process_pump_performance_data(self, performance_records: List[Dict], is_metric: bool) -> List[Dict]:
+        """处理泵性能曲线数据"""
+        curves = []
+    
+        try:
+            for record in performance_records:
+                curve_point = {
+                    'frequency': self._parse_float(record.get('频率(Hz)', 60)),
+                    'flow_rate': self._parse_float(record.get('流量(m³/d)' if is_metric else '流量(bbl/d)')),
+                    'head': self._parse_float(record.get('扬程(m)' if is_metric else '扬程(ft)')),
+                    'efficiency': self._parse_float(record.get('效率(%)')),
+                    'power': self._parse_float(record.get('功率(kW)' if is_metric else '功率(HP)')),
+                    'data_point_number': self._parse_int(record.get('数据点序号', 1)),
+                    'data_source': str(record.get('数据来源', '导入数据')),
+                    'test_date': str(record.get('测试日期', '')),
+                    'notes': str(record.get('备注', ''))
+                }
+            
+                # 🔥 验证数据完整性
+                required_fields = ['flow_rate', 'head', 'efficiency', 'power']
+                if all(curve_point[field] is not None for field in required_fields):
+                    curves.append(curve_point)
+                else:
+                    logger.warning(f"性能数据点不完整，跳过: {curve_point}")
+    
+        except Exception as e:
+            logger.error(f"处理性能曲线数据失败: {str(e)}")
+    
+        return curves
+
+    def _save_device_to_database(self, device_data: Dict[str, Any]) -> Optional[int]:
+        """保存设备到数据库"""
+        try:
+            # 🔥 检查是否为更新操作
+            existing_device = None
+            if device_data.get('serial_number'):
+                existing_device = self._db.get_device_by_serial_number(device_data['serial_number'])
+        
+            if existing_device:
+                # 更新现有设备
+                success = self._db.update_device(existing_device['id'], device_data)
+                return existing_device['id'] if success else None
+            else:
+                # 创建新设备
+                new_id = self._db.create_device(device_data)
+            
+                # 🔥 如果有性能曲线数据，单独保存
+                if device_data.get('pump_details', {}).get('performance_curves'):
+                    self._save_performance_curves(new_id, device_data['pump_details']['performance_curves'])
+            
+                return new_id
+    
+        except Exception as e:
+            logger.error(f"保存设备到数据库失败: {str(e)}")
+            return None
+
+    def _save_performance_curves(self, device_id: int, curves_data: List[Dict]):
+        """保存性能曲线数据到数据库"""
+        try:
+            if hasattr(self._db, 'save_pump_curves'):
+                # 🔥 如果数据库服务支持保存曲线数据
+                model = self._db.get_device_by_id(device_id).get('model', '')
+                curves_dict = {
+                    'flow': [c['flow_rate'] for c in curves_data],
+                    'head': [c['head'] for c in curves_data],
+                    'efficiency': [c['efficiency'] for c in curves_data],
+                    'power': [c['power'] for c in curves_data],
+                    'standard_frequency': curves_data[0]['frequency'] if curves_data else 60,
+                    'data_source': 'import_excel',
+                    'version': '1.0'
+                }
+                self._db.save_pump_curves(model, curves_dict)
+                logger.info(f"保存了设备 {device_id} 的性能曲线数据")
+            else:
+                logger.warning("数据库不支持保存性能曲线数据")
+            
+        except Exception as e:
+            logger.error(f"保存性能曲线数据失败: {str(e)}")
+
+    # 🔥 辅助方法
+    def _parse_float(self, value, default=None):
+        """安全地解析浮点数"""
+        if value is None or value == '':
+            return default
+        try:
+            return float(value)
+        except (ValueError, TypeError):
+            return default
+
+    def _parse_int(self, value, default=None):
+        """安全地解析整数"""
+        if value is None or value == '':
+            return default
+        try:
+            return int(float(value))
+        except (ValueError, TypeError):
+            return default
+
+
 
     @Slot(str, str, result=str)
     def exportToExcel(self, save_url, device_type):
@@ -1246,7 +1549,8 @@ class DeviceController(QObject):
                 cell.alignment = Alignment(horizontal="left", vertical="center")
 
     def _setup_motor_export_sheet(self, worksheet, devices):
-        """设置电机导出表格"""
+        print("1552,正在导出电机设备...")
+        """设置电机导出表格（包含电流电压信息）"""
         header_font = Font(bold=True, color="FFFFFF")
         header_fill = PatternFill(start_color="2E7D32", end_color="2E7D32", fill_type="solid")
         header_alignment = Alignment(horizontal="center", vertical="center")
@@ -1254,13 +1558,18 @@ class DeviceController(QObject):
             left=Side(style='thin'), right=Side(style='thin'),
             top=Side(style='thin'), bottom=Side(style='thin')
         )
-        
+
+        # 🔥 修改表头，添加电流电压字段
         headers = [
-            "设备ID", "制造商", "型号", "系列", "功率(HP)", "效率(%)",
-            "绝缘等级", "防护等级", "外径(in)", "长度(in)", "重量(lbs)",
-            "状态", "创建时间", "备注"
+            "设备ID", "制造商", "型号", "系列", "序列号", "状态", "描述",
+            "电机类型", "外径(mm)", "长度(mm)", "重量(kg)", 
+            "绝缘等级", "防护等级",
+            # 🔥 新增：电流电压字段
+            "50Hz功率(kW)", "50Hz电压(V)", "50Hz电流(A)", "50Hz转速(rpm)",
+            "60Hz功率(kW)", "60Hz电压(V)", "60Hz电流(A)", "60Hz转速(rpm)",
+            "创建时间"
         ]
-        
+
         # 设置表头
         for col, header in enumerate(headers, 1):
             cell = worksheet.cell(row=1, column=col, value=header)
@@ -1268,43 +1577,56 @@ class DeviceController(QObject):
             cell.fill = header_fill
             cell.alignment = header_alignment
             cell.border = border
-        
+
         # 设置列宽
-        for col in range(1, len(headers) + 1):
-            worksheet.column_dimensions[openpyxl.utils.get_column_letter(col)].width = 12
-        
-        # 填充数据
+        column_widths = [8, 15, 20, 10, 15, 8, 25, 15, 12, 12, 12, 12, 12, 
+                         12, 12, 12, 12, 12, 12, 12, 12, 15]  # 🔥 增加新列的宽度
+        for col, width in enumerate(column_widths[:len(headers)], 1):
+            worksheet.column_dimensions[openpyxl.utils.get_column_letter(col)].width = width
+
+        # 🔥 修改数据填充，添加频率参数处理
         for row, device in enumerate(devices, 2):
             motor_details = device.get('motor_details', {})
-            
-            # 获取主要参数（60Hz）
-            freq_params = motor_details.get('frequency_params', [])
-            main_params = next((p for p in freq_params if p.get('frequency') == 60), 
-                             freq_params[0] if freq_params else {})
-            
+            frequency_params = motor_details.get('frequency_params', [])
+        
+            # 🔥 提取不同频率的参数
+            freq_50_data = next((p for p in frequency_params if p.get('frequency') == 50), {})
+            freq_60_data = next((p for p in frequency_params if p.get('frequency') == 60), {})
+
             data = [
                 device.get('id', ''),
                 device.get('manufacturer', ''),
                 device.get('model', ''),
                 device.get('series', ''),
-                main_params.get('power', ''),
-                main_params.get('efficiency', ''),
-                motor_details.get('insulation_class', ''),
-                motor_details.get('protection_class', ''),
+                device.get('serial_number', ''),
+                device.get('status', ''),
+                device.get('description', ''),
+                motor_details.get('motor_type', ''),
                 motor_details.get('outside_diameter', ''),
                 motor_details.get('length', ''),
                 motor_details.get('weight', ''),
-                device.get('status', ''),
-                device.get('created_at', ''),
-                device.get('description', '')
+                motor_details.get('insulation_class', ''),
+                motor_details.get('protection_class', ''),
+                # 🔥 50Hz参数
+                freq_50_data.get('power', ''),
+                freq_50_data.get('voltage', ''),
+                freq_50_data.get('current', ''),
+                freq_50_data.get('speed', ''),
+                # 🔥 60Hz参数
+                freq_60_data.get('power', ''),
+                freq_60_data.get('voltage', ''),
+                freq_60_data.get('current', ''),
+                freq_60_data.get('speed', ''),
+                device.get('created_at', '')
             ]
-            
+
             for col, value in enumerate(data, 1):
                 cell = worksheet.cell(row=row, column=col, value=value)
                 cell.border = border
+                cell.alignment = Alignment(horizontal="left", vertical="center")
 
     def _setup_protector_export_sheet(self, worksheet, devices):
-        """设置保护器导出表格"""
+        """设置保护器导出表格（基于实际数据库结构）"""
         header_font = Font(bold=True, color="FFFFFF")
         header_fill = PatternFill(start_color="FF6F00", end_color="FF6F00", fill_type="solid")
         header_alignment = Alignment(horizontal="center", vertical="center")
@@ -1312,25 +1634,110 @@ class DeviceController(QObject):
             left=Side(style='thin'), right=Side(style='thin'),
             top=Side(style='thin'), bottom=Side(style='thin')
         )
-        
+    
+        # 🔥 根据实际数据库字段设置表头
         headers = [
-            "设备ID", "制造商", "型号", "系列", "额定推力(lbs)", "最大推力(lbs)",
-            "外径(in)", "长度(in)", "重量(lbs)", "状态", "创建时间", "备注"
+            "设备ID", "制造商", "型号", "系列", "序列号", "状态", "描述",
+            "外径(mm)", "长度(mm)", "重量(kg)", 
+            "推力承载能力(kN)", "密封类型", "最高温度(°C)",
+            "创建时间"
         ]
-        
-        # 设置表头和数据（类似泵的实现）
+    
+        # 设置表头
         for col, header in enumerate(headers, 1):
             cell = worksheet.cell(row=1, column=col, value=header)
             cell.font = header_font
             cell.fill = header_fill
             cell.alignment = header_alignment
             cell.border = border
+    
+        # 设置列宽
+        column_widths = [8, 15, 20, 10, 15, 8, 25, 12, 12, 12, 15, 12, 12, 15]
+        for col, width in enumerate(column_widths[:len(headers)], 1):
+            worksheet.column_dimensions[openpyxl.utils.get_column_letter(col)].width = width
+    
+        # 填充数据
+        for row, device in enumerate(devices, 2):
+            protector_details = device.get('protector_details', {})
         
-        # 填充数据...（实现细节）
+            data = [
+                device.get('id', ''),
+                device.get('manufacturer', ''),
+                device.get('model', ''),
+                device.get('series', ''),
+                device.get('serial_number', ''),
+                device.get('status', ''),
+                device.get('description', ''),
+                protector_details.get('outer_diameter', ''),
+                protector_details.get('length', ''),
+                protector_details.get('weight', ''),
+                protector_details.get('thrust_capacity', ''),
+                protector_details.get('seal_type', ''),
+                protector_details.get('max_temperature', ''),
+                device.get('created_at', '')
+            ]
+        
+            for col, value in enumerate(data, 1):
+                cell = worksheet.cell(row=row, column=col, value=value)
+                cell.border = border
+                cell.alignment = Alignment(horizontal="left", vertical="center")
 
     def _setup_separator_export_sheet(self, worksheet, devices):
-        """设置分离器导出表格"""
-        # 实现分离器导出逻辑...
+        """设置分离器导出表格（基于实际数据库结构）"""
+        header_font = Font(bold=True, color="FFFFFF")
+        header_fill = PatternFill(start_color="9C27B0", end_color="9C27B0", fill_type="solid")
+        header_alignment = Alignment(horizontal="center", vertical="center")
+        border = Border(
+            left=Side(style='thin'), right=Side(style='thin'),
+            top=Side(style='thin'), bottom=Side(style='thin')
+        )
+    
+        # 🔥 根据实际数据库字段设置表头
+        headers = [
+            "设备ID", "制造商", "型号", "系列", "序列号", "状态", "描述",
+            "外径(mm)", "长度(mm)", "重量(kg)", 
+            "分离效率(%)", "气体处理能力(m³/d)", "液体处理能力(m³/d)",
+            "创建时间"
+        ]
+    
+        # 设置表头
+        for col, header in enumerate(headers, 1):
+            cell = worksheet.cell(row=1, column=col, value=header)
+            cell.font = header_font
+            cell.fill = header_fill
+            cell.alignment = header_alignment
+            cell.border = border
+    
+        # 设置列宽
+        column_widths = [8, 15, 20, 10, 15, 8, 25, 12, 12, 12, 12, 18, 18, 15]
+        for col, width in enumerate(column_widths[:len(headers)], 1):
+            worksheet.column_dimensions[openpyxl.utils.get_column_letter(col)].width = width
+    
+        # 填充数据
+        for row, device in enumerate(devices, 2):
+            separator_details = device.get('separator_details', {})
+        
+            data = [
+                device.get('id', ''),
+                device.get('manufacturer', ''),
+                device.get('model', ''),
+                device.get('series', ''),
+                device.get('serial_number', ''),
+                device.get('status', ''),
+                device.get('description', ''),
+                separator_details.get('outer_diameter', ''),
+                separator_details.get('length', ''),
+                separator_details.get('weight', ''),
+                separator_details.get('separation_efficiency', ''),
+                separator_details.get('gas_handling_capacity', ''),
+                separator_details.get('liquid_handling_capacity', ''),
+                device.get('created_at', '')
+            ]
+        
+            for col, value in enumerate(data, 1):
+                cell = worksheet.cell(row=row, column=col, value=value)
+                cell.border = border
+                cell.alignment = Alignment(horizontal="left", vertical="center")
 
     def _get_sheet_name(self, device_type: str) -> str:
         """获取工作表名称"""
@@ -1416,14 +1823,15 @@ class DeviceController(QObject):
             self.templateGenerationFailed.emit(error_msg)
 
     def _generate_pump_template(self, workbook, is_metric: bool):
-        """生成泵设备导入模板"""
-        # 设置工作表
-        if 'Sheet' in workbook.sheetnames:
-            worksheet = workbook['Sheet']
-        else:
-            worksheet = workbook.create_sheet()
+        """生成改进的泵设备导入模板（包含性能数据工作表）"""
     
-        worksheet.title = "泵设备导入模板"
+        # ========== Sheet1: 基本设备信息 ==========
+        if 'Sheet' in workbook.sheetnames:
+            basic_sheet = workbook['Sheet']
+        else:
+            basic_sheet = workbook.create_sheet()
+    
+        basic_sheet.title = "基本设备信息"
     
         # 设置样式
         header_font = Font(bold=True, color="FFFFFF")
@@ -1434,111 +1842,290 @@ class DeviceController(QObject):
             top=Side(style='thin'), bottom=Side(style='thin')
         )
     
-        # 🔥 根据单位制设置不同的表头
+        # 🔥 简化的基本信息表头（移除性能曲线数据）
         if is_metric:
-            headers = [
+            basic_headers = [
                 "制造商", "型号", "系列", "举升方式", "序列号", "状态", "描述",
-                # 基本参数（公制）
                 "叶轮型号", "最小流量(m³/d)", "最大流量(m³/d)", 
                 "单级扬程(m)", "单级功率(kW)", "最大级数", "效率(%)",
-                "外径(mm)", "轴径(mm)", "重量(kg)", "长度(mm)",
-                # 🔥 性能曲线数据点（公制）
-                "流量点1(m³/d)", "扬程点1(m)", "效率点1(%)", "功率点1(kW)",
-                "流量点2(m³/d)", "扬程点2(m)", "效率点2(%)", "功率点2(kW)",
-                "流量点3(m³/d)", "扬程点3(m)", "效率点3(%)", "功率点3(kW)",
-                "流量点4(m³/d)", "扬程点4(m)", "效率点4(%)", "功率点4(kW)",
-                "流量点5(m³/d)", "扬程点5(m)", "效率点5(%)", "功率点5(kW)",
-                # 最优工况点
-                "最优流量(m³/d)", "最优扬程(m)", "最优效率(%)", "最优功率(kW)",
-                # 应用范围
-                "最低温度(°C)", "最高温度(°C)", "最低压力(MPa)", "最高压力(MPa)", 
-                "最低粘度(mPa·s)", "最高粘度(mPa·s)"
+                "外径(mm)", "轴径(mm)", "重量(kg)", "装配高度(mm)",
+                # # 应用范围
+                # "最低温度(°C)", "最高温度(°C)", "最低压力(MPa)", "最高压力(MPa)", 
+                # "最低粘度(mPa·s)", "最高粘度(mPa·s)"
+            ]
+        
+            basic_example = [
+                "Baker Hughes", "FLEXPump™ 400", "400", "esp", "BH-ESP-400-001", "active", "高效ESP泵",
+                "D400", "50", "1500", "7.6", "1.9", "400", "68",
+                "101.6", "19.05", "45.4", "1219",
+                # "4", "121", "0.1", "13.8", "0.5", "1000"
             ]
         else:
-            headers = [
+            basic_headers = [
                 "制造商", "型号", "系列", "举升方式", "序列号", "状态", "描述",
-                # 基本参数（英制）
                 "叶轮型号", "最小流量(bbl/d)", "最大流量(bbl/d)",
                 "单级扬程(ft)", "单级功率(HP)", "最大级数", "效率(%)",
                 "外径(in)", "轴径(in)", "重量(lbs)", "长度(in)",
-                # 🔥 性能曲线数据点（英制）
-                "流量点1(bbl/d)", "扬程点1(ft)", "效率点1(%)", "功率点1(HP)",
-                "流量点2(bbl/d)", "扬程点2(ft)", "效率点2(%)", "功率点2(HP)",
-                "流量点3(bbl/d)", "扬程点3(ft)", "效率点3(%)", "功率点3(HP)",
-                "流量点4(bbl/d)", "扬程点4(ft)", "效率点4(%)", "功率点4(HP)",
-                "流量点5(bbl/d)", "扬程点5(ft)", "效率点5(%)", "功率点5(HP)",
-                # 最优工况点
-                "最优流量(bbl/d)", "最优扬程(ft)", "最优效率(%)", "最优功率(HP)",
-                # 应用范围
-                "最低温度(°F)", "最高温度(°F)", "最低压力(psi)", "最高压力(psi)", 
-                "最低粘度(cp)", "最高粘度(cp)"
+                # "最低温度(°F)", "最高温度(°F)", "最低压力(psi)", "最高压力(psi)", 
+                # "最低粘度(cp)", "最高粘度(cp)"
+            ]
+        
+            basic_example = [
+                "Baker Hughes", "FLEXPump™ 400", "400", "esp", "BH-ESP-400-001", "active", "高效ESP泵",
+                "D400", "315", "9450", "25", "2.5", "400", "68",
+                "4.0", "0.75", "100", "48",
+                # "40", "250", "15", "2000", "0.5", "1000"
             ]
     
-        # 设置表头
-        for col, header in enumerate(headers, 1):
-            cell = worksheet.cell(row=1, column=col, value=header)
+        # 设置基本信息表头
+        for col, header in enumerate(basic_headers, 1):
+            cell = basic_sheet.cell(row=1, column=col, value=header)
             cell.font = header_font
             cell.fill = header_fill
             cell.alignment = header_alignment
             cell.border = border
     
-        # 设置列宽
-        for col in range(1, len(headers) + 1):
-            worksheet.column_dimensions[openpyxl.utils.get_column_letter(col)].width = 12
-    
-        # 🔥 添加示例数据行
-        if is_metric:
-            example_data = [
-                "Baker Hughes", "FLEXPump™ 400", "400", "esp", "BH-ESP-400-001", "active", "高效ESP泵",
-                "D400", "50", "1500", "7.6", "1.9", "400", "68",
-                "101.6", "19.05", "45.4", "1219",
-                # 性能曲线点（5个点）
-                "200", "25", "45", "3.2",
-                "400", "23", "58", "5.8",
-                "600", "21", "68", "8.1",
-                "800", "18", "65", "10.2",
-                "1000", "15", "58", "12.1",
-                # 最优工况点
-                "600", "21", "68", "8.1",
-                # 应用范围
-                "4", "121", "0.1", "13.8", "0.5", "1000"
-            ]
-        else:
-            example_data = [
-                "Baker Hughes", "FLEXPump™ 400", "400", "esp", "BH-ESP-400-001", "active", "高效ESP泵",
-                "D400", "315", "9450", "25", "2.5", "400", "68",
-                "4.0", "0.75", "100", "48",
-                # 性能曲线点（5个点）
-                "1260", "82", "45", "4.3",
-                "2520", "75", "58", "7.8",
-                "3780", "69", "68", "10.9",
-                "5040", "59", "65", "13.7",
-                "6300", "49", "58", "16.2",
-                # 最优工况点
-                "3780", "69", "68", "10.9",
-                # 应用范围
-                "40", "250", "15", "2000", "0.5", "1000"
-            ]
-    
-        # 填充示例数据
-        for col, value in enumerate(example_data, 1):
-            cell = worksheet.cell(row=2, column=col, value=value)
+        # 填充基本信息示例数据
+        for col, value in enumerate(basic_example, 1):
+            cell = basic_sheet.cell(row=2, column=col, value=value)
             cell.border = border
             cell.alignment = Alignment(horizontal="left", vertical="center")
     
-        # 🔥 添加数据验证和说明
-        self._add_pump_template_notes(worksheet, is_metric, len(headers))
+        # 设置列宽
+        for col in range(1, len(basic_headers) + 1):
+            basic_sheet.column_dimensions[openpyxl.utils.get_column_letter(col)].width = 12
+    
+        # ========== Sheet2: 性能数据 ==========
+        performance_sheet = workbook.create_sheet("性能数据")
+    
+        # 🔥 性能数据表头设计
+        if is_metric:
+            perf_headers = [
+                "型号",  # 🔥 关键：用于与Sheet1对齐
+                "频率(Hz)", 
+                "流量(m³/d)", "扬程(m)", "效率(%)", "功率(kW)",
+                "数据点序号", "数据来源", "测试日期", "备注"
+            ]
+        
+            # 🔥 示例性能数据（多个数据点）
+            perf_examples = [
+                ["FLEXPump™ 400", 60, 200, 25.0, 45, 3.2, 1, "厂商测试", "2024-01-15", "低流量点"],
+                ["FLEXPump™ 400", 60, 400, 23.0, 58, 5.8, 2, "厂商测试", "2024-01-15", ""],
+                ["FLEXPump™ 400", 60, 600, 21.0, 68, 8.1, 3, "厂商测试", "2024-01-15", "BEP点"],
+                ["FLEXPump™ 400", 60, 800, 18.0, 65, 10.2, 4, "厂商测试", "2024-01-15", ""],
+                ["FLEXPump™ 400", 60, 1000, 15.0, 58, 12.1, 5, "厂商测试", "2024-01-15", "高流量点"],
+                ["FLEXPump™ 400", 50, 167, 20.8, 42, 2.8, 1, "厂商测试", "2024-01-15", "50Hz低流量"],
+                ["FLEXPump™ 400", 50, 333, 19.2, 55, 5.1, 2, "厂商测试", "2024-01-15", "50Hz BEP"],
+                ["FLEXPump™ 400", 50, 500, 17.5, 65, 7.2, 3, "厂商测试", "2024-01-15", "50Hz高效点"],
+            ]
+        else:
+            perf_headers = [
+                "型号",  # 🔥 关键：用于与Sheet1对齐
+                "频率(Hz)", 
+                "流量(bbl/d)", "扬程(ft)", "效率(%)", "功率(HP)",
+                "数据点序号", "数据来源", "测试日期", "备注"
+            ]
+        
+            perf_examples = [
+                ["FLEXPump™ 400", 60, 1260, 82, 45, 4.3, 1, "厂商测试", "2024-01-15", "低流量点"],
+                ["FLEXPump™ 400", 60, 2520, 75, 58, 7.8, 2, "厂商测试", "2024-01-15", ""],
+                ["FLEXPump™ 400", 60, 3780, 69, 68, 10.9, 3, "厂商测试", "2024-01-15", "BEP点"],
+                ["FLEXPump™ 400", 60, 5040, 59, 65, 13.7, 4, "厂商测试", "2024-01-15", ""],
+                ["FLEXPump™ 400", 60, 6300, 49, 58, 16.2, 5, "厂商测试", "2024-01-15", "高流量点"],
+                ["FLEXPump™ 400", 50, 1050, 68, 42, 3.7, 1, "厂商测试", "2024-01-15", "50Hz低流量"],
+                ["FLEXPump™ 400", 50, 2100, 63, 55, 6.8, 2, "厂商测试", "2024-01-15", "50Hz BEP"],
+                ["FLEXPump™ 400", 50, 3150, 57, 65, 9.6, 3, "厂商测试", "2024-01-15", "50Hz高效点"],
+            ]
+    
+        # 设置性能数据表头样式
+        perf_header_fill = PatternFill(start_color="28A745", end_color="28A745", fill_type="solid")
+    
+        for col, header in enumerate(perf_headers, 1):
+            cell = performance_sheet.cell(row=1, column=col, value=header)
+            cell.font = header_font
+            cell.fill = perf_header_fill
+            cell.alignment = header_alignment
+            cell.border = border
+    
+        # 填充性能数据示例
+        for row_idx, example_row in enumerate(perf_examples, 2):
+            for col, value in enumerate(example_row, 1):
+                cell = performance_sheet.cell(row=row_idx, column=col, value=value)
+                cell.border = border
+                cell.alignment = Alignment(horizontal="center" if col > 1 else "left", vertical="center")
+    
+        # 设置性能数据列宽
+        perf_column_widths = [20, 10, 12, 12, 10, 12, 12, 15, 12, 20]
+        for col, width in enumerate(perf_column_widths, 1):
+            performance_sheet.column_dimensions[openpyxl.utils.get_column_letter(col)].width = width
+    
+        # ========== Sheet3: 使用说明 ==========
+        instruction_sheet = workbook.create_sheet("使用说明")
+        self._add_enhanced_template_instructions(instruction_sheet, is_metric)
+    
+        # 🔥 添加数据验证
+        self._add_data_validation(basic_sheet, performance_sheet, is_metric)
+
+    def _add_enhanced_template_instructions(self, worksheet, is_metric: bool):
+        """添加增强的模板使用说明"""
+        instructions = [
+            "📋 泵设备导入模板使用说明",
+            "",
+            "🎯 模板结构：",
+            "   Sheet1 - 基本设备信息：设备的基本参数和规格",
+            "   Sheet2 - 性能数据：详细的性能曲线数据点",
+            "   Sheet3 - 使用说明：本说明文档",
+            "",
+            "📊 Sheet1 (基本设备信息) 填写指南：",
+            "   1. 制造商：设备制造商名称 (如：Baker Hughes, Schlumberger)",
+            "   2. 型号：完整设备型号 (如：FLEXPump™ 400) - ⚠️ 必须与Sheet2中的型号完全一致",
+            "   3. 系列：产品系列代码 (如：400, 500, 600)",
+            "   4. 举升方式：esp/pcp/jet/espcp/hpp",
+            "   5. 序列号：设备唯一序列号",
+            "   6. 状态：active/inactive/maintenance",
+            "",
+            "🚀 Sheet2 (性能数据) 填写指南：",
+            "   🔑 关键说明：型号列必须与Sheet1中的型号完全匹配！",
+            "   ",
+            "   列说明：",
+            "   - 型号：与Sheet1对应的设备型号",
+            "   - 频率：工作频率 (通常50Hz或60Hz)",
+            f"   - 流量：{'m³/d' if is_metric else 'bbl/d'}",
+            f"   - 扬程：{'m' if is_metric else 'ft'}",
+            "   - 效率：百分比 (%)",
+            f"   - 功率：{'kW' if is_metric else 'HP'}",
+            "   - 数据点序号：同一型号同一频率下的点序号",
+            "   - 数据来源：厂商测试/现场测试/计算值",
+            "   - 测试日期：数据获取日期",
+            "   - 备注：补充说明 (如：BEP点、低流量点等)",
+            "",
+            "💡 数据录入技巧：",
+            "   1. 复制粘贴支持：",
+            "      - 可以直接从厂商技术手册复制数据",
+            "      - 支持从其他Excel文件批量粘贴",
+            "      - 可以按列粘贴流量、扬程、效率、功率数据",
+            "",
+            "   2. 多频率支持：",
+            "      - 同一型号可以有多个频率的数据",
+            "      - 每个频率建议至少5-10个数据点",
+            "      - 数据点应覆盖从关断到最大流量",
+            "",
+            "   3. 数据质量要求：",
+            "      - 流量点应按升序排列",
+            "      - 扬程数据应符合离心泵特性",
+            "      - 效率曲线应呈现钟形分布",
+            "      - 功率随流量递增",
+            "",
+            "⚠️ 常见错误避免：",
+            "   1. 型号不匹配：Sheet1和Sheet2中的型号必须完全一致",
+            "   2. 单位混用：确保所有数据使用统一单位制",
+            "   3. 数据缺失：关键参数不能为空",
+            "   4. 数值异常：检查是否存在明显不合理的数值",
+            "",
+            "🔄 导入流程：",
+            "   1. 填写Sheet1的基本设备信息",
+            "   2. 在Sheet2中录入对应型号的性能数据",
+            "   3. 确保型号匹配",
+            "   4. 保存文件并导入系统",
+            "   5. 系统会自动关联并生成完整的性能曲线",
+            "",
+        ]
+    
+        # 设置说明样式
+        title_font = Font(bold=True, size=16, color="1F4E79")
+        section_font = Font(bold=True, size=12, color="2E75B6")
+        normal_font = Font(size=10)
+    
+        for i, instruction in enumerate(instructions, 1):
+            cell = worksheet.cell(row=i, column=1, value=instruction)
+        
+            if instruction.startswith("📋"):
+                cell.font = title_font
+            elif instruction.startswith(("🎯", "📊", "🚀", "💡", "⚠️", "🔄", "📞")):
+                cell.font = section_font
+            else:
+                cell.font = normal_font
+        
+            # 合并单元格以便长文本显示
+            if instruction.strip():
+                worksheet.merge_cells(f"A{i}:H{i}")
+    
+        # 设置列宽
+        worksheet.column_dimensions['A'].width = 80
+
+    def _add_data_validation(self, basic_sheet, performance_sheet, is_metric: bool):
+        """为模板添加数据验证"""
+        from openpyxl.worksheet.datavalidation import DataValidation
+    
+        # 🔥 基本信息表验证
+        # 举升方式验证
+        lift_method_validation = DataValidation(
+            type="list",
+            formula1='"esp,pcp,jet,espcp,hpp"',
+            showErrorMessage=True,
+            errorTitle="无效的举升方式",
+            error="请选择：esp, pcp, jet, espcp, hpp"
+        )
+        basic_sheet.add_data_validation(lift_method_validation)
+        lift_method_validation.add("D2:D100")  # 举升方式列
+    
+        # 状态验证
+        status_validation = DataValidation(
+            type="list", 
+            formula1='"active,inactive,maintenance"',
+            showErrorMessage=True,
+            errorTitle="无效的状态",
+            error="请选择：active, inactive, maintenance"
+        )
+        basic_sheet.add_data_validation(status_validation)
+        status_validation.add("F2:F100")  # 状态列
+    
+        # 🔥 性能数据表验证
+        # 频率验证
+        frequency_validation = DataValidation(
+            type="list",
+            formula1='"50,60"',
+            showErrorMessage=True,
+            errorTitle="无效的频率",
+            error="请选择：50 或 60 Hz"
+        )
+        performance_sheet.add_data_validation(frequency_validation)
+        frequency_validation.add("B2:B1000")  # 频率列
+    
+        # 效率范围验证 (0-100%)
+        efficiency_validation = DataValidation(
+            type="decimal",
+            operator="between",
+            formula1=0,
+            formula2=100,
+            showErrorMessage=True,
+            errorTitle="效率范围错误", 
+            error="效率应在0-100%之间"
+        )
+        performance_sheet.add_data_validation(efficiency_validation)
+        efficiency_validation.add("E2:E1000")  # 效率列
+    
+        # 数据来源验证
+        source_validation = DataValidation(
+            type="list",
+            formula1='"厂商测试,现场测试,计算值,估算值"',
+            showErrorMessage=True,
+            errorTitle="无效的数据来源",
+            error="请选择：厂商测试, 现场测试, 计算值, 估算值"
+        )
+        performance_sheet.add_data_validation(source_validation)
+        source_validation.add("H2:H1000")  # 数据来源列
 
     def _generate_motor_template(self, workbook, is_metric: bool):
-        """生成电机导入模板"""
+        """生成电机导入模板（修复版 - 包含电流电压等频率参数）"""
         # 设置工作表
         if 'Sheet' in workbook.sheetnames:
             worksheet = workbook['Sheet']
         else:
             worksheet = workbook.create_sheet()
-    
+
         worksheet.title = "电机导入模板"
-    
+
         # 设置样式
         header_font = Font(bold=True, color="FFFFFF")
         header_fill = PatternFill(start_color="2E7D32", end_color="2E7D32", fill_type="solid")
@@ -1547,41 +2134,49 @@ class DeviceController(QObject):
             left=Side(style='thin'), right=Side(style='thin'),
             top=Side(style='thin'), bottom=Side(style='thin')
         )
-    
-        # 根据单位制设置表头
+
+        # 🔥 修复：添加完整的表头（包含频率参数字段）
         if is_metric:
             headers = [
                 "制造商", "型号", "系列", "序列号", "状态", "描述",
                 # 基本参数（公制）
                 "电机类型", "外径(mm)", "长度(mm)", "重量(kg)",
-                "绝缘等级", "防护等级", "额定转速(rpm)",
-                # 50Hz参数（公制）
-                "50Hz功率(kW)", "50Hz电压(V)", "50Hz电流(A)", "50Hz转速(rpm)", "50Hz效率(%)",
-                # 60Hz参数（公制）
-                "60Hz功率(kW)", "60Hz电压(V)", "60Hz电流(A)", "60Hz转速(rpm)", "60Hz效率(%)",
-                # 性能参数
-                "启动转矩(%)", "最大转矩(%)", "堵转转矩(%)", "功率因数",
-                "温升限值(°C)", "噪音等级(dB)", "振动等级(mm/s)",
-                # 环境条件
-                "最低工作温度(°C)", "最高工作温度(°C)", "最大湿度(%)", "海拔限制(m)"
+                "绝缘等级", "防护等级",
+                # 🔥 新增：50Hz频率参数
+                "50Hz功率(kW)", "50Hz电压(V)", "50Hz电流(A)", "50Hz转速(rpm)",
+                # 🔥 新增：60Hz频率参数
+                "60Hz功率(kW)", "60Hz电压(V)", "60Hz电流(A)", "60Hz转速(rpm)"
+            ]
+        
+            example_data = [
+                "Baker Hughes", "Electrospeed 3", "ES3", "BH-ES3-001", "active", "高效潜油电机",
+                "三相感应电机", "114.3", "3048", "136.1", "F", "IP68",
+                # 50Hz参数
+                "153", "3300", "28.5", "2950",
+                # 60Hz参数
+                "184", "3300", "34.2", "3540"
             ]
         else:
             headers = [
                 "制造商", "型号", "系列", "序列号", "状态", "描述",
                 # 基本参数（英制）
                 "电机类型", "外径(in)", "长度(in)", "重量(lbs)",
-                "绝缘等级", "防护等级", "额定转速(rpm)",
-                # 50Hz参数（英制）
-                "50Hz功率(HP)", "50Hz电压(V)", "50Hz电流(A)", "50Hz转速(rpm)", "50Hz效率(%)",
-                # 60Hz参数（英制）
-                "60Hz功率(HP)", "60Hz电压(V)", "60Hz电流(A)", "60Hz转速(rpm)", "60Hz效率(%)",
-                # 性能参数
-                "启动转矩(%)", "最大转矩(%)", "堵转转矩(%)", "功率因数",
-                "温升限值(°F)", "噪音等级(dB)", "振动等级(in/s)",
-                # 环境条件
-                "最低工作温度(°F)", "最高工作温度(°F)", "最大湿度(%)", "海拔限制(ft)"
+                "绝缘等级", "防护等级",
+                # 🔥 新增：50Hz频率参数
+                "50Hz功率(HP)", "50Hz电压(V)", "50Hz电流(A)", "50Hz转速(rpm)",
+                # 🔥 新增：60Hz频率参数
+                "60Hz功率(HP)", "60Hz电压(V)", "60Hz电流(A)", "60Hz转速(rpm)"
             ]
-    
+        
+            example_data = [
+                "Baker Hughes", "Electrospeed 3", "ES3", "BH-ES3-001", "active", "高效潜油电机",
+                "三相感应电机", "4.5", "120", "300", "F", "IP68",
+                # 50Hz参数
+                "205", "3300", "38.2", "2950",
+                # 60Hz参数
+                "246", "3300", "45.8", "3540"
+            ]
+
         # 设置表头
         for col, header in enumerate(headers, 1):
             cell = worksheet.cell(row=1, column=col, value=header)
@@ -1589,62 +2184,217 @@ class DeviceController(QObject):
             cell.fill = header_fill
             cell.alignment = header_alignment
             cell.border = border
-    
-        # 设置列宽
-        for col in range(1, len(headers) + 1):
-            worksheet.column_dimensions[openpyxl.utils.get_column_letter(col)].width = 12
-    
-        # 添加示例数据
-        if is_metric:
-            example_data = [
-                "Baker Hughes", "Electrospeed 3", "ES3", "BH-ES3-001", "active", "高效潜油电机",
-                "三相感应电机", "114", "3048", "136",
-                "F", "IP68", "3500",
-                # 50Hz参数
-                "75", "1000", "75", "2900", "92",
-                # 60Hz参数
-                "75", "1200", "62", "3500", "93",
-                # 性能参数
-                "150", "200", "300", "0.85",
-                "80", "75", "2.8",
-                # 环境条件
-                "4", "149", "95", "3000"
-            ]
-        else:
-            example_data = [
-                "Baker Hughes", "Electrospeed 3", "ES3", "BH-ES3-001", "active", "高效潜油电机",
-                "三相感应电机", "4.5", "120", "300",
-                "F", "IP68", "3500",
-                # 50Hz参数
-                "100", "1000", "75", "2900", "92",
-                # 60Hz参数
-                "100", "1200", "62", "3500", "93",
-                # 性能参数
-                "150", "200", "300", "0.85",
-                "176", "75", "0.11",
-                # 环境条件
-                "40", "300", "95", "10000"
-            ]
-    
+
+        # 🔥 调整列宽以适应新增的字段
+        column_widths = [15, 20, 10, 15, 8, 25, 15, 12, 12, 12, 12, 12,
+                         12, 12, 12, 12, 12, 12, 12, 12]
+        for col, width in enumerate(column_widths[:len(headers)], 1):
+            worksheet.column_dimensions[openpyxl.utils.get_column_letter(col)].width = width
+
         # 填充示例数据
         for col, value in enumerate(example_data, 1):
             cell = worksheet.cell(row=2, column=col, value=value)
             cell.border = border
             cell.alignment = Alignment(horizontal="left", vertical="center")
+
+        # 🔥 添加更多包含频率参数的示例数据
+        additional_examples = []
+        if is_metric:
+            additional_examples = [
+                ["Schlumberger", "MaxForce Motor", "MF450", "SLB-MF450-001", "active", "高功率潜油电机",
+                 "永磁同步电机", "101.6", "2743", "95.3", "H", "IP67",
+                 # 50Hz参数
+                 "125", "4000", "20.8", "2950",
+                 # 60Hz参数
+                 "150", "4000", "25.0", "3540"],
+             
+                ["Weatherford", "RedaMax Motor", "RM300", "WFT-RM300-001", "active", "标准潜油电机",
+                 "三相感应电机", "88.9", "2134", "68.0", "F", "IP55",
+                 # 50Hz参数
+                 "94", "2300", "26.4", "2950",
+                 # 60Hz参数
+                 "113", "2300", "31.7", "3540"]
+            ]
+        else:
+            additional_examples = [
+                ["Schlumberger", "MaxForce Motor", "MF450", "SLB-MF450-001", "active", "高功率潜油电机",
+                 "永磁同步电机", "4.0", "108", "210", "H", "IP67",
+                 # 50Hz参数
+                 "167", "4000", "27.8", "2950",
+                 # 60Hz参数
+                 "200", "4000", "33.3", "3540"],
+             
+                ["Weatherford", "RedaMax Motor", "RM300", "WFT-RM300-001", "active", "标准潜油电机",
+                 "三相感应电机", "3.5", "84", "150", "F", "IP55",
+                 # 50Hz参数
+                 "125", "2300", "35.2", "2950",
+                 # 60Hz参数
+                 "150", "2300", "42.3", "3540"]
+            ]
+
+        # 添加额外示例行
+        for row_idx, example in enumerate(additional_examples, 3):
+            for col, value in enumerate(example, 1):
+                cell = worksheet.cell(row=row_idx, column=col, value=value)
+                cell.border = border
+                cell.alignment = Alignment(horizontal="left", vertical="center")
+
+        # 🔥 添加详细的使用说明
+        self._add_motor_template_notes_with_frequency(worksheet, is_metric, len(headers))
+
+    def _add_motor_template_notes_with_frequency(self, worksheet, is_metric: bool, header_count: int):
+        """添加包含频率参数说明的电机模板说明"""
+        notes_start_row = 6
     
-        # 添加说明
-        self._add_motor_template_notes(worksheet, is_metric, len(headers))
+        notes = [
+            "📋 电机导入模板使用说明（包含频率参数）：",
+            "",
+            "🔧 数据库字段对应：",
+            "   本模板设计用于导入电机基本信息和频率参数",
+            "   数据将自动分别存储到 device_motors 和 motor_frequency_params 表",
+            "",
+            "1. 基本信息字段：",
+            "   - 制造商：设备制造商名称",
+            "   - 型号：完整设备型号",
+            "   - 系列：产品系列代码",
+            "   - 序列号：设备唯一序列号（必须唯一）",
+            "   - 状态：active/inactive/maintenance",
+            "   - 描述：设备详细描述",
+            "",
+            "2. 电机基本参数：",
+            "   - 电机类型：三相感应电机/永磁同步电机等",
+            f"   - 外径：{'mm' if is_metric else 'in'}（影响井筒适配性）",
+            f"   - 长度：{'mm' if is_metric else 'in'}（影响安装空间）",
+            f"   - 重量：{'kg' if is_metric else 'lbs'}（影响下井操作）",
+            "   - 绝缘等级：B/F/H等（决定工作温度范围）",
+            "   - 防护等级：IP54/IP55/IP68等（决定密封性能）",
+            "",
+            "3. ⚡ 频率参数字段（核心修复内容）：",
+            "   🔑 这些字段解决了之前模板缺失电流电压信息的问题！",
+            "",
+            "   50Hz参数组：",
+            f"   - 50Hz功率：{'kW' if is_metric else 'HP'}（额定功率）",
+            "   - 50Hz电压：V（工作电压，如2300V、3300V、4160V）",
+            "   - 50Hz电流：A（额定电流，用于电缆选型）⭐",
+            "   - 50Hz转速：rpm（同步转速，通常2950rpm）",
+            "",
+            "   60Hz参数组：",
+            f"   - 60Hz功率：{'kW' if is_metric else 'HP'}（额定功率）",
+            "   - 60Hz电压：V（工作电压）",
+            "   - 60Hz电流：A（额定电流，用于电缆选型）⭐",
+            "   - 60Hz转速：rpm（同步转速，通常3540rpm）",
+            "",
+            "4. 🎯 电流电压信息的重要性：",
+            "   ✅ 电流信息用于：",
+            "      - 电缆截面积选型",
+            "      - 变压器容量计算",
+            "      - 保护器额定值设定",
+            "      - 系统功率平衡分析",
+            "",
+            "   ✅ 电压信息用于：",
+            "      - 电压等级匹配",
+            "      - 绝缘要求确定",
+            "      - 电网适配性评估",
+            "",
+            "5. 数据填写要求：",
+            "   - 功率数值：不同频率下功率不同（60Hz通常比50Hz高20%）",
+            "   - 电流数值：与功率和电压相关 I=P/(√3×U×cosφ×η)",
+            "   - 转速数值：50Hz通常2950rpm，60Hz通常3540rpm",
+            "   - 电压数值：常用2300V、3300V、4160V、6600V",
+            "",
+            "6. 单位转换说明：",
+            f"   当前模板单位制：{'公制 (Metric)' if is_metric else '英制 (Imperial)'}",
+            "   - 功率单位会自动转换为数据库标准单位",
+            "   - 电流和电压单位统一使用A和V",
+            "   - 转速统一使用rpm",
+            "",
+            "7. 常见参数范围：",
+            "   - 功率范围：50-500HP (37-373kW)",
+            "   - 电压范围：2300-6600V",
+            "   - 电流范围：15-100A",
+            "   - 转速：2950rpm(50Hz) / 3540rpm(60Hz)",
+            "",
+            "⚠️ 重要提醒：",
+            "   1. ⭐ 电流和电压字段不能为空！",
+            "   2. 序列号必须唯一",
+            "   3. 同一电机的50Hz和60Hz参数必须都填写",
+            "   4. 电流值直接影响电缆和保护器选型",
+            "",
+            "🔄 导入流程：",
+            "   1. 按模板填写完整的电机参数",
+            "   2. 确保50Hz和60Hz的电流电压数据完整",
+            "   3. 保存并通过系统导入",
+            "   4. 系统会自动创建频率参数记录",
+            "   5. 导入后可在电机管理界面查看完整信息",
+            "",
+            "✅ 修复确认：",
+            "   本模板已完全解决电流电压缺失问题！",
+            "   所有电机选型所需的关键电气参数均已包含。"
+        ]
+
+        for i, note in enumerate(notes):
+            cell = worksheet.cell(row=notes_start_row + i, column=1, value=note)
+            if note.startswith("📋"):
+                cell.font = Font(bold=True, size=14, color="2E7D32")
+            elif note.startswith(("🔧", "1.", "2.", "3.", "4.", "5.", "6.", "7.", "⚠️", "🔄", "✅")):
+                cell.font = Font(bold=True, color="1B5E20")
+            elif "⭐" in note or "🔑" in note:
+                cell.font = Font(bold=True, color="FF6F00")  # 重点标记用橙色
+            else:
+                cell.font = Font(size=10)
+        
+            # 合并单元格
+            if note.strip():
+                worksheet.merge_cells(
+                    start_row=notes_start_row + i, 
+                    start_column=1,
+                end_row=notes_start_row + i,
+                end_column=min(8, header_count)
+            )
+
+    def _build_motor_details(self, basic_record: Dict, is_metric: bool) -> Dict[str, Any]:
+        """构建电机详细信息（匹配数据库字段）"""
+        try:
+            # 🔥 严格按照 device_motors 表字段构建
+            motor_details = {
+                'motor_type': str(basic_record.get('电机类型', '')),
+                'outside_diameter': self._parse_float(basic_record.get('外径(mm)' if is_metric else '外径(in)')),
+                'length': self._parse_float(basic_record.get('长度(mm)' if is_metric else '长度(in)')),
+                'weight': self._parse_float(basic_record.get('重量(kg)' if is_metric else '重量(lbs)')),
+                'insulation_class': str(basic_record.get('绝缘等级', '')),
+                'protection_class': str(basic_record.get('防护等级', ''))
+            }
+        
+            # 🔥 单位转换（如果需要）
+            if not is_metric:
+                # 将英制单位转换为公制（数据库标准）
+                if motor_details['outside_diameter']:
+                    motor_details['outside_diameter'] *= 25.4  # in -> mm
+                if motor_details['length']:
+                    motor_details['length'] *= 25.4  # in -> mm  
+                if motor_details['weight']:
+                    motor_details['weight'] *= 0.453592  # lbs -> kg
+        
+            # 🔥 注意：频率参数表 motor_frequency_params 需要单独处理
+            # 这里暂时不处理频率参数，因为需要单独的表格结构
+        
+            logger.info(f"构建电机详细信息: {motor_details}")
+            return motor_details
+        
+        except Exception as e:
+            logger.error(f"构建电机详细信息失败: {str(e)}")
+            raise
 
     def _generate_protector_template(self, workbook, is_metric: bool):
-        """生成保护器导入模板"""
+        """生成保护器导入模板（基于实际数据库结构）"""
         # 设置工作表
         if 'Sheet' in workbook.sheetnames:
             worksheet = workbook['Sheet']
         else:
             worksheet = workbook.create_sheet()
-    
+
         worksheet.title = "保护器导入模板"
-    
+
         # 设置样式
         header_font = Font(bold=True, color="FFFFFF")
         header_fill = PatternFill(start_color="FF6F00", end_color="FF6F00", fill_type="solid")
@@ -1653,45 +2403,35 @@ class DeviceController(QObject):
             left=Side(style='thin'), right=Side(style='thin'),
             top=Side(style='thin'), bottom=Side(style='thin')
         )
-    
-        # 根据单位制设置表头
+
+        # 🔥 根据实际数据库字段设置表头
         if is_metric:
             headers = [
                 "制造商", "型号", "系列", "序列号", "状态", "描述",
-                # 基本参数（公制）
+                # 基本参数（公制） - 对应 device_protectors 表字段
                 "外径(mm)", "长度(mm)", "重量(kg)",
-                "推力承载能力(kN)", "径向载荷(kN)", "轴向载荷(kN)",
-                "密封类型", "密封等级", "材料等级",
-                # 工作条件
-                "最高工作温度(°C)", "最高工作压力(MPa)", "最大转速(rpm)",
-                "轴径适配(mm)", "连接螺纹", "安装长度(mm)",
-                # 密封性能
-                "静密封压力(MPa)", "动密封压力(MPa)", "泄漏率(ml/h)",
-                "磨损寿命(h)", "维护周期(h)", "更换周期(h)",
-                # 流体兼容性
-                "原油兼容性", "天然气兼容性", "水相兼容性", "化学兼容性",
-                # 认证标准
-                "API标准", "ISO认证", "制造标准"
+                "推力承载能力(kN)", "密封类型", "最高温度(°C)"
+            ]
+        
+            example_data = [
+                "Baker Hughes", "TandemSeal TS400", "TS400", "BH-TS400-001", "active", "高性能机械密封保护器",
+                "114.3", "1524", "68.2",
+                "89.0", "机械密封", "149"
             ]
         else:
             headers = [
                 "制造商", "型号", "系列", "序列号", "状态", "描述",
-                # 基本参数（英制）
+                # 基本参数（英制） - 对应 device_protectors 表字段
                 "外径(in)", "长度(in)", "重量(lbs)",
-                "推力承载能力(lbs)", "径向载荷(lbs)", "轴向载荷(lbs)",
-                "密封类型", "密封等级", "材料等级",
-                # 工作条件
-                "最高工作温度(°F)", "最高工作压力(psi)", "最大转速(rpm)",
-                "轴径适配(in)", "连接螺纹", "安装长度(in)",
-                # 密封性能
-                "静密封压力(psi)", "动密封压力(psi)", "泄漏率(oz/h)",
-                "磨损寿命(h)", "维护周期(h)", "更换周期(h)",
-                # 流体兼容性
-                "原油兼容性", "天然气兼容性", "水相兼容性", "化学兼容性",
-                # 认证标准
-                "API标准", "ISO认证", "制造标准"
+                "推力承载能力(lbs)", "密封类型", "最高温度(°F)"
             ]
-    
+        
+            example_data = [
+                "Baker Hughes", "TandemSeal TS400", "TS400", "BH-TS400-001", "active", "高性能机械密封保护器",
+                "4.5", "60", "150",
+                "20000", "机械密封", "300"
+            ]
+
         # 设置表头
         for col, header in enumerate(headers, 1):
             cell = worksheet.cell(row=1, column=col, value=header)
@@ -1699,58 +2439,167 @@ class DeviceController(QObject):
             cell.fill = header_fill
             cell.alignment = header_alignment
             cell.border = border
-    
+
         # 设置列宽
-        for col in range(1, len(headers) + 1):
-            worksheet.column_dimensions[openpyxl.utils.get_column_letter(col)].width = 12
-    
-        # 添加示例数据
-        if is_metric:
-            example_data = [
-                "Baker Hughes", "TandemSeal", "TS400", "BH-TS400-001", "active", "高性能保护器",
-                "114", "1524", "68",
-                "890", "445", "667", 
-                "机械密封", "API 682", "316SS",
-                "149", "34.5", "3600",
-                "25.4", "API螺纹", "1524",
-                "69", "34.5", "5",
-                "8760", "4380", "17520",
-                "优秀", "良好", "优秀", "良好",
-                "API 11AX", "ISO 9001", "API标准"
-            ]
-        else:
-            example_data = [
-                "Baker Hughes", "TandemSeal", "TS400", "BH-TS400-001", "active", "高性能保护器",
-                "4.5", "60", "150",
-                "200000", "100000", "150000",
-                "机械密封", "API 682", "316SS",
-                "300", "5000", "3600",
-                "1.0", "API螺纹", "60",
-                "10000", "5000", "0.17",
-                "8760", "4380", "17520",
-                "优秀", "良好", "优秀", "良好",
-                "API 11AX", "ISO 9001", "API标准"
-            ]
-    
+        column_widths = [15, 20, 10, 15, 8, 25, 12, 12, 12, 15, 12, 12]
+        for col, width in enumerate(column_widths[:len(headers)], 1):
+            worksheet.column_dimensions[openpyxl.utils.get_column_letter(col)].width = width
+
         # 填充示例数据
         for col, value in enumerate(example_data, 1):
             cell = worksheet.cell(row=2, column=col, value=value)
             cell.border = border
             cell.alignment = Alignment(horizontal="left", vertical="center")
-    
+
+        # 添加更多示例数据
+        additional_examples = []
+        if is_metric:
+            additional_examples = [
+                ["Schlumberger", "REDA Max Protector", "MP450", "SLB-MP450-001", "active", "高温高压保护器",
+                 "101.6", "1219", "54.5", "67.0", "组合密封", "177"],
+                ["Weatherford", "Guardian Pro", "GP300", "WFT-GP300-001", "active", "标准机械密封保护器", 
+                 "88.9", "914", "32.7", "45.0", "机械密封", "121"],
+                ["Borets", "P-Series", "P450", "BOR-P450-001", "active", "经济型保护器",
+                 "95.3", "1067", "41.3", "56.0", "迷宫密封", "135"]
+            ]
+        else:
+            additional_examples = [
+                ["Schlumberger", "REDA Max Protector", "MP450", "SLB-MP450-001", "active", "高温高压保护器",
+                 "4.0", "48", "120", "15000", "组合密封", "350"],
+                ["Weatherford", "Guardian Pro", "GP300", "WFT-GP300-001", "active", "标准机械密封保护器",
+                 "3.5", "36", "72", "10000", "机械密封", "250"],
+                ["Borets", "P-Series", "P450", "BOR-P450-001", "active", "经济型保护器",
+                 "3.75", "42", "91", "12500", "迷宫密封", "275"]
+            ]
+
+        # 添加额外示例行
+        for row_idx, example in enumerate(additional_examples, 3):
+            for col, value in enumerate(example, 1):
+                cell = worksheet.cell(row=row_idx, column=col, value=value)
+                cell.border = border
+                cell.alignment = Alignment(horizontal="left", vertical="center")
+
         # 添加说明
         self._add_protector_template_notes(worksheet, is_metric, len(headers))
 
+    def _add_protector_template_notes(self, worksheet, is_metric: bool, header_count: int):
+        """添加保护器模板说明（基于实际数据库字段）"""
+        notes_start_row = 7
+    
+        notes = [
+            "📋 保护器导入模板说明：",
+            "",
+            "🔧 数据库字段对应：",
+            "   本模板严格按照数据库表 device_protectors 的字段设计",
+            "",
+            "1. 基本信息字段：",
+            "   - 制造商：设备制造商名称 (devices.manufacturer)",
+            "   - 型号：完整设备型号 (devices.model)",
+            "   - 系列：产品系列代码 (devices.series)",
+            "   - 序列号：设备唯一序列号 (devices.serial_number)",
+            "   - 状态：active/inactive/maintenance (devices.status)",
+            "   - 描述：设备详细描述 (devices.description)",
+            "",
+            "2. 保护器专用字段 (device_protectors表)：",
+            f"   - 外径：{'mm' if is_metric else 'in'} (outer_diameter)",
+            f"   - 长度：{'mm' if is_metric else 'in'} (length)",
+            f"   - 重量：{'kg' if is_metric else 'lbs'} (weight)",
+            f"   - 推力承载能力：{'kN' if is_metric else 'lbs'} (thrust_capacity)",
+            "   - 密封类型：机械密封/唇形密封/迷宫密封等 (seal_type)",
+            f"   - 最高温度：{'°C' if is_metric else '°F'} (max_temperature)",
+            "",
+            "3. 数据要求：",
+            "   - 所有数值字段支持小数",
+            "   - 推力承载能力是关键参数，影响设备选型",
+            "   - 密封类型影响适用工况",
+            "   - 最高温度决定使用环境限制",
+            "",
+            "4. 单位说明：",
+            f"   当前模板单位制：{'公制 (Metric)' if is_metric else '英制 (Imperial)'}",
+            "   - 导入时系统会自动转换为数据库标准单位",
+            "   - 推力承载能力：数据库存储为kN",
+            "   - 温度：数据库存储为摄氏度",
+            "   - 尺寸：数据库存储为mm",
+            "",
+            "5. 常见密封类型：",
+            "   - 机械密封：适用于高压高转速",
+            "   - 唇形密封：成本低，适用于标准工况",
+            "   - 迷宫密封：无接触密封，寿命长",
+            "   - 组合密封：多种密封形式组合",
+            "",
+            "⚠️ 注意事项：",
+            "   1. 序列号必须唯一，重复将导致导入失败",
+            "   2. 推力承载能力不能为空",
+            "   3. 外径须满足套管尺寸要求",
+            "   4. 密封类型请使用标准术语",
+            "",
+            "📞 技术支持：",
+            "   如需了解更多字段含义或遇到导入问题，",
+            "   请联系技术支持团队获取帮助。"
+        ]
+
+        for i, note in enumerate(notes):
+            cell = worksheet.cell(row=notes_start_row + i, column=1, value=note)
+            if note.startswith("📋"):
+                cell.font = Font(bold=True, size=14, color="FF6F00")
+            elif note.startswith(("🔧", "1.", "2.", "3.", "4.", "5.", "⚠️", "📞")):
+                cell.font = Font(bold=True, color="D84315")
+            else:
+                cell.font = Font(size=10)
+        
+            # 合并单元格
+            if note.strip():
+                worksheet.merge_cells(
+                    start_row=notes_start_row + i, 
+                    start_column=1,
+                    end_row=notes_start_row + i,
+                    end_column=min(8, header_count)
+                )
+
+    def _build_protector_details(self, basic_record: Dict, is_metric: bool) -> Dict[str, Any]:
+        """构建保护器详细信息（匹配数据库字段）"""
+        try:
+            # 🔥 严格按照 device_protectors 表字段构建
+            protector_details = {
+                'outer_diameter': self._parse_float(basic_record.get('外径(mm)' if is_metric else '外径(in)')),
+                'length': self._parse_float(basic_record.get('长度(mm)' if is_metric else '长度(in)')),
+                'weight': self._parse_float(basic_record.get('重量(kg)' if is_metric else '重量(lbs)')),
+                'thrust_capacity': self._parse_float(basic_record.get('推力承载能力(kN)' if is_metric else '推力承载能力(lbs)')),
+                'seal_type': str(basic_record.get('密封类型', '')),
+                'max_temperature': self._parse_float(basic_record.get('最高温度(°C)' if is_metric else '最高温度(°F)'))
+            }
+        
+            # 🔥 单位转换（如果需要）
+            if not is_metric:
+                # 将英制单位转换为公制（数据库标准）
+                if protector_details['outer_diameter']:
+                    protector_details['outer_diameter'] *= 25.4  # in -> mm
+                if protector_details['length']:
+                    protector_details['length'] *= 25.4  # in -> mm  
+                if protector_details['weight']:
+                    protector_details['weight'] *= 0.453592  # lbs -> kg
+                if protector_details['thrust_capacity']:
+                    protector_details['thrust_capacity'] *= 0.004448  # lbs -> kN
+                if protector_details['max_temperature']:
+                    protector_details['max_temperature'] = (protector_details['max_temperature'] - 32) * 5/9  # °F -> °C
+        
+            logger.info(f"构建保护器详细信息: {protector_details}")
+            return protector_details
+        
+        except Exception as e:
+            logger.error(f"构建保护器详细信息失败: {str(e)}")
+            raise
+
     def _generate_separator_template(self, workbook, is_metric: bool):
-        """生成分离器导入模板"""
+        """生成分离器导入模板（基于实际数据库结构）"""
         # 设置工作表
         if 'Sheet' in workbook.sheetnames:
             worksheet = workbook['Sheet']
         else:
             worksheet = workbook.create_sheet()
-    
+
         worksheet.title = "分离器导入模板"
-    
+
         # 设置样式
         header_font = Font(bold=True, color="FFFFFF")
         header_fill = PatternFill(start_color="9C27B0", end_color="9C27B0", fill_type="solid")
@@ -1759,47 +2608,35 @@ class DeviceController(QObject):
             left=Side(style='thin'), right=Side(style='thin'),
             top=Side(style='thin'), bottom=Side(style='thin')
         )
-    
-        # 根据单位制设置表头
+
+        # 🔥 根据实际数据库字段设置表头
         if is_metric:
             headers = [
                 "制造商", "型号", "系列", "序列号", "状态", "描述",
-                # 基本参数（公制）
+                # 基本参数（公制） - 对应 device_separators 表字段
                 "外径(mm)", "长度(mm)", "重量(kg)",
-                "分离器类型", "分离原理", "级数",
-                # 性能参数
-                "气体处理量(m³/d)", "液体处理量(m³/d)", "分离效率(%)",
-                "最小分离粒径(μm)", "压力损失(kPa)", "操作压力(MPa)",
-                # 工作条件
-                "最低温度(°C)", "最高温度(°C)", "最低压力(MPa)", "最高压力(MPa)",
-                "入口速度(m/s)", "出口速度(m/s)", "停留时间(s)",
-                # 材料信息
-                "主体材料", "内衬材料", "密封材料", "防腐等级",
-                # 连接信息
-                "入口尺寸(mm)", "出口尺寸(mm)", "排污口(mm)", "安装方式",
-                # 性能特征
-                "旋流强度", "Re数范围", "Cut粒径(μm)", "分离因子"
+                "分离效率(%)", "气体处理能力(m³/d)", "液体处理能力(m³/d)"
+            ]
+        
+            example_data = [
+                "Halliburton", "VORTEX-S500", "VORTEX", "HAL-VS500-001", "active", "高效旋流分离器",
+                "152.4", "2438", "227",
+                "95.5", "50000", "2000"
             ]
         else:
             headers = [
                 "制造商", "型号", "系列", "序列号", "状态", "描述",
-                # 基本参数（英制）
+                # 基本参数（英制） - 对应 device_separators 表字段
                 "外径(in)", "长度(in)", "重量(lbs)",
-                "分离器类型", "分离原理", "级数",
-                # 性能参数
-                "气体处理量(scf/d)", "液体处理量(bbl/d)", "分离效率(%)",
-                "最小分离粒径(μm)", "压力损失(psi)", "操作压力(psi)",
-                # 工作条件
-                "最低温度(°F)", "最高温度(°F)", "最低压力(psi)", "最高压力(psi)",
-                "入口速度(ft/s)", "出口速度(ft/s)", "停留时间(s)",
-                # 材料信息
-                "主体材料", "内衬材料", "密封材料", "防腐等级",
-                # 连接信息
-                "入口尺寸(in)", "出口尺寸(in)", "排污口(in)", "安装方式",
-                # 性能特征
-                "旋流强度", "Re数范围", "Cut粒径(μm)", "分离因子"
+                "分离效率(%)", "气体处理能力(scf/d)", "液体处理能力(bbl/d)"
             ]
-    
+        
+            example_data = [
+                "Halliburton", "VORTEX-S500", "VORTEX", "HAL-VS500-001", "active", "高效旋流分离器",
+                "6.0", "96", "500",
+                "95.5", "1800000", "12600"
+            ]
+
         # 设置表头
         for col, header in enumerate(headers, 1):
             cell = worksheet.cell(row=1, column=col, value=header)
@@ -1807,232 +2644,159 @@ class DeviceController(QObject):
             cell.fill = header_fill
             cell.alignment = header_alignment
             cell.border = border
-    
+
         # 设置列宽
-        for col in range(1, len(headers) + 1):
-            worksheet.column_dimensions[openpyxl.utils.get_column_letter(col)].width = 12
-    
-        # 添加示例数据
-        if is_metric:
-            example_data = [
-                "Halliburton", "VORTEX-S500", "VORTEX", "HAL-VS500-001", "active", "高效旋流分离器",
-                "152", "2438", "227",
-                "旋流分离器", "离心分离", "单级",
-                "50000", "2000", "95",
-                "10", "69", "6.9",
-                "4", "149", "0.7", "34.5",
-                "15", "8", "3",
-                "316L不锈钢", "陶瓷", "聚四氟乙烯", "NACE MR0175",
-                "100", "75", "50", "立式安装",
-                "高", "1000-10000", "15", "500"
-            ]
-        else:
-            example_data = [
-                "Halliburton", "VORTEX-S500", "VORTEX", "HAL-VS500-001", "active", "高效旋流分离器",
-                "6", "96", "500",
-                "旋流分离器", "离心分离", "单级",
-                "1.8M", "12600", "95",
-                "10", "10", "1000",
-                "40", "300", "100", "5000",
-                "49", "26", "3",
-                "316L不锈钢", "陶瓷", "聚四氟乙烯", "NACE MR0175",
-                "4", "3", "2", "立式安装",
-                "高", "1000-10000", "15", "500"
-            ]
-    
+        column_widths = [15, 20, 10, 15, 8, 25, 12, 12, 12, 12, 18, 18]
+        for col, width in enumerate(column_widths[:len(headers)], 1):
+            worksheet.column_dimensions[openpyxl.utils.get_column_letter(col)].width = width
+
         # 填充示例数据
         for col, value in enumerate(example_data, 1):
             cell = worksheet.cell(row=2, column=col, value=value)
             cell.border = border
             cell.alignment = Alignment(horizontal="left", vertical="center")
-    
+
+        # 添加更多示例数据
+        additional_examples = []
+        if is_metric:
+            additional_examples = [
+                ["Schlumberger", "HydroFrac Separator", "HFS300", "SLB-HFS300-001", "active", "高压气液分离器",
+                 "127.0", "1829", "145", "92.0", "35000", "1500"],
+                ["Weatherford", "Multi-Phase Separator", "MPS200", "WFT-MPS200-001", "active", "多相流分离器", 
+                 "101.6", "1524", "89", "88.5", "25000", "1000"],
+                ["Baker Hughes", "SUPER-SEP", "SS400", "BH-SS400-001", "active", "超级分离器",
+                 "168.3", "3048", "310", "97.2", "75000", "3000"]
+            ]
+        else:
+            additional_examples = [
+                ["Schlumberger", "HydroFrac Separator", "HFS300", "SLB-HFS300-001", "active", "高压气液分离器",
+                 "5.0", "72", "320", "92.0", "1260000", "9450"],
+                ["Weatherford", "Multi-Phase Separator", "MPS200", "WFT-MPS200-001", "active", "多相流分离器",
+                 "4.0", "60", "196", "88.5", "900000", "6300"],
+                ["Baker Hughes", "SUPER-SEP", "SS400", "BH-SS400-001", "active", "超级分离器",
+                 "6.625", "120", "683", "97.2", "2700000", "18900"]
+            ]
+
+        # 添加额外示例行
+        for row_idx, example in enumerate(additional_examples, 3):
+            for col, value in enumerate(example, 1):
+                cell = worksheet.cell(row=row_idx, column=col, value=value)
+                cell.border = border
+                cell.alignment = Alignment(horizontal="left", vertical="center")
+
         # 添加说明
         self._add_separator_template_notes(worksheet, is_metric, len(headers))
 
-    def _add_pump_template_notes(self, worksheet, is_metric: bool, header_count: int):
-        """添加泵模板说明"""
-        notes_start_row = 4
-    
-        notes = [
-            "📋 泵设备导入说明：",
-            "",
-            "1. 基本信息填写：",
-            "   - 制造商：设备制造商名称",
-            "   - 型号：完整的设备型号",
-            "   - 系列：产品系列（如400、500、600等）",
-            "   - 举升方式：esp/pcp/jet/espcp/hpp",
-            "   - 状态：active/inactive/maintenance",
-            "",
-            "2. 性能参数：",
-            f"   - 流量单位：{'m³/d' if is_metric else 'bbl/d'}",
-            f"   - 扬程单位：{'m' if is_metric else 'ft'}",
-            f"   - 功率单位：{'kW' if is_metric else 'HP'}",
-            f"   - 直径单位：{'mm' if is_metric else 'in'}",
-            f"   - 重量单位：{'kg' if is_metric else 'lbs'}",
-            "",
-            "3. 性能曲线数据：",
-            "   - 提供5个关键流量点的性能数据",
-            "   - 数据点应覆盖泵的工作范围",
-            "   - 最优工况点为BEP点",
-            "",
-            "4. 举升方式说明：",
-            "   - esp: 潜油离心泵",
-            "   - pcp: 螺杆泵",
-            "   - jet: 射流泵",
-            "   - espcp: 柱塞泵",
-            "   - hpp: 水力泵",
-            "",
-            "5. 注意事项：",
-            "   - 确保数值单位正确",
-            "   - 性能曲线数据用于生成完整特性曲线",
-            "   - 留空的字段将使用默认值",
-            "   - 序列号必须唯一"
-        ]
-    
-        for i, note in enumerate(notes):
-            cell = worksheet.cell(row=notes_start_row + i, column=1, value=note)
-            if note.startswith("📋"):
-                cell.font = Font(bold=True, size=14, color="4472C4")
-            elif note.startswith(("1.", "2.", "3.", "4.", "5.")):
-                cell.font = Font(bold=True)
-        
-            # 合并说明文本的单元格
-            if note:
-                worksheet.merge_cells(
-                    start_row=notes_start_row + i, 
-                    start_column=1,
-                    end_row=notes_start_row + i,
-                    end_column=min(8, header_count)
-                )
-
-    def _add_motor_template_notes(self, worksheet, is_metric: bool, header_count: int):
-        """添加电机模板说明"""
-        notes_start_row = 4
-    
-        notes = [
-            "📋 电机导入说明：",
-            "",
-            "1. 基本信息：",
-            "   - 电机类型：三相感应电机/永磁同步电机等",
-            "   - 绝缘等级：B/F/H等",
-            "   - 防护等级：IP54/IP55/IP68等",
-            "",
-            "2. 频率参数：",
-            "   - 50Hz和60Hz参数可分别填写",
-            "   - 功率、电压、电流、转速、效率",
-            f"   - 功率单位：{'kW' if is_metric else 'HP'}",
-            f"   - 尺寸单位：{'mm' if is_metric else 'in'}",
-            "",
-            "3. 性能指标：",
-            "   - 启动转矩：额定转矩的百分比",
-            "   - 最大转矩：额定转矩的百分比",
-            "   - 堵转转矩：额定转矩的百分比",
-            "   - 功率因数：0.8-0.95之间",
-            "",
-            "4. 环境条件：",
-            f"   - 温度范围：{'-40°C到+150°C' if is_metric else '-40°F到+300°F'}",
-            "   - 湿度：相对湿度百分比",
-            f"   - 海拔限制：{'m' if is_metric else 'ft'}"
-        ]
-    
-        for i, note in enumerate(notes):
-            cell = worksheet.cell(row=notes_start_row + i, column=1, value=note)
-            if note.startswith("📋"):
-                cell.font = Font(bold=True, size=14, color="2E7D32")
-            elif note.startswith(("1.", "2.", "3.", "4.")):
-                cell.font = Font(bold=True)
-        
-            if note:
-                worksheet.merge_cells(
-                    start_row=notes_start_row + i, 
-                    start_column=1,
-                    end_row=notes_start_row + i,
-                    end_column=min(8, header_count)
-                )
-
-    def _add_protector_template_notes(self, worksheet, is_metric: bool, header_count: int):
-        """添加保护器模板说明"""
-        notes_start_row = 4
-    
-        notes = [
-            "📋 保护器导入说明：",
-            "",
-            "1. 密封性能：",
-            "   - 密封类型：机械密封/唇形密封/组合密封",
-            "   - 密封等级：API 682标准等级",
-            "   - 泄漏率：允许的最大泄漏量",
-            "",
-            "2. 载荷能力：",
-            f"   - 推力承载：{'kN' if is_metric else 'lbs'}",
-            f"   - 径向载荷：{'kN' if is_metric else 'lbs'}",
-            f"   - 轴向载荷：{'kN' if is_metric else 'lbs'}",
-            "",
-            "3. 工作条件：",
-            f"   - 温度范围：{'-20°C到+200°C' if is_metric else '0°F到+400°F'}",
-            f"   - 压力范围：{'MPa' if is_metric else 'psi'}",
-            "   - 转速范围：rpm",
-            "",
-            "4. 材料兼容性：",
-            "   - 原油兼容性：优秀/良好/一般",
-            "   - 天然气兼容性：优秀/良好/一般",
-            "   - 化学兼容性：根据介质确定"
-        ]
-    
-        for i, note in enumerate(notes):
-            cell = worksheet.cell(row=notes_start_row + i, column=1, value=note)
-            if note.startswith("📋"):
-                cell.font = Font(bold=True, size=14, color="FF6F00")
-            elif note.startswith(("1.", "2.", "3.", "4.")):
-                cell.font = Font(bold=True)
-        
-            if note:
-                worksheet.merge_cells(
-                    start_row=notes_start_row + i, 
-                    start_column=1,
-                    end_row=notes_start_row + i,
-                    end_column=min(8, header_count)
-                )
-
     def _add_separator_template_notes(self, worksheet, is_metric: bool, header_count: int):
-        """添加分离器模板说明"""
-        notes_start_row = 4
+        """添加分离器模板说明（基于实际数据库字段）"""
+        notes_start_row = 7
     
         notes = [
-            "📋 分离器导入说明：",
+            "📋 分离器导入模板说明：",
             "",
-            "1. 分离器类型：",
+            "🔧 数据库字段对应：",
+            "   本模板严格按照数据库表 device_separators 的字段设计",
+            "",
+            "1. 基本信息字段：",
+            "   - 制造商：设备制造商名称 (devices.manufacturer)",
+            "   - 型号：完整设备型号 (devices.model)",
+            "   - 系列：产品系列代码 (devices.series)",
+            "   - 序列号：设备唯一序列号 (devices.serial_number)",
+            "   - 状态：active/inactive/maintenance (devices.status)",
+            "   - 描述：设备详细描述 (devices.description)",
+            "",
+            "2. 分离器专用字段 (device_separators表)：",
+            f"   - 外径：{'mm' if is_metric else 'in'} (outer_diameter)",
+            f"   - 长度：{'mm' if is_metric else 'in'} (length)",
+            f"   - 重量：{'kg' if is_metric else 'lbs'} (weight)",
+            "   - 分离效率：百分比 (separation_efficiency)",
+            f"   - 气体处理能力：{'m³/d' if is_metric else 'scf/d'} (gas_handling_capacity)",
+            f"   - 液体处理能力：{'m³/d' if is_metric else 'bbl/d'} (liquid_handling_capacity)",
+            "",
+            "3. 数据要求：",
+            "   - 所有数值字段支持小数",
+            "   - 分离效率范围：0-100%",
+            "   - 处理能力是关键性能指标",
+            "   - 外径须满足井筒尺寸要求",
+            "",
+            "4. 单位说明：",
+            f"   当前模板单位制：{'公制 (Metric)' if is_metric else '英制 (Imperial)'}",
+            "   - 导入时系统会自动转换为数据库标准单位",
+            "   - 气体处理能力：数据库存储为m³/d",
+            "   - 液体处理能力：数据库存储为m³/d",
+            "   - 尺寸：数据库存储为mm",
+            "",
+            "5. 性能参数说明：",
+            "   - 分离效率：气液分离的有效性指标",
+            "   - 气体处理能力：单位时间可处理的气体体积",
+            "   - 液体处理能力：单位时间可处理的液体体积",
+            "   - 外径：影响安装空间和流通面积",
+            "",
+            "6. 常见分离器类型：",
             "   - 旋流分离器：利用离心力分离",
             "   - 重力分离器：利用密度差分离",
-            "   - 膜分离器：利用膜技术分离",
+            "   - 多相流分离器：同时处理气液固三相",
+            "   - 膜分离器：利用膜技术精确分离",
             "",
-            "2. 性能参数：",
-            f"   - 气体处理量：{'m³/d' if is_metric else 'scf/d'}",
-            f"   - 液体处理量：{'m³/d' if is_metric else 'bbl/d'}",
-            "   - 分离效率：百分比",
-            "   - 最小分离粒径：微米",
+            "⚠️ 注意事项：",
+            "   1. 序列号必须唯一，重复将导致导入失败",
+            "   2. 分离效率不能超过100%",
+            "   3. 处理能力须与实际工况匹配",
+            "   4. 外径限制需考虑井筒空间",
             "",
-            "3. 工作条件：",
-            f"   - 温度范围：{'-20°C到+200°C' if is_metric else '0°F到+400°F'}",
-            f"   - 压力范围：{'MPa' if is_metric else 'psi'}",
-            f"   - 流速范围：{'m/s' if is_metric else 'ft/s'}",
-            "",
-            "4. 安装信息：",
-            "   - 安装方式：立式/卧式/倾斜",
-            "   - 连接方式：法兰/螺纹/焊接",
-            f"   - 连接尺寸：{'mm' if is_metric else 'in'}"
+            "📞 技术支持：",
+            "   如需了解更多字段含义或遇到导入问题，",
+            "   请联系技术支持团队获取帮助。"
         ]
-    
+
         for i, note in enumerate(notes):
             cell = worksheet.cell(row=notes_start_row + i, column=1, value=note)
             if note.startswith("📋"):
                 cell.font = Font(bold=True, size=14, color="9C27B0")
-            elif note.startswith(("1.", "2.", "3.", "4.")):
-                cell.font = Font(bold=True)
+            elif note.startswith(("🔧", "1.", "2.", "3.", "4.", "5.", "6.", "⚠️", "📞")):
+                cell.font = Font(bold=True, color="7B1FA2")
+            else:
+                cell.font = Font(size=10)
         
-            if note:
+            # 合并单元格
+            if note.strip():
                 worksheet.merge_cells(
                     start_row=notes_start_row + i, 
                     start_column=1,
                     end_row=notes_start_row + i,
                     end_column=min(8, header_count)
                 )
+
+    def _build_separator_details(self, basic_record: Dict, is_metric: bool) -> Dict[str, Any]:
+        """构建分离器详细信息（匹配数据库字段）"""
+        try:
+            # 🔥 严格按照 device_separators 表字段构建
+            separator_details = {
+                'outer_diameter': self._parse_float(basic_record.get('外径(mm)' if is_metric else '外径(in)')),
+                'length': self._parse_float(basic_record.get('长度(mm)' if is_metric else '长度(in)')),
+                'weight': self._parse_float(basic_record.get('重量(kg)' if is_metric else '重量(lbs)')),
+                'separation_efficiency': self._parse_float(basic_record.get('分离效率(%)')),
+                'gas_handling_capacity': self._parse_float(basic_record.get('气体处理能力(m³/d)' if is_metric else '气体处理能力(scf/d)')),
+                'liquid_handling_capacity': self._parse_float(basic_record.get('液体处理能力(m³/d)' if is_metric else '液体处理能力(bbl/d)'))
+            }
+        
+            # 🔥 单位转换（如果需要）
+            if not is_metric:
+                # 将英制单位转换为公制（数据库标准）
+                if separator_details['outer_diameter']:
+                    separator_details['outer_diameter'] *= 25.4  # in -> mm
+                if separator_details['length']:
+                    separator_details['length'] *= 25.4  # in -> mm  
+                if separator_details['weight']:
+                    separator_details['weight'] *= 0.453592  # lbs -> kg
+                if separator_details['gas_handling_capacity']:
+                    separator_details['gas_handling_capacity'] *= 0.0283168  # scf/d -> m³/d
+                if separator_details['liquid_handling_capacity']:
+                    separator_details['liquid_handling_capacity'] *= 0.158987  # bbl/d -> m³/d
+        
+            logger.info(f"构建分离器详细信息: {separator_details}")
+            return separator_details
+        
+        except Exception as e:
+            logger.error(f"构建分离器详细信息失败: {str(e)}")
+            raise

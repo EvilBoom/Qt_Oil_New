@@ -9,6 +9,7 @@ from typing import List, Dict, Any
 from pathlib import Path
 import logging
 from sklearn.preprocessing import StandardScaler, PolynomialFeatures
+from tensorflow.keras.models import load_model as keras_load_model
 
 logger = logging.getLogger(__name__)
 
@@ -117,8 +118,10 @@ class MLPredictionService:
                 'scaler': 'TDH-SVR-SCALER-Best.joblib'
             },
             'gas_rate': {
-                'model': 'best_model_0815.keras',
-                'scaler': None  # Keras模型包含预处理
+                # 'model': 'best_model_0815.keras',
+                'model': 'GLR-Model.h5',
+                'scaler': 'GLR-Scaler.pkl', # Keras模型包含预处理
+                'Poly': 'GLR-Poly.pkl'
             }
         }
         
@@ -168,9 +171,13 @@ class MLPredictionService:
                     epsilon = 1e-7
                     return tf.reduce_mean(tf.abs((y_true - y_pred) / (tf.abs(y_true) + epsilon)))
                 
-                self.models['gas_rate'] = tf.keras.models.load_model(
-                    gas_model_path, 
-                    custom_objects={'custom_mape': custom_mape}
+                # self.models['gas_rate'] = tf.keras.models.load_model(
+                #     gas_model_path, 
+                #     custom_objects={'custom_mape': custom_mape}
+                # )
+                self.models['gas_rate'] = keras_load_model(
+                    gas_model_path,
+                    custom_objects = {"_custom_mape": custom_mape}
                 )
                 logger.info("汽液比预测模型加载成功")
             else:
@@ -237,26 +244,46 @@ class MLPredictionService:
         
         try:
             features = [input_data.to_atpump_list()]
+            # to np array
+            features = np.array(features)
             logger.info(f"汽液比预测输入特征: {features}")
             
             # 使用Temp.py中的数据处理逻辑
             # 做交叉特征
-            poly = PolynomialFeatures(degree=2, include_bias=False)
-            features_poly = poly.fit_transform(features)
+            # poly = PolynomialFeatures(degree=2, include_bias=False)
+            # features_poly = poly.fit_transform(features)
             
-            # 数据标准化
-            scaler = StandardScaler()
-            features_scaled = scaler.fit_transform(features_poly)
-            
+            # # 数据标准化
+            # scaler = StandardScaler()
+            # features_scaled = scaler.fit_transform(features_poly)
+            gas_ploy_path = self._get_model_path('gas_rate', 'Poly')
+            gas_scaler_path = self._get_model_path('gas_rate', 'scaler')
+            print('正常加载')
+            print(gas_ploy_path)
+            print(gas_scaler_path)
+            self.scaler = joblib.load(gas_scaler_path)
+            self.poly = joblib.load(gas_ploy_path)
+            print('加载成功')
+            X_poly = self.poly.transform(features)
+            X_scaled = self.scaler.transform(X_poly)
+
             # 调整输入数据的形状以适应模型需求
-            features_reshaped = features_scaled.reshape(features_scaled.shape[0], features_scaled.shape[1], 1)
-            
-            prediction = self.models['gas_rate'].predict(features_reshaped)
-            result = float(prediction[0][0])
+            # features_reshaped = features_scaled.reshape(features_scaled.shape[0], features_scaled.shape[1], 1)
+            logger.info(f"汽液比预测开始")
+            # prediction = self.models['gas_rate'].predict(features_reshaped)
+            prediction = self.models['gas_rate'].predict(X_scaled)
+            logger.info(f"汽液比预测结果: {prediction}")
+            result = float(prediction[0])
+            result = abs(result)
             logger.info(f"汽液比预测结果: {result:.4f}")
             return result
             
+            
         except Exception as e:
+            # 提示完整报错
+            traceback = sys.exc_info()
+            logger.error(f"详细错误信息: {traceback}")
+ 
             logger.error(f"汽液比预测失败: {e}")
             return input_data.gas_oil_ratio / 1000
     

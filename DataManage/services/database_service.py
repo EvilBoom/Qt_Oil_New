@@ -13,6 +13,8 @@ from sqlalchemy.pool import QueuePool
 
 from PySide6.QtCore import QObject, Signal, Slot
 
+from DataManage.DataManage import Project
+
 # 从配置文件导入数据库配置
 from ..config.database_config import get_config, DatabaseConfig
 
@@ -1029,6 +1031,11 @@ class DatabaseService(QObject):
         """保存计算结果"""
         session = self.get_session()
         try:
+            # 🔥 处理轨迹分析数据
+            if 'trajectory_analysis' in result_data and isinstance(result_data['trajectory_analysis'], dict):
+                import json
+                result_data['trajectory_analysis'] = json.dumps(result_data['trajectory_analysis'])
+        
             # 检查是否已有计算结果
             well_id = result_data.get('well_id')
             existing = session.query(WellCalculationResult).filter_by(
@@ -1286,6 +1293,7 @@ class DatabaseService(QObject):
                                       .offset(offset)\
                                       .limit(page_size)\
                                       .all()
+            # devices = query.order_by(Device.created_at.desc()).all()
 
             # 转换为字典列表
             device_list = []
@@ -3814,3 +3822,152 @@ class DatabaseService(QObject):
             }
     
         return curves
+
+    # 在database_service.py中添加（如果没有的话）
+    def get_device_detailsBYID(self, device_id: int, device_type: str) -> dict:
+        """获取设备详细信息"""
+        # 这里需要修改id为model，因为没有保存id
+
+
+        try:
+            query = """
+            SELECT d.*, 
+                   CASE 
+                       WHEN d.device_type = 'PUMP' THEN p.*
+                       WHEN d.device_type = 'MOTOR' THEN m.*
+                       WHEN d.device_type = 'PROTECTOR' THEN pr.*
+                       WHEN d.device_type = 'SEPARATOR' THEN s.*
+                   END as device_details
+            FROM devices d
+            LEFT JOIN pump_details p ON d.id = p.device_id AND d.device_type = 'PUMP'
+            LEFT JOIN motor_details m ON d.id = m.device_id AND d.device_type = 'MOTOR'
+            LEFT JOIN protector_details pr ON d.id = pr.device_id AND d.device_type = 'PROTECTOR'
+            LEFT JOIN separator_details s ON d.id = s.device_id AND d.device_type = 'SEPARATOR'
+            WHERE d.id = ? AND d.device_type = ?
+            """
+        
+            result = self.execute_query(query, (device_id, device_type.upper()))
+            return result[0] if result else {}
+        
+        except Exception as e:
+            logger.error(f"获取设备详情失败: {e}")
+            return {}
+    def get_device_details(self, device_model: str, device_type: str) -> dict:
+        """获取设备详细信息 - 通过型号检索"""
+        session = self.get_session()
+        try:
+            # 通过型号和设备类型查询设备
+            device_type_enum = None
+            if device_type:
+                device_type_upper = device_type.upper()
+                if device_type_upper == 'PUMP':
+                    device_type_enum = DeviceType.PUMP
+                elif device_type_upper == 'MOTOR':
+                    device_type_enum = DeviceType.MOTOR
+                elif device_type_upper == 'PROTECTOR':
+                    device_type_enum = DeviceType.PROTECTOR
+                elif device_type_upper == 'SEPARATOR':
+                    device_type_enum = DeviceType.SEPARATOR
+        
+            # 构建查询
+            query = session.query(Device).filter(
+                Device.model == device_model,
+                Device.is_deleted == False
+            )
+        
+            if device_type_enum:
+                query = query.filter(Device.device_type == device_type_enum)
+        
+            device = query.first()
+        
+            if not device:
+                logger.warning(f"未找到设备: 型号={device_model}, 类型={device_type}")
+                return {}
+        
+            # 获取设备基本信息
+            device_dict = device.to_dict()
+        
+            # 根据设备类型获取详细信息
+            if device.device_type == DeviceType.PUMP and device.pump:
+                device_dict['pump_details'] = {
+                    'impeller_model': device.pump.impeller_model,
+                    'displacement_min': device.pump.displacement_min,
+                    'displacement_max': device.pump.displacement_max,
+                    'single_stage_head': device.pump.single_stage_head,
+                    'single_stage_power': device.pump.single_stage_power,
+                    'shaft_diameter': device.pump.shaft_diameter,
+                    'mounting_height': device.pump.mounting_height,
+                    'outside_diameter': device.pump.outside_diameter,
+                    'max_stages': device.pump.max_stages,
+                    'efficiency': device.pump.efficiency,
+                    'stage_length': getattr(device.pump, 'stage_length', 0.3)  # 默认单级长度
+                }
+            
+            elif device.device_type == DeviceType.MOTOR and device.motor:
+                device_dict['motor_details'] = {
+                    'motor_type': device.motor.motor_type,
+                    'outside_diameter': device.motor.outside_diameter,
+                    'length': device.motor.length,
+                    'weight': device.motor.weight,
+                    'insulation_class': device.motor.insulation_class,
+                    'protection_class': device.motor.protection_class,
+                    'frequency_params': [param.to_dict() for param in device.motor.frequency_params]
+                }
+            
+            elif device.device_type == DeviceType.PROTECTOR and device.protector:
+                device_dict['protector_details'] = {
+                    'outer_diameter': device.protector.outer_diameter,
+                    'length': device.protector.length,
+                    'weight': device.protector.weight,
+                    'thrust_capacity': device.protector.thrust_capacity,
+                    'seal_type': device.protector.seal_type,
+                    'max_temperature': device.protector.max_temperature
+                }
+            
+            elif device.device_type == DeviceType.SEPARATOR and device.separator:
+                device_dict['separator_details'] = {
+                    'outer_diameter': device.separator.outer_diameter,
+                    'length': device.separator.length,
+                    'weight': device.separator.weight,
+                    'separation_efficiency': device.separator.separation_efficiency,
+                    'gas_handling_capacity': device.separator.gas_handling_capacity,
+                    'liquid_handling_capacity': device.separator.liquid_handling_capacity
+                }
+        
+            logger.info(f"获取设备详情成功: 型号={device_model}, ID={device.id}")
+            return device_dict
+        
+        except Exception as e:
+            error_msg = f"获取设备详情失败: 型号={device_model}, 类型={device_type}, 错误={str(e)}"
+            logger.error(error_msg)
+            self.databaseError.emit(error_msg)
+            return {}
+        
+        finally:
+            self.close_session(session)
+
+    def get_project_by_id(self, project_id: int) -> dict:
+        """通过ID获取项目详细信息"""
+        session = self.get_session()
+        try:
+            # 🔥 修正：使用 ProjectModel 而不是 Project
+            project = session.query(ProjectModel).filter(
+                ProjectModel.id == project_id,
+            ).first()
+    
+            if not project:
+                logger.warning(f"未找到项目: ID={project_id}")
+                return {}
+    
+            project_dict = project.to_dict()
+            logger.info(f"获取项目详情成功: ID={project_id}")
+            return project_dict
+    
+        except Exception as e:
+            error_msg = f"获取项目详情失败: ID={project_id}, 错误={str(e)}"
+            logger.error(error_msg)
+            self.databaseError.emit(error_msg)
+            return {}
+    
+        finally:
+            self.close_session(session)

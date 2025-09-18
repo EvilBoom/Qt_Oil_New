@@ -428,11 +428,34 @@ Rectangle {
                 SplitView.fillWidth: true
                 color: "white"
 
+                // WellSchematicView {
+                //     id: sketchView
+                //     anchors.fill: parent
+                //     isChineseMode: root.isChineseMode
+                //     isMetric: root.isMetric  // 🔥 传递单位制属性
+                // }
                 WellSchematicView {
                     id: sketchView
                     anchors.fill: parent
                     isChineseMode: root.isChineseMode
-                    isMetric: root.isMetric  // 🔥 传递单位制属性
+                    isMetric: root.isMetric
+
+                    // 🔥 关键修复：设置当前井ID
+                    property int currentWellId: root.currentWellId
+
+                    // 🔥 确保页面可见时重新加载数据
+                    Component.onCompleted: {
+                        updateSketchFromController()
+                    }
+
+                    // 🔥 当井ID变化时重新加载数据
+                    onCurrentWellIdChanged: {
+                        if (currentWellId > 0) {
+                            Qt.callLater(function() {
+                                updateSketchFromController()
+                            })
+                        }
+                    }
                 }
             }
         }
@@ -467,9 +490,27 @@ Rectangle {
         id: calculationResultDialog
         isChineseMode: root.isChineseMode
         isMetric: root.isMetric  // 🔥 传递单位制属性
+
+        // 🔥 移除 Component.onCompleted 中的设置，改为直接绑定
         Component.onCompleted: {
-            // 设置控制器引用
-            setControllers(wellStructureController, wellController)
+            console.log("=== CalculationResultDialog 初始化 ===")
+            console.log("wellStructureController:", wellStructureController ? "已设置" : "未设置")
+            console.log("wellController:", wellController ? "已设置" : "未设置")
+
+            // 🔥 确保控制器已设置
+            if (wellStructureController && wellController) {
+                setControllers(wellStructureController, wellController)
+            } else {
+                // 延迟设置
+                Qt.callLater(function() {
+                    if (wellStructureController && wellController) {
+                        setControllers(wellStructureController, wellController)
+                        console.log("✅ 延迟设置控制器成功")
+                    } else {
+                        console.error("❌ 控制器仍然未设置")
+                    }
+                })
+            }
         }
     }
 

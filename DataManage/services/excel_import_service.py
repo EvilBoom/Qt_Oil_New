@@ -1,4 +1,4 @@
-﻿# services/excel_import_service.py
+# services/excel_import_service.py
 
 import pandas as pd
 import numpy as np

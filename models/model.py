@@ -1,4 +1,4 @@
-import pickle
+﻿import pickle
 import sqlite3
 from abc import ABC, ABCMeta, abstractmethod
 from pathlib import Path

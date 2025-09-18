@@ -136,6 +136,7 @@ Rectangle {
                     //     enabled: chartData && chartData.dls_data
                     // }
                     // 🔥 新增3D轨迹选项
+                    
                     TabButton {
                         text: isChineseMode ? "3D轨迹" : "3D Trajectory"
                         property string chartType: "3d_real"

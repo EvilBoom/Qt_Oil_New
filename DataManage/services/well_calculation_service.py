@@ -1,4 +1,4 @@
-﻿# services/well_calculation_service.py
+    # services/well_calculation_service.py
 
 from typing import List, Dict, Optional, Tuple, Any
 import numpy as np

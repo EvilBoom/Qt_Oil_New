@@ -136,9 +136,9 @@ Rectangle {
                     spacing: 12
 
                     Text {
-                        text: isChineseMode ? "流量:" : "Flow:"
                         font.pixelSize: 11
                         color: isSelected ? "black" : Material.secondaryTextColor
+                        text: "流量:"
                         width: 60
                     }
                     Text {
@@ -214,23 +214,23 @@ Rectangle {
                     }
                 }
                 // 🔥 可选：添加最大级数显示
-                Row {
-                    width: parent.width
-                    spacing: 12
+                // Row {
+                //     width: parent.width
+                //     spacing: 12
 
-                    Text {
-                        text: isChineseMode ? "级数:" : "Max Stages:"
-                        font.pixelSize: 11
-                        color: isSelected ? "black" : Material.secondaryTextColor
-                        width: 60
-                    }
-                    Text {
-                        text: pumpData ? pumpData.maxStages + (isChineseMode ? " 级" : " stages") : "N/A"
-                        font.pixelSize: 11
-                        font.bold: true
-                        color: isSelected ? "black" : Material.primaryTextColor
-                    }
-                }
+                //     Text {
+                //         text: isChineseMode ? "级数:" : "Max Stages:"
+                //         font.pixelSize: 11
+                //         color: isSelected ? "black" : Material.secondaryTextColor
+                //         width: 60
+                //     }
+                //     Text {
+                //         text: pumpData ? pumpData.maxStages + (isChineseMode ? " 级" : " stages") : "N/A"
+                //         font.pixelSize: 11
+                //         font.bold: true
+                //         color: isSelected ? "black" : Material.primaryTextColor
+                //     }
+                // }
             }
         }
 
@@ -273,40 +273,40 @@ Rectangle {
     function formatFlowRange(minFlow, maxFlow) {
         if (!minFlow || !maxFlow) return "N/A"
 
-        if (isMetric) {
+        if (!isMetric) {
             // 转换为 m³/d
-            var minM3 = minFlow * 0.159
-            var maxM3 = maxFlow * 0.159
-            return minM3.toFixed(0) + "-" + maxM3.toFixed(0) + " m³/d"
+            var minM3 = minFlow / 0.159
+            var maxM3 = maxFlow / 0.159
+            return minM3.toFixed(0) + "-" + maxM3.toFixed(0) + " bbl/d"
         } else {
             // 保持 bbl/d
-            return minFlow + "-" + maxFlow + " bbl/d"
+            return minFlow + "-" + maxFlow + " m³/d"
         }
     }
 
     function formatHeadPerStage(headPerStage) {
         if (!headPerStage) return "N/A"
 
-        if (isMetric) {
+        if (!isMetric) {
             // 转换为 m/级
-            var mPerStage = headPerStage * 0.3048
-            return mPerStage.toFixed(1) + " " + (isChineseMode ? "m/级" : "m/stage")
+            var mPerStage = headPerStage / 0.3048
+            return mPerStage.toFixed(1) + " " + (isChineseMode ? "ft/级" : "ft/stage")
         } else {
             // 保持 ft/stage
-            return headPerStage + " " + (isChineseMode ? "ft/级" : "ft/stage")
+            return headPerStage + " " + (isChineseMode ? "m/级" : "m/stage")
         }
     }
 
     function formatDiameter(diameter) {
         if (!diameter) return "N/A"
 
-        if (isMetric) {
+        if (!isMetric) {
             // 转换为毫米
-            var mmValue = diameter * 25.4
-            return mmValue.toFixed(0) + " mm"
+            var mmValue = diameter / 25.4
+            return mmValue.toFixed(0) + " in"
         } else {
             // 保持英寸
-            return diameter.toFixed(1) + " in"
+            return diameter.toFixed(1) + " mm"
         }
     }
 

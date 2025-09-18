@@ -310,7 +310,7 @@ class WellDataController(QObject):
                 depth = float(well_data['well_md'])
                 if depth <= 0:
                     errors.append("井深必须大于0")
-                elif depth > 10000:
+                elif depth > 100000:
                     errors.append("井深数值异常，请检查")
             except (ValueError, TypeError):
                 errors.append("井深必须是有效数字")
@@ -319,10 +319,10 @@ class WellDataController(QObject):
         numeric_fields = {
             'inner_diameter': ("内径", 0, 5000),
             'outer_diameter': ("外径", 0, 5000),
-            'pump_depth': ("泵挂深度", 0, 10000),
+            'pump_depth': ("泵挂深度", 0, 100000),
             'tubing_diameter': ("管径", 0, 5000),
             'roughness': ("粗糙度", 0, 100),
-            'well_tvd': ("垂深", 0, 10000),
+            'well_tvd': ("垂深", 0, 100000),
             'well_dls': ("造斜率", 0, 90)
         }
 
@@ -506,3 +506,54 @@ class WellDataController(QObject):
         except Exception as e:
             logger.error(f"获取井计算数据失败: {e}")
             return {}
+
+    # 🔥 新增方法：创建井和更新项目信息
+    @Slot(dict, dict)
+    def createWellWithProjectInfo(self, well_data: dict, project_data: dict):
+        """
+        创建新井并同时更新项目信息
+        
+        Args:
+            well_data: 井数据字典
+            project_data: 项目数据字典
+        """
+        self.operationStarted.emit()
+        try:
+            # 1. 数据验证
+            is_valid, error_msg = self.validateWellData(well_data)
+            if not is_valid:
+                self.error.emit(error_msg)
+                self.wellDataSaved.emit(False)
+                return
+
+            # 2. 更新项目信息
+            project_id = well_data.get('project_id')
+            if project_data and project_id:
+                try:
+                    # 过滤掉空值
+                    filtered_project_data = {k: v for k, v in project_data.items() if v}
+                    if filtered_project_data:
+                        project_success = self._db_service.update_project(project_id, filtered_project_data)
+                        if project_success:
+                            logger.info(f"更新项目信息成功: 项目ID {project_id}")
+                        else:
+                            logger.warning(f"更新项目信息失败: 项目ID {project_id}")
+                except Exception as e:
+                    logger.error(f"更新项目信息失败: {e}")
+                    # 项目信息更新失败不影响井的创建
+
+            # 3. 创建井
+            well_id = self._db_service.create_well(well_data)
+            well_name = well_data.get('well_name', '')
+
+            self.wellCreated.emit(well_id, well_name)
+            self.wellDataSaved.emit(True)
+            logger.info(f"创建井并更新项目信息成功: {well_name}, ID: {well_id}")
+
+        except Exception as e:
+            error_msg = f"创建井并更新项目信息失败: {str(e)}"
+            logger.error(error_msg)
+            self.error.emit(error_msg)
+            self.wellDataSaved.emit(False)
+        finally:
+            self.operationFinished.emit()

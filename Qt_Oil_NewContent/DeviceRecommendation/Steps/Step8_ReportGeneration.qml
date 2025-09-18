@@ -358,15 +358,43 @@ Rectangle {
 
                 Button {
                     text: "Word"
-                    highlighted: true
+                    // highlighted: true
                     enabled: reportGenerated
                     onClicked: exportToWord()
+                    // 蓝色背景样式
+                       background: Rectangle {
+                           implicitWidth: 100
+                           implicitHeight: 40
+                           color: {
+                               if (!control.enabled) return "#BBDEFB"; // 禁用时浅蓝
+                               if (control.pressed) return "#0D47A1"; // 按下时深蓝
+                               if (control.highlighted) return "#1976D2"; // 高亮时中蓝
+                               return "#2196F3"; // 正常时亮蓝
+                           }
+                           border.color: "#0D47A1"
+                           border.width: 1
+                           radius: 4
+                       }
                 }
 
                 Button {
                     text: "PDF"
                     enabled: reportGenerated
                     onClicked: exportToPDF()
+                    // 蓝色背景样式
+                       background: Rectangle {
+                           implicitWidth: 100
+                           implicitHeight: 40
+                           color: {
+                               if (!control.enabled) return "#BBDEFB"; // 禁用时浅蓝
+                               if (control.pressed) return "#0D47A1"; // 按下时深蓝
+                               if (control.highlighted) return "#1976D2"; // 高亮时中蓝
+                               return "#2196F3"; // 正常时亮蓝
+                           }
+                           border.color: "#0D47A1"
+                           border.width: 1
+                           radius: 4
+                       }
                 }
 
                 // Button {
@@ -398,17 +426,18 @@ Rectangle {
                     spacing: 4
 
                     Text {
-                        text: isChineseMode ? "数据完整性提示" : "Data Completeness Notice"
+                        text: isChineseMode ? "提示" : "Notice"
                         font.bold: true
                         color: Material.primaryTextColor
                     }
 
                     Text {
-                        text: enhancedData.data_completeness ?
-                              (isChineseMode ?
-                               `当前数据完整性: ${enhancedData.data_completeness.overall_completeness.toFixed(1)}%，部分数据可能使用默认值` :
-                               `Current data completeness: ${enhancedData.data_completeness.overall_completeness.toFixed(1)}%, some data may use default values`) :
-                              ""
+                        // text: enhancedData.data_completeness ?
+                        //       (isChineseMode ?
+                        //        `当前数据完整性: ${enhancedData.data_completeness.overall_completeness.toFixed(1)}%，部分数据可能使用默认值` :
+                        //        `Current data completeness: ${enhancedData.data_completeness.overall_completeness.toFixed(1)}%, some data may use default values`) :
+                        //       ""
+                        text: "这里为报告的简化预览，需要点击对应的Word或者PDF按钮来保存详细报告内容"
                         color: Material.secondaryTextColor
                         font.pixelSize: 12
                         wrapMode: Text.Wrap
@@ -717,10 +746,24 @@ Rectangle {
                     // }
 
                     Button {
-                        text: isChineseMode ? "完成" : "Finish"
-                        highlighted: true
+                        text: "完成"
+                        // highlighted: true
                         enabled: reportGenerated
                         onClicked: finishReport()
+                        // 蓝色背景样式
+                           background: Rectangle {
+                               implicitWidth: 100
+                               implicitHeight: 40
+                               color: {
+                                   if (!control.enabled) return "#BBDEFB"; // 禁用时浅蓝
+                                   if (control.pressed) return "#0D47A1"; // 按下时深蓝
+                                   if (control.highlighted) return "#1976D2"; // 高亮时中蓝
+                                   return "#2196F3"; // 正常时亮蓝
+                               }
+                               border.color: "#0D47A1"
+                               border.width: 1
+                               radius: 4
+                           }
                     }
                 }
             }
@@ -1045,7 +1088,7 @@ Rectangle {
 
     function generateReportContent(template) {
         var content = ""
-        var projectName = currentProjectName || "测试项目"
+        var projectName = currentProjectName || "-"
 
         // 从stepData中提取项目名称
         if (stepData.parameters && stepData.parameters.projectName) {
@@ -1109,20 +1152,20 @@ Rectangle {
         </section>
         `
 
-        // 6. 设备性能曲线
-        content += `
-        <div class="page-break"></div>
-        <section id="performance-curves">
-            <h2>6. 设备性能曲线</h2>
+        // // 6. 设备性能曲线
+        // content += `
+        // <div class="page-break"></div>
+        // <section id="performance-curves">
+        //     <h2>6. 设备性能曲线</h2>
 
-            <h3>6.1 泵设备性能曲线</h3>
-            ${generatePumpPerformanceSection()}
+        //     <h3>6.1 泵设备性能曲线</h3>
+        //     ${generatePumpPerformanceSection()}
 
-            <div class="page-break"></div>
-            <h3>6.2 工况点分析</h3>
-            ${generateOperatingPointAnalysis()}
-        </section>
-        `
+        //     <div class="page-break"></div>
+        //     <h3>6.2 工况点分析</h3>
+        //     ${generateOperatingPointAnalysis()}
+        // </section>
+        // `
 
         // 备注信息
         content += `
@@ -1345,10 +1388,10 @@ Rectangle {
             <tr><td>公司</td><td>${projectDetails.company_name || '渤海石油装备制造有限公司'}</td></tr>
             <tr><td>井号</td><td>${wellNumber}</td></tr>
             <tr><td>项目名称</td><td>${projectDetails.project_name || currentProjectName}</td></tr>
-            <tr><td>油田</td><td>${projectDetails.oil_field || '测试油田'}</td></tr>
-            <tr><td>地点</td><td>${projectDetails.location || '测试地点'}</td></tr>
-            <tr><td>井型</td><td>${wellInfo.wellType || '生产井'}</td></tr>
-            <tr><td>井状态</td><td>${wellInfo.wellStatus || '生产中'}</td></tr>
+            <tr><td>油田</td><td>${projectDetails.oil_field || '-'}</td></tr>
+            <tr><td>地点</td><td>${projectDetails.location || '-'}</td></tr>
+            <tr><td>井型</td><td>${wellInfo.wellType || '-'}</td></tr>
+            <tr><td>井状态</td><td>${wellInfo.wellStatus || '-'}</td></tr>
             <tr><td>备注</td><td>ESP设备选型项目</td></tr>
         </table>
         `
@@ -2544,7 +2587,8 @@ Rectangle {
 
         // 调用控制器导出
         if (controller && controller.exportReport) {
-            controller.exportReport(reportData)
+            console.log("导出英制还是公制，传递",isMetric)
+            controller.exportReport(reportData, isMetric)
         } else {
             console.warn("控制器或导出方法不可用")
         }

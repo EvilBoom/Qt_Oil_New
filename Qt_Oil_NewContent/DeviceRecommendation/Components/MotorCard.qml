@@ -16,8 +16,10 @@ Rectangle {
     property int selectedVoltage: 3300
     property int selectedFrequency: 60
     property bool isChineseMode: true
+    property var currentFrequencyPower: null
     // 🔥 添加单位制属性
     property bool isMetric: unitSystemController ? unitSystemController.isMetric : false
+
     
     signal clicked()
     // 🔥 监听单位制变化
@@ -148,7 +150,9 @@ Rectangle {
                     Item { Layout.fillWidth: true }
                     
                     Text {
-                        text: formatPower(motorData ? motorData.power : 0)  // 🔥 使用格式化函数
+                        // text: formatPower(motorData ? motorData.power : 0)  // 🔥 使用格式化函数
+                        text: formatPower(currentFrequencyPower !== null ? currentFrequencyPower : (motorData ? motorData.power : 0))
+
                         font.pixelSize: 16
                         font.bold: true
                         color: Material.primaryTextColor
@@ -163,12 +167,21 @@ Rectangle {
                     color: Qt.rgba(0, 0, 0, 0.1)
                     
                     Rectangle {
-                        width: parent.width * Math.min(1.0, requiredPower / (motorData ? motorData.power : 1))
+                        // width: parent.width * Math.min(1.0, requiredPower / (motorData ? motorData.power : 1))
+                        width: {
+                                   // 🔥 使用当前频率的功率计算负载率
+                                   var motorPowerKw = currentFrequencyPower !== null ? currentFrequencyPower : (motorData ? motorData.power : 1)
+                                   var requiredPowerKw = requiredPower * 0.746  // HP转kW
+                                   return parent.width * Math.min(1.0, requiredPowerKw / motorPowerKw)
+                               }
                         height: parent.height
                         radius: parent.radius
                         color: {
-                            var ratio = requiredPower / (motorData ? motorData.power : 1)
-                            if (ratio > 0.95) return Material.color(Material.Red)
+                            var motorPowerKw = currentFrequencyPower !== null ? currentFrequencyPower : (motorData ? motorData.power : 1)
+                            var requiredPowerKw = requiredPower * 0.746  // HP转kW
+                            var ratio = requiredPowerKw / motorPowerKw
+                            if (ratio > 1) return Material.color(Material.Red)
+                            if (ratio > 0.95) return Material.color(Material.Green)
                             if (ratio > 0.85) return Material.color(Material.Orange)
                             return Material.color(Material.Green)
                         }
@@ -177,7 +190,10 @@ Rectangle {
                 
                 Text {
                     text: {
-                        var ratio = motorData ? (requiredPower / motorData.power * 100).toFixed(0) : 0
+                        // 🔥 使用当前频率的功率计算负载率
+                        var motorPowerKw = currentFrequencyPower !== null ? currentFrequencyPower : (motorData ? motorData.power : 1)
+                        var requiredPowerKw = requiredPower * 0.746  // HP转kW
+                        var ratio = (requiredPowerKw / motorPowerKw * 100).toFixed(0)
                         return (isChineseMode ? "负载率: " : "Load: ") + ratio + "%"
                     }
                     font.pixelSize: 11
@@ -201,64 +217,64 @@ Rectangle {
             rowSpacing: 6
             
             // 效率
-            Row {
-                spacing: 6
+            // Row {
+            //     spacing: 6
                 
-                Rectangle {
-                    width: 4
-                    height: 14
-                    color: Material.color(Material.Green)
-                    radius: 2
-                    anchors.verticalCenter: parent.verticalCenter
-                }
+            //     Rectangle {
+            //         width: 4
+            //         height: 14
+            //         color: Material.color(Material.Green)
+            //         radius: 2
+            //         anchors.verticalCenter: parent.verticalCenter
+            //     }
                 
-                Column {
-                    spacing: 0
+            //     Column {
+            //         spacing: 0
                     
-                    Text {
-                        text: isChineseMode ? "效率" : "Efficiency"
-                        font.pixelSize: 10
-                        color: Material.hintTextColor
-                    }
+            //         Text {
+            //             text: isChineseMode ? "效率" : "Efficiency"
+            //             font.pixelSize: 10
+            //             color: Material.hintTextColor
+            //         }
                     
-                    Text {
-                        text: (motorData ? motorData.efficiency : 0) + "%"
-                        font.pixelSize: 13
-                        font.bold: true
-                        color: Material.primaryTextColor
-                    }
-                }
-            }
+            //         Text {
+            //             text: (motorData ? motorData.efficiency : 0) + "%"
+            //             font.pixelSize: 13
+            //             font.bold: true
+            //             color: Material.primaryTextColor
+            //         }
+            //     }
+            // }
             
-            // 功率因数
-            Row {
-                spacing: 6
+            // // 功率因数
+            // Row {
+            //     spacing: 6
                 
-                Rectangle {
-                    width: 4
-                    height: 14
-                    color: Material.color(Material.Blue)
-                    radius: 2
-                    anchors.verticalCenter: parent.verticalCenter
-                }
+            //     Rectangle {
+            //         width: 4
+            //         height: 14
+            //         color: Material.color(Material.Blue)
+            //         radius: 2
+            //         anchors.verticalCenter: parent.verticalCenter
+            //     }
                 
-                Column {
-                    spacing: 0
+            //     Column {
+            //         spacing: 0
                     
-                    Text {
-                        text: isChineseMode ? "功率因数" : "PF"
-                        font.pixelSize: 10
-                        color: Material.hintTextColor
-                    }
+            //         Text {
+            //             text: isChineseMode ? "功率因数" : "PF"
+            //             font.pixelSize: 10
+            //             color: Material.hintTextColor
+            //         }
                     
-                    Text {
-                        text: motorData ? motorData.powerFactor : "0.85"
-                        font.pixelSize: 13
-                        font.bold: true
-                        color: Material.primaryTextColor
-                    }
-                }
-            }
+            //         Text {
+            //             text: motorData ? motorData.powerFactor : "0.85"
+            //             font.pixelSize: 13
+            //             font.bold: true
+            //             color: Material.primaryTextColor
+            //         }
+            //     }
+            // }
             
             // 绝缘等级
             Row {
@@ -313,6 +329,8 @@ Rectangle {
                     
                     Text {
                         text: formatDiameter(motorData ? motorData.outerDiameter : 0)  // 🔥 使用格式化函数
+                        //bug暂时去掉转换，因为存储的公制数据
+                        // text: motorData.outerDiameter + "mm"
                         font.pixelSize: 13
                         font.bold: true
                         color: Material.primaryTextColor
@@ -321,61 +339,63 @@ Rectangle {
             }
         }
         
-        // 电压/频率支持
+        // 🔥 修正电压/频率支持显示 - 直接显示数据库中的频率
         Flow {
             Layout.fillWidth: true
             spacing: 6
-            
-            // 支持的电压
+
+            // 🔥 支持的电压 - 直接显示motorData中的电压数组
             Repeater {
-                model: motorData ? motorData.voltage : []
-                
+                model: motorData && motorData.voltage ? motorData.voltage : []
+
                 Rectangle {
                     width: voltageText.width + 12
                     height: 20
                     radius: 10
-                    color: modelData === selectedVoltage 
+                    color: modelData === selectedVoltage
                            ? Material.Green
                            : Qt.rgba(0, 0, 0, 0.05)
-                    
+
                     Text {
                         id: voltageText
                         anchors.centerIn: parent
                         text: modelData + "V"
                         font.pixelSize: 10
-                        color: modelData === selectedVoltage 
-                               ? "white" 
+                        color: modelData === selectedVoltage
+                               ? "white"
                                : Material.secondaryTextColor
                     }
                 }
             }
-            
+
             // 分隔符
             Rectangle {
                 width: 1
                 height: 20
                 color: Material.dividerColor
+                visible: (motorData && motorData.voltage && motorData.voltage.length > 0) &&
+                        (motorData && motorData.frequency && motorData.frequency.length > 0)
             }
-            
-            // 支持的频率
+
+            // 🔥 支持的频率 - 直接显示motorData中的频率数组，不进行任何过滤
             Repeater {
-                model: motorData ? motorData.frequency : []
-                
+                model: motorData && motorData.frequency ? motorData.frequency : []
+
                 Rectangle {
                     width: freqText.width + 12
                     height: 20
                     radius: 10
-                    color: modelData === selectedFrequency 
+                    color: modelData === selectedFrequency
                            ? Material.Green
                            : Qt.rgba(0, 0, 0, 0.05)
-                    
+
                     Text {
                         id: freqText
                         anchors.centerIn: parent
                         text: modelData + "Hz"
                         font.pixelSize: 10
-                        color: modelData === selectedFrequency 
-                               ? "white" 
+                        color: modelData === selectedFrequency
+                               ? "white"
                                : Material.secondaryTextColor
                     }
                 }
@@ -395,16 +415,28 @@ Rectangle {
     // 🔥 单位转换和格式化函数
     // 🔥 =====================================
 
-    function formatPower(valueInHP) {
-        if (!valueInHP || valueInHP <= 0) return "N/A"
+    // function formatPower(valueInHP) {
+    //     if (!valueInHP || valueInHP <= 0) return "N/A"
+
+    //     if (isMetric) {
+    //         // 转换为千瓦
+    //         var kwValue = valueInHP * 0.746
+    //         return kwValue.toFixed(1) + " kW"
+    //     } else {
+    //         // 保持马力
+    //         return valueInHP.toFixed(0) + " HP"
+    //     }
+    // }
+    function formatPower(valueInKW) {
+        if (!valueInKW || valueInKW <= 0) return "N/A"
 
         if (isMetric) {
-            // 转换为千瓦
-            var kwValue = valueInHP * 0.746
-            return kwValue.toFixed(1) + " kW"
+            // 显示千瓦
+            return valueInKW.toFixed(1) + " kW"
         } else {
-            // 保持马力
-            return valueInHP.toFixed(0) + " HP"
+            // 转换为马力
+            var hpValue = valueInKW / 0.746
+            return hpValue.toFixed(0) + " HP"
         }
     }
 
@@ -412,12 +444,13 @@ Rectangle {
         if (!valueInInches || valueInInches <= 0) return "N/A"
 
         if (isMetric) {
-            // 转换为毫米
-            var mmValue = valueInInches * 25.4
-            return mmValue.toFixed(0) + " mm"
-        } else {
             // 保持英寸
-            return valueInInches.toFixed(1) + " in"
+            return valueInInches.toFixed(1) + " mm"
+        } else {
+
+            // 转换为英寸
+            var mmValue = valueInInches / 25.4
+            return mmValue.toFixed(0) + " in"
         }
     }
 

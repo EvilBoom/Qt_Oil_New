@@ -32,6 +32,35 @@ Item {
         anchors.fill: parent
         color: backgroundColor
 
+        // 🔥 组件加载时获取井身结构数据
+        Component.onCompleted: {
+            updateSketchFromController()
+        }
+
+        // 🔥 监听控制器数据变化
+        Connections {
+            target: wellStructureController
+            enabled: wellStructureController !== null
+
+            function onVisualizationReady(vizData) {
+                if (vizData && vizData.type === 'sketch') {
+                    console.log("📊 收到井身结构草图数据")
+                    sketchData = vizData.data
+                    canvas.requestPaint()
+                }
+            }
+
+            function onCasingDataLoaded() {
+                // 套管数据更新后重新生成草图
+                updateSketchFromController()
+            }
+
+            function onTrajectoryDataLoaded() {
+                // 轨迹数据更新后重新生成草图
+                updateSketchFromController()
+            }
+        }
+
         // 纯粹的绘图区域
         Canvas {
             id: canvas
@@ -199,49 +228,100 @@ Item {
         canvas.requestPaint()
     }
 
+    // 🔥 修复drawCasingsImproved函数调用问题
     function drawWellSchematic() {
-        if (!canvas || !sketchData) return
+        console.log("🎨 开始绘制井身结构草图")
+
+        if (!canvas) {
+            console.log("❌ Canvas 不可用")
+            return
+        }
 
         var ctx = canvas.getContext("2d")
-        if (!ctx) return
+        if (!ctx) {
+            console.log("❌ 无法获取 Canvas 上下文")
+            return
+        }
 
         // 清空画布
         ctx.clearRect(0, 0, canvas.width, canvas.height)
 
-        // 设置坐标系统
-        setupCoordinateSystem(ctx)
+        // 如果没有数据，尝试获取
+        if (!sketchData) {
+            console.log("⚠️ 没有草图数据，尝试获取...")
+            updateSketchFromController()
+            if (!sketchData) {
+                drawNoDataMessage(ctx)
+                return
+            }
+        }
 
-        // 绘制深度标尺
-        drawDepthScale(ctx)
+        try {
+            // 设置坐标系统
+            setupCoordinateSystem(ctx)
 
-        // 绘制井口
-        drawWellhead(ctx)
+            // 绘制深度标尺
+            drawDepthScale(ctx)
 
-        // 绘制井眼轴线
-        drawWellAxis(ctx)
+            // 绘制井口
+            drawWellhead(ctx)
 
-        // 绘制套管
-        drawCasingsClean(ctx)
+            // 绘制井眼轴线
+            drawWellAxis(ctx)
 
-        // 绘制井底
-        drawWellBottom(ctx)
+            // 🔥 修复：调用正确的套管绘制函数
+            drawCasingsImproved(ctx)
+
+            // 绘制井底
+            drawWellBottom(ctx)
+
+            console.log("✅ 井身结构草图绘制完成")
+
+        } catch (error) {
+            console.log("❌ 绘制过程中出错:", error)
+            drawErrorMessage(ctx, error.toString())
+        }
     }
 
+    // 🔥 修复：确保坐标系统计算正确包含所有套管
     function setupCoordinateSystem(ctx) {
-        if (!sketchData || !sketchData.dimensions) return
+        if (!sketchData || !sketchData.dimensions) {
+            console.log("❌ 缺少尺寸数据")
+            return
+        }
+
+        console.log("📐 设置坐标系统")
 
         // 计算绘图参数
         var margin = 60
         var drawingWidth = canvas.width - 2 * margin
         var drawingHeight = canvas.height - 2 * margin
 
-        // 🔥 修改：使用测深(MD)而不是垂深进行绘制
-        var maxMDOriginal = sketchData.dimensions.max_md || sketchData.dimensions.max_depth || 10000
+        // 🔥 修复：确保最大深度包含所有套管
+        var maxMDFromDimensions = sketchData.dimensions.max_md ||
+                                 sketchData.dimensions.max_depth ||
+                                 10000
+
+        // 🔥 新增：检查套管数据中的最大深度
+        var maxMDFromCasings = 0
+        if (sketchData.casings && sketchData.casings.length > 0) {
+            for (var i = 0; i < sketchData.casings.length; i++) {
+                var casing = sketchData.casings[i]
+                var bottomDepth = casing.bottom_md || casing.bottom_tvd || casing.bottom_depth || 0
+                maxMDFromCasings = Math.max(maxMDFromCasings, bottomDepth)
+            }
+        }
+
+        // 🔥 使用两者中的较大值，确保所有套管都能显示
+        var maxMDOriginal = Math.max(maxMDFromDimensions, maxMDFromCasings)
+        if (maxMDOriginal <= 0) {
+            maxMDOriginal = 10000 // 默认值
+        }
+
         var maxMD = formatDepthValue(maxMDOriginal, "ft")  // 假设原始数据是英尺
-        // console.log(JSON.stringify(sketchData))
 
         var maxHorizontalOriginal = sketchData.dimensions.max_horizontal || 100
-        var maxHorizontal = formatDiameterValue(maxHorizontalOriginal, "in")  // 假设原始数据是英寸
+        var maxHorizontal = formatDiameterValue(maxHorizontalOriginal, "in")
 
         // 计算缩放比例
         var verticalScale = drawingHeight / (maxMD * 1.1) // 增加10%边距
@@ -255,10 +335,33 @@ Item {
             margin: margin,
             verticalScale: verticalScale,
             horizontalScale: horizontalScale,
-            maxMD: maxMD,  // 🔥 修改：使用测深
-            maxMDOriginal: maxMDOriginal,  // 🔥 保存原始值用于计算
+            maxMD: maxMD,  // 🔥 使用计算后的最大深度
+            maxMDOriginal: maxMDOriginal,
             maxHorizontal: maxHorizontal,
             centerX: canvas.width / 2
+        }
+
+        console.log("📐 坐标系统设置完成 - 最大深度:", maxMD, getDepthUnit())
+        console.log("📐 套管最大深度:", maxMDFromCasings, "尺寸最大深度:", maxMDFromDimensions)
+    }
+
+    // 🔥 添加调试函数：检查套管数据完整性
+    function debugCasingData() {
+        if (!sketchData || !sketchData.casings) {
+            console.log("❌ 调试：没有套管数据")
+            return
+        }
+
+        console.log("🔍 调试：套管数据完整性检查")
+        console.log("套管总数:", sketchData.casings.length)
+
+        for (var i = 0; i < sketchData.casings.length; i++) {
+            var casing = sketchData.casings[i]
+            console.log(`套管 ${i + 1}:`)
+            console.log(`  类型: ${casing.type}`)
+            console.log(`  深度: ${casing.top_depth} - ${casing.bottom_depth}`)
+            console.log(`  直径: ${casing.outer_diameter} / ${casing.inner_diameter}`)
+            console.log(`  ID: ${casing.id}`)
         }
     }
 
@@ -630,6 +733,335 @@ Item {
             }
             return names[type] || "Casing"
         }
+    }
+
+    // 🔥 修复后的单个套管绘制函数
+    function drawSingleCasing(ctx, casing, params, casingIndex, maxCasingOD, minCasingOD) {
+        try {
+            console.log(`🔧 绘制套管 ${casingIndex + 1}:`, casing.type || "未知类型")
+            console.log(`   深度范围: ${casing.top_depth || 0} - ${casing.bottom_depth || 0}`)
+            console.log(`   直径: 外径=${casing.outer_diameter}, 内径=${casing.inner_diameter}`)
+
+            var maxMD = params.maxMD
+            var centerX = params.centerX
+
+            // 🔥 深度数据处理 - 优先使用MD，然后TVD，最后depth
+            var topMD = casing.top_md !== undefined ? casing.top_md :
+                       (casing.top_tvd !== undefined ? casing.top_tvd : casing.top_depth || 0)
+            var bottomMD = casing.bottom_md !== undefined ? casing.bottom_md :
+                          (casing.bottom_tvd !== undefined ? casing.bottom_tvd : casing.bottom_depth || 1000)
+
+            topMD = formatDepthValue(topMD, "ft")
+            bottomMD = formatDepthValue(bottomMD, "ft")
+
+            // 🔥 修复：确保有效的深度范围，特别是对最后一个套管
+            if (bottomMD <= topMD) {
+                bottomMD = topMD + formatDepthValue(500, "ft") // 默认500英尺长度
+                console.log(`⚠️ 套管 ${casingIndex + 1} 深度修正: ${topMD} -> ${bottomMD}`)
+            }
+
+            // 🔥 修复：确保套管在有效范围内
+            if (bottomMD > maxMD) {
+                console.log(`⚠️ 套管 ${casingIndex + 1} 底深超出最大深度，调整: ${bottomMD} -> ${maxMD}`)
+                bottomMD = maxMD
+            }
+
+            var topY = params.margin + (topMD / maxMD) * (canvas.height - 2 * params.margin)
+            var bottomY = params.margin + (bottomMD / maxMD) * (canvas.height - 2 * params.margin)
+
+            console.log(`   Y坐标: ${topY.toFixed(1)} - ${bottomY.toFixed(1)} (高度: ${(bottomY - topY).toFixed(1)})`)
+
+            // 🔥 修复：确保Y坐标有效且有足够的高度
+            if (bottomY <= topY) {
+                bottomY = topY + 20 // 最小20像素高度
+                console.log(`⚠️ 套管 ${casingIndex + 1} Y坐标修正: ${topY} -> ${bottomY}`)
+            }
+
+            // 🔥 直径数据处理
+            var outerDiameterConverted = formatDiameterValue(casing.outer_diameter || 7, "in")
+            var innerDiameterConverted = formatDiameterValue(casing.inner_diameter || 6, "in")
+
+            // 确保外径大于内径
+            if (outerDiameterConverted <= innerDiameterConverted) {
+                outerDiameterConverted = innerDiameterConverted + formatDiameterValue(1, "in")
+                console.log(`⚠️ 套管 ${casingIndex + 1} 直径修正: 外径=${outerDiameterConverted}`)
+            }
+
+            // 🔥 计算显示宽度 - 使用线性比例而非复杂的非线性缩放
+            var diameterRange = maxCasingOD - minCasingOD
+            if (diameterRange <= 0) diameterRange = 1  // 避免除零
+
+            // 基于画布高度的比例计算
+            var baseWidth = Math.min(canvas.height * 0.08, 100)  // 基础宽度不超过画布高度的8%
+            var maxDisplayWidth = baseWidth * 0.8
+            var minDisplayWidth = baseWidth * 0.3
+
+            var odRatio = (outerDiameterConverted - minCasingOD) / diameterRange
+            var idRatio = (innerDiameterConverted - minCasingOD) / diameterRange
+
+            var outerWidth = minDisplayWidth + (maxDisplayWidth - minDisplayWidth) * odRatio
+            var innerWidth = minDisplayWidth + (maxDisplayWidth - minDisplayWidth) * idRatio
+
+            // 🔥 确保最小管壁厚度
+            var minWallThickness = 6  // 最小6像素壁厚
+            if (outerWidth - innerWidth < minWallThickness) {
+                innerWidth = outerWidth - minWallThickness
+            }
+            if (innerWidth < 10) {
+                innerWidth = 10
+                outerWidth = innerWidth + minWallThickness
+            }
+
+            var wallThickness = (outerWidth - innerWidth) / 2
+
+            console.log(`   显示尺寸: 外宽=${outerWidth.toFixed(1)}, 内宽=${innerWidth.toFixed(1)}, 壁厚=${wallThickness.toFixed(1)}`)
+
+            // 🔥 修复：绘制套管壁 - 确保绘制区域有效
+            var casingHeight = bottomY - topY
+            if (casingHeight <= 0) {
+                console.log(`❌ 套管 ${casingIndex + 1} 高度无效: ${casingHeight}`)
+                return
+            }
+
+            ctx.fillStyle = getCasingColor(casing.type)
+            ctx.strokeStyle = getCasingBorderColor(casing.type)
+            ctx.lineWidth = 1
+
+            // 🔥 修复：左侧套管壁
+            var leftWallX = centerX - outerWidth/2
+            var leftWallWidth = wallThickness
+
+            console.log(`   左壁: x=${leftWallX.toFixed(1)}, y=${topY.toFixed(1)}, w=${leftWallWidth.toFixed(1)}, h=${casingHeight.toFixed(1)}`)
+
+            ctx.fillRect(leftWallX, topY, leftWallWidth, casingHeight)
+            ctx.strokeRect(leftWallX, topY, leftWallWidth, casingHeight)
+
+            // 🔥 修复：右侧套管壁
+            var rightWallX = centerX + innerWidth/2
+            var rightWallWidth = wallThickness
+
+            console.log(`   右壁: x=${rightWallX.toFixed(1)}, y=${topY.toFixed(1)}, w=${rightWallWidth.toFixed(1)}, h=${casingHeight.toFixed(1)}`)
+
+            ctx.fillRect(rightWallX, topY, rightWallWidth, casingHeight)
+            ctx.strokeRect(rightWallX, topY, rightWallWidth, casingHeight)
+
+            // 🔥 绘制套管鞋（除了导管）
+            if (casing.type !== "conductor") {
+                drawCasingShoe(ctx, centerX, bottomY, outerWidth)
+            }
+
+            // 绘制套管标签
+            drawCasingLabelImproved(ctx, casing, centerX, topY + casingHeight / 2, outerWidth, casingIndex, bottomMD)
+
+            console.log(`✅ 套管 ${casingIndex + 1} 绘制完成`)
+
+        } catch (error) {
+            console.log(`❌ 绘制套管 ${casingIndex + 1} 时出错:`, error)
+            console.log("错误堆栈:", error.stack)
+        }
+    }
+
+    // 🔥 修复后的套管绘制函数
+    function drawCasingsImproved(ctx) {
+        if (!sketchData || !sketchData.casings || !root.transformParams || Object.keys(root.transformParams).length === 0) {
+            console.log("⚠️ 没有套管数据或坐标参数")
+            return
+        }
+
+        var params = root.transformParams
+        var maxMD = params.maxMD
+        var centerX = params.centerX
+        var casings = sketchData.casings
+
+        console.log("🔧 开始绘制套管 - 数量:", casings.length)
+
+        // 🔥 调试信息：显示所有套管的基本信息
+        for (var i = 0; i < casings.length; i++) {
+            console.log(`套管 ${i + 1}: 类型=${casings[i].type}, 顶深=${casings[i].top_depth}, 底深=${casings[i].bottom_depth}`)
+        }
+
+        if (casings.length === 0) {
+            console.log("⚠️ 没有套管数据")
+            return
+        }
+
+        // 按外径从大到小排序
+        var sortedCasings = casings.slice().sort(function(a, b) {
+            return (b.outer_diameter || 0) - (a.outer_diameter || 0)
+        })
+
+        // 🔥 改进的直径计算逻辑
+        var maxCasingOD = 0
+        var minCasingOD = Number.MAX_VALUE
+
+        for (var i = 0; i < sortedCasings.length; i++) {
+            var outerDiameter = formatDiameterValue(sortedCasings[i].outer_diameter || 7, "in")
+            maxCasingOD = Math.max(maxCasingOD, outerDiameter)
+            minCasingOD = Math.min(minCasingOD, outerDiameter)
+        }
+
+        console.log("📏 套管直径范围:", minCasingOD.toFixed(2), "-", maxCasingOD.toFixed(2), getDiameterUnit())
+
+        // 🔥 修复：绘制所有套管，包括最后一个
+        for (var i = 0; i < sortedCasings.length; i++) {
+            var casing = sortedCasings[i]
+            console.log(`🔧 正在绘制套管 ${i + 1}/${sortedCasings.length}: ${casing.type}`)
+            drawSingleCasing(ctx, casing, params, i, maxCasingOD, minCasingOD)
+        }
+
+        console.log("✅ 所有套管绘制完成")
+    }
+    // 🔥 =====================================
+    // 🔥 添加缺少的数据获取和错误显示函数
+    // 🔥 =====================================
+
+    function updateSketchFromController() {
+        console.log("🔄 从控制器获取井身结构数据")
+        if (wellStructureController) {
+            try {
+                // 直接获取草图数据
+                var sketchDataString = wellStructureController.getWellSketchData()
+                console.log("📊 获取到的原始数据:", sketchDataString ? "有数据" : "无数据")
+
+                if (sketchDataString && sketchDataString.length > 0) {
+                    console.log("✅ 获取到草图数据字符串，长度:", sketchDataString.length)
+
+                    try {
+                        var parsedData = JSON.parse(sketchDataString)
+                        console.log("🔍 解析后的数据结构:")
+                        console.log("  - 类型:", typeof parsedData)
+                        console.log("  - 包含套管:", parsedData.casings ? parsedData.casings.length : 0)
+                        console.log("  - 包含尺寸:", parsedData.dimensions ? "是" : "否")
+                        console.log("  - has_data:", parsedData.has_data)
+
+                        if (parsedData && parsedData.has_data) {
+                            sketchData = parsedData
+                            console.log("✅ 井身结构数据更新成功")
+                            console.log("🔧 套管数量:", parsedData.casings ? parsedData.casings.length : 0)
+
+                            // 🔥 调试：输出第一个套管的信息
+                            if (parsedData.casings && parsedData.casings.length > 0) {
+                                var firstCasing = parsedData.casings[0]
+                                console.log("🔧 第一个套管:", firstCasing.type,
+                                          "深度:", firstCasing.top_depth, "-", firstCasing.bottom_depth,
+                                          "直径:", firstCasing.inner_diameter, "/", firstCasing.outer_diameter)
+                            }
+
+                            canvas.requestPaint()
+                        } else {
+                            console.log("⚠️ 解析的数据无效或为空")
+                            generateDefaultSketchData()
+                        }
+                    } catch (parseError) {
+                        console.log("❌ JSON解析失败:", parseError)
+                        console.log("原始数据前100字符:", sketchDataString.substring(0, 100))
+                        generateDefaultSketchData()
+                    }
+                } else {
+                    console.log("⚠️ 未获取到草图数据，生成默认数据")
+                    generateDefaultSketchData()
+                }
+            } catch (error) {
+                console.log("❌ 获取井身结构数据失败:", error)
+                generateDefaultSketchData()
+            }
+        } else {
+            console.log("❌ wellStructureController 不可用")
+        }
+    }
+
+
+    function drawNoDataMessage(ctx) {
+        ctx.fillStyle = "#666666"
+        ctx.font = "16px Arial"
+        ctx.textAlign = "center"
+        ctx.fillText(
+            isChineseMode ? "暂无井身结构数据" : "No well structure data",
+            canvas.width / 2,
+            canvas.height / 2
+        )
+    }
+    function drawErrorMessage(ctx, error) {
+        ctx.fillStyle = "#FF0000"
+        ctx.font = "14px Arial"
+        ctx.textAlign = "center"
+        ctx.fillText(
+            isChineseMode ? "绘制错误: " + error : "Draw error: " + error,
+            canvas.width / 2,
+            canvas.height / 2
+        )
+    }
+    // 🔥 修复套管标签函数缺少的参数问题
+    function drawCasingLabelImproved(ctx, casing, centerX, midY, outerWidth, casingIndex, bottomMD) {
+        var typeName = getCasingTypeName(casing.type)
+
+        // 显示转换后的套管尺寸
+        var outerDiameterConverted = formatDiameterValue(casing.outer_diameter || 7, "in")
+        var innerDiameterConverted = formatDiameterValue(casing.inner_diameter || 6, "in")
+
+        // 格式化尺寸文本
+        var wallThickness = (outerDiameterConverted - innerDiameterConverted) / 2
+        var sizeText = outerDiameterConverted.toFixed(isMetric ? 0 : 2) + "×" +
+                      wallThickness.toFixed(isMetric ? 0 : 2) + getDiameterUnit()
+
+        // 改进的标签位置计算 - 放在套管右侧中间
+        var labelOffsetX = outerWidth/2 + 15
+        var labelX = centerX + labelOffsetX
+        var labelY = midY
+
+        // 确保标签不超出画布边界
+        var maxX = canvas.width - 120
+        if (labelX > maxX) {
+            labelX = maxX
+        }
+
+        // 绘制连接线
+        ctx.strokeStyle = getCasingBorderColor(casing.type)
+        ctx.lineWidth = 0.8
+        ctx.setLineDash([2, 2])
+
+        ctx.beginPath()
+        ctx.moveTo(centerX + outerWidth/2, labelY)
+        ctx.lineTo(labelX - 5, labelY)
+        ctx.stroke()
+        ctx.setLineDash([])
+
+        // 绘制标签背景框
+        ctx.font = "9px Arial"
+        var typeTextWidth = ctx.measureText(typeName).width
+        var sizeTextWidth = ctx.measureText(sizeText).width
+        var maxTextWidth = Math.max(typeTextWidth, sizeTextWidth)
+
+        var labelWidth = maxTextWidth + 12
+        var labelHeight = 22
+
+        // 背景框
+        ctx.fillStyle = "rgba(255, 255, 255, 0.95)"
+        ctx.strokeStyle = getCasingBorderColor(casing.type)
+        ctx.lineWidth = 1
+        ctx.fillRect(labelX, labelY - labelHeight/2, labelWidth, labelHeight)
+        ctx.strokeRect(labelX, labelY - labelHeight/2, labelWidth, labelHeight)
+
+        // 颜色条
+        ctx.fillStyle = getCasingColor(casing.type)
+        ctx.fillRect(labelX, labelY - labelHeight/2, 3, labelHeight)
+
+        // 绘制标签文本
+        ctx.fillStyle = textColor
+        ctx.textAlign = "left"
+        ctx.textBaseline = "middle"
+
+        // 套管类型
+        ctx.font = "bold 8px Arial"
+        ctx.fillText(typeName, labelX + 6, labelY - 5)
+
+        // 尺寸信息
+        ctx.font = "7px Arial"
+        ctx.fillText(sizeText, labelX + 6, labelY + 5)
+
+        // 重置文本对齐
+        ctx.textAlign = "left"
+        ctx.textBaseline = "top"
     }
 
     // 当数据更新时重新绘制

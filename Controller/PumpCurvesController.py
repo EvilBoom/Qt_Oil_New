@@ -57,7 +57,17 @@ class PumpCurvesController(QObject):
     def set_database_service(self, db_service):
         """设置数据库服务"""
         self._db_service = db_service
-    
+
+    def loadPumpCurvesForReport(self, pump_id: str):
+        """加载泵性能曲线数据"""
+        try:    
+            # 从数据库获取基础曲线数据
+            base_curves = self._load_base_curves(pump_id)
+            return base_curves
+            
+        except Exception as e:
+            error_msg = f"加载泵性能曲线失败: {str(e)}"
+
     @Slot(str, float, int, float)
     def loadPumpCurves(self, pump_id: str, displacement: float, stages: int = 1, frequency: float = 60):
         """加载泵性能曲线数据"""
@@ -143,10 +153,19 @@ class PumpCurvesController(QObject):
         freq_ratio = frequency / std_freq
         
         # 亲和定律计算
+        # adjusted = {
+        #     'flow': [q * freq_ratio for q in base_curves['flow']],
+        #     'head': [h * (freq_ratio ** 2) * stages for h in base_curves['head']],
+        #     'power': [p * (freq_ratio ** 3) * stages for p in base_curves['power']],
+        #     'efficiency': base_curves['efficiency'].copy(),  # 效率不变
+        #     'frequency': frequency,
+        #     'stages': stages
+        # }
+        # 保持不变
         adjusted = {
-            'flow': [q * freq_ratio * stages for q in base_curves['flow']],
-            'head': [h * (freq_ratio ** 2) * stages for h in base_curves['head']],
-            'power': [p * (freq_ratio ** 3) * stages for p in base_curves['power']],
+            'flow': base_curves['flow'].copy(),
+            'head': base_curves['head'].copy(),
+            'power': base_curves['power'].copy(),
             'efficiency': base_curves['efficiency'].copy(),  # 效率不变
             'frequency': frequency,
             'stages': stages

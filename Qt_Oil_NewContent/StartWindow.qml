@@ -169,7 +169,7 @@ Window {
                     anchors.bottomMargin: 20
                     spacing: 10
 
-                    // 语言选择
+                    // 语言选择区域 - 修复版本
                     Rectangle {
                         Layout.fillWidth: true
                         Layout.preferredHeight: 60
@@ -185,86 +185,111 @@ Window {
                                 color: textColor
                             }
 
-                            // 中文选项
-                            RowLayout {
-                                spacing: 8
+                            // 中文选项 - 修复点击区域
+                            Rectangle {
+                                Layout.preferredWidth: 80
+                                Layout.preferredHeight: 30
+                                color: chineseMouseArea.containsMouse ? "#F0F0F0" : "transparent"
+                                radius: 4
 
-                                Rectangle {
-                                    width: 20
-                                    height: 20
-                                    radius: 10
-                                    color: "transparent"
-                                    border.width: 2
-                                    border.color: primaryColor
+                                RowLayout {
+                                    anchors.fill: parent
+                                    anchors.margins: 5
+                                    spacing: 8
 
                                     Rectangle {
-                                        width: 12
-                                        height: 12
-                                        radius: 6
-                                        color: primaryColor
-                                        anchors.centerIn: parent
-                                        visible: isChinese
+                                        width: 20
+                                        height: 20
+                                        radius: 10
+                                        color: "transparent"
+                                        border.width: 2
+                                        border.color: primaryColor
+
+                                        Rectangle {
+                                            width: 12
+                                            height: 12
+                                            radius: 6
+                                            color: primaryColor
+                                            anchors.centerIn: parent
+                                            visible: isChinese
+                                        }
+                                    }
+
+                                    Text {
+                                        text: "中文"
+                                        font.pixelSize: 16
+                                        color: textColor
                                     }
                                 }
 
-                                Text {
-                                    text: "中文"
-                                    font.pixelSize: 16
-                                    color: textColor
-                                }
-
                                 MouseArea {
-                                    Layout.fillWidth: true
-                                    Layout.fillHeight: true
+                                    id: chineseMouseArea
+                                    anchors.fill: parent
+                                    hoverEnabled: true
                                     cursorShape: Qt.PointingHandCursor
                                     onClicked: {
-                                        if (!isChinese) toggleLanguage()
+                                        console.log("点击中文选项")
+                                        if (!isChinese) {
+                                            toggleLanguage()
+                                        }
                                     }
                                 }
                             }
 
-                            // 英文选项
-                            RowLayout {
-                                spacing: 8
+                            // 英文选项 - 修复点击区域
+                            Rectangle {
+                                Layout.preferredWidth: 80
+                                Layout.preferredHeight: 30
+                                color: englishMouseArea.containsMouse ? "#F0F0F0" : "transparent"
+                                radius: 4
 
-                                Rectangle {
-                                    width: 20
-                                    height: 20
-                                    radius: 10
-                                    color: "transparent"
-                                    border.width: 2
-                                    border.color: primaryColor
+                                RowLayout {
+                                    anchors.fill: parent
+                                    anchors.margins: 5
+                                    spacing: 8
 
                                     Rectangle {
-                                        width: 12
-                                        height: 12
-                                        radius: 6
-                                        color: primaryColor
-                                        anchors.centerIn: parent
-                                        visible: !isChinese
+                                        width: 20
+                                        height: 20
+                                        radius: 10
+                                        color: "transparent"
+                                        border.width: 2
+                                        border.color: primaryColor
+
+                                        Rectangle {
+                                            width: 12
+                                            height: 12
+                                            radius: 6
+                                            color: primaryColor
+                                            anchors.centerIn: parent
+                                            visible: !isChinese
+                                        }
+                                    }
+
+                                    Text {
+                                        text: "English"
+                                        font.pixelSize: 16
+                                        color: textColor
                                     }
                                 }
 
-                                Text {
-                                    text: "English"
-                                    font.pixelSize: 16
-                                    color: textColor
-                                }
-
                                 MouseArea {
-                                    Layout.fillWidth: true
-                                    Layout.fillHeight: true
+                                    id: englishMouseArea
+                                    anchors.fill: parent
+                                    hoverEnabled: true
                                     cursorShape: Qt.PointingHandCursor
                                     onClicked: {
-                                        if (isChinese) toggleLanguage()
+                                        console.log("点击英文选项")
+                                        if (isChinese) {
+                                            toggleLanguage()
+                                        }
                                     }
                                 }
                             }
                         }
                     }
 
-                    // 在语言选择区域后添加单位制选择
-                    // 单位制选择
+                    // 单位制选择 - 修复版本
                     Rectangle {
                         Layout.fillWidth: true
                         Layout.preferredHeight: 60
@@ -280,84 +305,130 @@ Window {
                                 color: textColor
                             }
 
-                            // 公制选项
-                            RowLayout {
-                                spacing: 8
+                            // 公制选项 - 修复点击区域和显示
+                            Rectangle {
+                                Layout.preferredWidth: 100
+                                Layout.preferredHeight: 35
+                                color: metricMouseArea.containsMouse ? "#F0F0F0" : "transparent"
+                                radius: 4
 
-                                Rectangle {
-                                    width: 20
-                                    height: 20
-                                    radius: 10
-                                    color: "transparent"
-                                    border.width: 2
-                                    border.color: primaryColor
+                                RowLayout {
+                                    anchors.fill: parent
+                                    anchors.margins: 8
+                                    spacing: 8
 
                                     Rectangle {
-                                        width: 12
-                                        height: 12
-                                        radius: 6
-                                        color: primaryColor
-                                        anchors.centerIn: parent
-                                        visible: unitSystemController.isMetric
+                                        width: 20
+                                        height: 20
+                                        radius: 10
+                                        color: "transparent"
+                                        border.width: 2
+                                        border.color: primaryColor
+
+                                        Rectangle {
+                                            width: 12
+                                            height: 12
+                                            radius: 6
+                                            color: primaryColor
+                                            anchors.centerIn: parent
+                                            // 🔥 修复：正确绑定到unitSystemController
+                                            visible: unitSystemController ? unitSystemController.isMetric : true
+                                        }
+                                    }
+
+                                    Text {
+                                        text: isChinese ? "公制" : "Metric"
+                                        font.pixelSize: 16
+                                        color: textColor
                                     }
                                 }
 
-                                Text {
-                                    text: isChinese ? "公制" : "Metric"
-                                    font.pixelSize: 16
-                                    color: textColor
-                                }
-
                                 MouseArea {
-                                    Layout.fillWidth: true
-                                    Layout.fillHeight: true
+                                    id: metricMouseArea
+                                    anchors.fill: parent
+                                    hoverEnabled: true
                                     cursorShape: Qt.PointingHandCursor
                                     onClicked: {
-                                        unitSystemController.isMetric = true
+                                        console.log("点击公制选项")
+                                        if (unitSystemController) {
+                                            unitSystemController.isMetric = true
+                                            console.log("设置为公制:", unitSystemController.isMetric)
+                                        }
                                     }
                                 }
                             }
 
-                            // 英制选项
-                            RowLayout {
-                                spacing: 8
+                            // 英制选项 - 修复点击区域和显示
+                            Rectangle {
+                                Layout.preferredWidth: 100
+                                Layout.preferredHeight: 35
+                                color: imperialMouseArea.containsMouse ? "#F0F0F0" : "transparent"
+                                radius: 4
 
-                                Rectangle {
-                                    width: 20
-                                    height: 20
-                                    radius: 10
-                                    color: "transparent"
-                                    border.width: 2
-                                    border.color: primaryColor
+                                RowLayout {
+                                    anchors.fill: parent
+                                    anchors.margins: 8
+                                    spacing: 8
 
                                     Rectangle {
-                                        width: 12
-                                        height: 12
-                                        radius: 6
-                                        color: primaryColor
-                                        anchors.centerIn: parent
-                                        visible: !unitSystemController.isMetric
+                                        width: 20
+                                        height: 20
+                                        radius: 10
+                                        color: "transparent"
+                                        border.width: 2
+                                        border.color: primaryColor
+
+                                        Rectangle {
+                                            width: 12
+                                            height: 12
+                                            radius: 6
+                                            color: primaryColor
+                                            anchors.centerIn: parent
+                                            // 🔥 修复：正确绑定到unitSystemController
+                                            visible: unitSystemController ? !unitSystemController.isMetric : false
+                                        }
+                                    }
+
+                                    Text {
+                                        text: isChinese ? "英制" : "Imperial"
+                                        font.pixelSize: 16
+                                        color: textColor
                                     }
                                 }
 
-                                Text {
-                                    text: isChinese ? "英制" : "Imperial"
-                                    font.pixelSize: 16
-                                    color: textColor
-                                }
-
                                 MouseArea {
-                                    Layout.fillWidth: true
-                                    Layout.fillHeight: true
+                                    id: imperialMouseArea
+                                    anchors.fill: parent
+                                    hoverEnabled: true
                                     cursorShape: Qt.PointingHandCursor
                                     onClicked: {
-                                        unitSystemController.isMetric = false
+                                        console.log("点击英制选项")
+                                        if (unitSystemController) {
+                                            unitSystemController.isMetric = false
+                                            console.log("设置为英制:", unitSystemController.isMetric)
+                                        }
                                     }
                                 }
                             }
                         }
-                    }
 
+                        // 🔥 添加状态监听和调试信息
+                        Connections {
+                            target: unitSystemController
+                            function onIsMetricChanged() {
+                                console.log("单位制状态变化:", unitSystemController.isMetric ? "公制" : "英制")
+                            }
+                        }
+
+                        // 🔥 组件完成时的初始化
+                        Component.onCompleted: {
+                            if (unitSystemController) {
+                                console.log("单位制控制器初始状态:", unitSystemController.isMetric ? "公制" : "英制")
+                            } else {
+                                console.log("警告：unitSystemController 未找到")
+                            }
+                        }
+                    }
                     // 项目操作区域
                     Rectangle {
                         Layout.fillWidth: true

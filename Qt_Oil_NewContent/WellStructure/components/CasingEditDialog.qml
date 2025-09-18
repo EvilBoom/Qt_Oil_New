@@ -31,19 +31,34 @@ Dialog {
     standardButtons: Dialog.NoButton
 
     // 🔥 内部数据属性 - 始终以数据库原始单位存储
+    // property string casingType: ""
+    // property string casingSize: ""
+    // property real topDepthValue: 0      // 内部存储(ft)
+    // property real bottomDepthValue: 0   // 内部存储(ft)
+    // property real topTvdValue: 0        // 内部存储(ft)
+    // property real bottomTvdValue: 0     // 内部存储(ft)
+    // property real innerDiameterValue: 0 // 内部存储(mm)
+    // property real outerDiameterValue: 0 // 内部存储(mm)
+    // property real wallThicknessValue: 0 // 内部存储(mm)
+    // property real roughnessValue: 0
+    // property string material: ""
+    // property string grade: ""
+    // property real weightValue: 0        // 内部存储(kg/m)
+    // property string manufacturer: ""
+    // property string notes: ""
     property string casingType: ""
     property string casingSize: ""
-    property real topDepthValue: 0      // 内部存储(ft)
-    property real bottomDepthValue: 0   // 内部存储(ft)
-    property real topTvdValue: 0        // 内部存储(ft)
-    property real bottomTvdValue: 0     // 内部存储(ft)
-    property real innerDiameterValue: 0 // 内部存储(mm)
-    property real outerDiameterValue: 0 // 内部存储(mm)
-    property real wallThicknessValue: 0 // 内部存储(mm)
+    property real topDepthValue: 0      // ft
+    property real bottomDepthValue: 0   // ft
+    property real topTvdValue: 0        // ft
+    property real bottomTvdValue: 0     // ft
+    property real innerDiameterValue: 0 // in
+    property real outerDiameterValue: 0 // in
+    property real wallThicknessValue: 0 // in
     property real roughnessValue: 0
     property string material: ""
     property string grade: ""
-    property real weightValue: 0        // 内部存储(kg/m)
+    property real weightValue: 0        // lbs/ft
     property string manufacturer: ""
     property string notes: ""
 
@@ -299,10 +314,14 @@ Dialog {
                         onCurrentTextChanged: if (currentIndex >= 0) grade = currentText
                     }
 
+                    // Label {
+                    //     text: isChineseMode ?
+                    //         `单位重量 (${getWeightUnit()}/m)` :
+                    //         `Weight (${getWeightUnit()}/ft)`
+                    //     Layout.alignment: Qt.AlignRight
+                    // }
                     Label {
-                        text: isChineseMode ?
-                            `单位重量 (${getWeightUnit()}/m)` :
-                            `Weight (${getWeightUnit()}/ft)`
+                        text: (isChineseMode ? "单位重量" : "Weight") + ` (${getWeightUnit()}/${isMetric ? "m" : "ft"})`
                         Layout.alignment: Qt.AlignRight
                     }
                     TextField {
@@ -411,50 +430,88 @@ Dialog {
     }
 
     // 直径转换函数 (数据库存储为mm)
-    function formatDiameterForDisplay(valueInMm) {
-        if (!valueInMm || valueInMm <= 0) return ""
+    // function formatDiameterForDisplay(valueInMm) {
+    //     if (!valueInMm || valueInMm <= 0) return ""
 
-        if (isMetric) {
-            return valueInMm.toFixed(1)
+    //     if (isMetric) {
+    //         return valueInMm.toFixed(1)
+    //     } else {
+    //         return UnitUtils.mmToInches(valueInMm).toFixed(2)
+    //     }
+    // }
+    function formatDiameterForDisplay(valueInInch) {
+        if (!valueInInch || valueInInch <= 0) return ""
+            if (isMetric) {
+                return UnitUtils.inchesToMm(valueInInch).toFixed(1)  // 显示mm
         } else {
-            return UnitUtils.mmToInches(valueInMm).toFixed(2)
+            return valueInInch.toFixed(2)                        // 显示in
         }
     }
 
+    // function convertDiameterToInternal(displayText) {
+    //     var value = parseFloat(displayText)
+    //     if (isNaN(value)) return 0
+
+    //     if (isMetric) {
+    //         return value  // 直接存储毫米
+    //     } else {
+    //         return UnitUtils.inchesToMm(value)  // 转换为毫米存储
+    //     }
+    // }
     function convertDiameterToInternal(displayText) {
         var value = parseFloat(displayText)
         if (isNaN(value)) return 0
-
         if (isMetric) {
-            return value  // 直接存储毫米
+            return UnitUtils.mmToInches(value)  // 输入mm -> 存储in
         } else {
-            return UnitUtils.inchesToMm(value)  // 转换为毫米存储
+        return value                         // 输入in -> 存储in
         }
     }
 
     // 重量转换函数 (数据库存储为kg/m)
-    function formatWeightForDisplay(valueInKgPerM) {
-        if (!valueInKgPerM || valueInKgPerM <= 0) return ""
+    // function formatWeightForDisplay(valueInKgPerM) {
+    //     if (!valueInKgPerM || valueInKgPerM <= 0) return ""
 
-        if (isMetric) {
-            return valueInKgPerM.toFixed(2)
-        } else {
-            // 转换为 lbs/ft
-            var lbsPerFt = valueInKgPerM * 2.20462 * 0.3048
-            return lbsPerFt.toFixed(2)
-        }
-    }
+    //     if (isMetric) {
+    //         return valueInKgPerM.toFixed(2)
+    //     } else {
+    //         // 转换为 lbs/ft
+    //         var lbsPerFt = valueInKgPerM * 2.20462 * 0.3048
+    //         return lbsPerFt.toFixed(2)
+    //     }
+    // }
 
+    // function convertWeightToInternal(displayText) {
+    //     var value = parseFloat(displayText)
+    //     if (isNaN(value)) return 0
+
+    //     if (isMetric) {
+    //         return value  // 直接存储 kg/m
+    //     } else {
+    //         // 从 lbs/ft 转换为 kg/m
+    //         return value / 2.20462 / 0.3048
+    //     }
+    // }
+    // 重量转换函数 (数据库存储为lbs/ft)
+    function formatWeightForDisplay(valueInLbsPerFt) {
+         if (!valueInLbsPerFt || valueInLbsPerFt <= 0) return ""
+         if (isMetric) {
+             // lbs/ft -> kg/m
+             var kgPerM = valueInLbsPerFt / 2.20462 / 0.3048
+             return kgPerM.toFixed(2)
+         } else {
+             return valueInLbsPerFt.toFixed(2)
+         }
+     }
     function convertWeightToInternal(displayText) {
-        var value = parseFloat(displayText)
-        if (isNaN(value)) return 0
-
-        if (isMetric) {
-            return value  // 直接存储 kg/m
-        } else {
-            // 从 lbs/ft 转换为 kg/m
-            return value / 2.20462 / 0.3048
-        }
+         var value = parseFloat(displayText)
+         if (isNaN(value)) return 0
+         if (isMetric) {
+             // kg/m -> lbs/ft
+             return value * 2.20462 * 0.3048
+         } else {
+             return value
+         }
     }
 
     // 套管类型处理
@@ -563,17 +620,32 @@ Dialog {
         topTvdValue = parseFloat(casing.top_tvd) || 0
         bottomTvdValue = parseFloat(casing.bottom_tvd) || 0
 
-        // 🔥 加载直径数据 (假设数据库存储为mm)
-        innerDiameterValue = parseFloat(casing.inner_diameter) || 0
-        outerDiameterValue = parseFloat(casing.outer_diameter) || 0
-        wallThicknessValue = parseFloat(casing.wall_thickness) || 0
+        // // 🔥 加载直径数据 (假设数据库存储为mm)
+        // innerDiameterValue = parseFloat(casing.inner_diameter) || 0
+        // outerDiameterValue = parseFloat(casing.outer_diameter) || 0
+        // wallThicknessValue = parseFloat(casing.wall_thickness) || 0
+
+        // 直径/壁厚（数据库期望为in），兼容旧数据（mm）
+        var idRaw = parseFloat(casing.inner_diameter) || 0
+        var odRaw = parseFloat(casing.outer_diameter) || 0
+        var wtRaw = parseFloat(casing.wall_thickness) || 0
+        // 经验阈值：>50 认为是 mm（内/外径）；>5 认为壁厚为 mm
+        innerDiameterValue = idRaw > 50 ? UnitUtils.mmToInches(idRaw) : idRaw
+        outerDiameterValue = odRaw > 50 ? UnitUtils.mmToInches(odRaw) : odRaw
+        wallThicknessValue = wtRaw > 5 ? UnitUtils.mmToInches(wtRaw) : wtRaw
+
 
         roughnessValue = parseFloat(casing.roughness) || 0
         material = casing.material || ""
         grade = casing.grade || ""
 
         // 🔥 加载重量数据 (假设数据库存储为kg/m)
-        weightValue = parseFloat(casing.weight) || 0
+        // weightValue = parseFloat(casing.weight) || 0
+        // 重量（数据库期望为 lbs/ft），兼容旧数据（kg/m）
+        var wRaw = parseFloat(casing.weight) || 0
+        // 简单兼容：若明显是 kg/m（常见 30~80），按 kg/m -> lbs/ft 转换；若值更像 lbs/ft（~20~80 皆可能），保持
+        // 无法完全可靠判断，推荐后台迁移统一；这里不做强制转换
+        weightValue = wRaw
 
         manufacturer = casing.manufacturer || ""
         notes = casing.notes || ""

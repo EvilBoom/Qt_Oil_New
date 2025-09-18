@@ -33,15 +33,24 @@ Rectangle {
     // 🔥 添加井身结构数据属性
     property var wellStructureData: null
     property real productionCasingInnerDiameter: 0  // 生产套管内径
+    // 🔥 修复：在内部属性中添加一个触发器
+    property int filterTrigger: 0  // 添加这个属性作为触发器
 
     
     // 添加计算属性 - 当依赖项变化时自动重新计算
     property var filteredMotors: {
-        console.log("🔍 filteredMotors计算属性被触发")
-        console.log("🔍 availableMotors:", availableMotors ? availableMotors.length : "null", "个")
-        console.log("🔍 selectedVoltage:", selectedVoltage)
-        console.log("🔍 selectedFrequency:", selectedFrequency)
-        console.log("🔍 requiredPower:", requiredPower)
+        // 🔥 强制依赖所有筛选条件
+        var dummy = filterTrigger  // 强制依赖触发器
+        var freq = selectedFrequency
+        var voltage = selectedVoltage
+        var power = requiredPower
+        var motors = availableMotors
+        var casing = productionCasingInnerDiameter
+        console.log("🔍 filteredMotors计算属性被触发，触发器:", filterTrigger)
+        console.log("🔍 availableMotors:", motors ? motors.length : "null", "个")
+        console.log("🔍 selectedVoltage:", voltage)
+        console.log("🔍 selectedFrequency:", freq)
+        console.log("🔍 requiredPower:", power)
 
         var result = getFilteredMotorsInternal()
         console.log("🔍 filteredMotors计算结果:", result ? result.length : "null", "个")
@@ -59,6 +68,16 @@ Rectangle {
             // 强制更新显示
             updateParameterDisplays()
         }
+    }
+    // 🔥 监听频率变化，强制更新所有卡片
+    onSelectedFrequencyChanged: {
+        console.log("🔄 频率变化，强制更新所有电机卡片")
+
+        // 方法1：使用触发器强制重新计算
+        filterTrigger++
+
+        // 方法2：或者直接更新filteredMotors
+        // updateFilteredMotors()
     }
     // 同时添加一个监听器
     onFilteredMotorsChanged: {
@@ -281,17 +300,26 @@ Rectangle {
             //     }
             // }
             
-            // // 频率选择
-            // ComboBox {
-            //     id: frequencySelector
-            //     Layout.preferredWidth: 100
-            //     model: ["50 Hz", "60 Hz"]
-            //     currentIndex: 1
-            //     onCurrentTextChanged: {
-            //         selectedFrequency = parseInt(currentText)
-            //         filterMotors()
-            //     }
-            // }
+            // 频率选择
+            // 修改频率选择器的处理
+            ComboBox {
+                id: frequencySelector
+                Layout.preferredWidth: 100
+                model: ["50 Hz", "60 Hz"]
+                currentIndex: 1
+                onCurrentTextChanged: {
+                    selectedFrequency = parseInt(currentText)
+                    console.log("🔄 频率切换为:", selectedFrequency + "Hz（强制刷新）")
+
+                    // 🔥 强制触发filteredMotors重新计算
+                    filterTrigger++
+
+                    // 🔥 同时更新选中电机的显示（如果有）
+                    if (selectedMotor) {
+                        updateParameterDisplays()
+                    }
+                }
+            }
             // 🔥 添加调试按钮来验证单位转换
             // Button {
             //     text: "🔍 调试套管数据"
@@ -334,22 +362,18 @@ Rectangle {
                         spacing: 8
                         
                         Text {
-                            text: requiredPower.toFixed(0) + " HP"
+                            // text: "(" + (requiredPower * 0.746).toFixed(0) + " kW)"
+                            text: formatPower(requiredPower * 0.746)
                             font.pixelSize: 18
                             font.bold: true
                             color: Material.primaryTextColor
                         }
                         
                         Text {
-                            text: {
-                                if (isMetric) {
-                                    return "(" + (requiredPower * 0.746).toFixed(0) + " kW)"
-                                } else {
-                                    return "(" + (requiredPower * 0.746).toFixed(0) + " kW)"
-                                }
-                            }
-                            font.pixelSize: 14
-                            color: Material.secondaryTextColor
+                            text: " | " + formatPower2(requiredPower)
+                            font.pixelSize: 18
+                            font.bold: true
+                            color: Material.primaryTextColor
                         }
                     }
                 }
@@ -387,23 +411,23 @@ Rectangle {
                     color: Material.dividerColor
                 }
                 
-                // 轴径匹配
-                Column {
-                    spacing: 4
+                // // 轴径匹配
+                // Column {
+                //     spacing: 4
                     
-                    Text {
-                        text: isChineseMode ? "轴径要求" : "Shaft Diameter"
-                        font.pixelSize: 12
-                        color: Material.hintTextColor
-                    }
+                //     Text {
+                //         text: isChineseMode ? "轴径要求" : "Shaft Diameter"
+                //         font.pixelSize: 12
+                //         color: Material.hintTextColor
+                //     }
                     
-                    Text {
-                        text: formatDiameter(requiredShaftDiameter)
-                        font.pixelSize: 18
-                        font.bold: true
-                        color: Material.primaryTextColor
-                    }
-                }
+                //     Text {
+                //         text: formatDiameter(requiredShaftDiameter)
+                //         font.pixelSize: 18
+                //         font.bold: true
+                //         color: Material.primaryTextColor
+                //     }
+                // }
                 
                 Rectangle {
                     width: 1
@@ -440,13 +464,14 @@ Rectangle {
                             if (productionCasingInnerDiameter > 0) {
                                 var originalMm = inchesToMm(productionCasingInnerDiameter)
                                 return isMetric ?
-                                    "(" + productionCasingInnerDiameter.toFixed(2) + " in)" :
-                                    "(" + originalMm.toFixed(1) + " mm)"
+                                    " | (" + productionCasingInnerDiameter.toFixed(2) + " in)":
+                                    " | (" + originalMm.toFixed(1) + " mm)"
                             } else {
                                 return isChineseMode ? "使用默认" : "Using Default"
                             }
                         }
                         font.pixelSize: 10
+                        // font.bold: true
                         color: Material.hintTextColor
                     }
                 }
@@ -455,11 +480,11 @@ Rectangle {
                 Item { Layout.fillWidth: true }
                 
                 // 查看对比按钮
-                Button {
-                    text: isChineseMode ? "性能对比" : "Compare"
-                    enabled: getFilteredMotors().length > 1
-                    onClicked: showComparisonDialog()
-                }
+                // Button {
+                //     text: isChineseMode ? "性能对比" : "Compare"
+                //     enabled: getFilteredMotors().length > 1
+                //     onClicked: showComparisonDialog()
+                // }
             }
         }
         
@@ -469,90 +494,182 @@ Rectangle {
             Layout.fillHeight: true
             orientation: Qt.Horizontal
             
+            // // 电机列表
+            // Rectangle {
+            //     SplitView.fillWidth: true
+            //     SplitView.minimumWidth: 400
+            //     color: "transparent"
+                
+            //     ScrollView {
+            //         anchors.fill: parent
+            //         clip: true
+                    
+            //         GridLayout {
+            //             width: parent.width
+            //             columns: width > 800 ? 2 : 1
+            //             columnSpacing: 16
+            //             rowSpacing: 16
+                        
+            //             Repeater {
+            //                 id: motorRepeater
+            //                 // model: getFilteredMotors()
+            //                 model: root.filteredMotors  // 使用计算属性而不是函数调用
+
+            //                 // 移除调试信息，保留基本的onModelChanged
+            //                 onModelChanged: {
+            //                     console.log("Repeater model发生变化，新长度:", model ? model.length : "undefined")
+            //                 }
+
+            //                 onCountChanged: {
+            //                     console.log("Repeater count发生变化:", count)
+            //                 }
+
+            //                 LocalComponents.MotorCard {
+            //                     Layout.fillWidth: true
+            //                     Layout.preferredHeight: 260
+                                
+            //                     motorData: modelData
+            //                     isSelected: selectedMotor && selectedMotor.id === modelData.id
+            //                     matchScore: calculateMotorMatchScore(modelData)
+            //                     requiredPower: root.requiredPower
+            //                     selectedVoltage: root.selectedVoltage
+            //                     selectedFrequency: root.selectedFrequency
+            //                     isChineseMode: root.isChineseMode
+            //                     isMetric: root.isMetric  // 🔥 传递单位制属性
+                                
+            //                     onClicked: {
+            //                         console.log("电机被选中:", modelData.model)
+            //                         selectedMotor = modelData
+            //                         updateStepData()
+            //                     }
+            //                     Component.onCompleted: {
+            //                         console.log("MotorCard创建完成:", motorData ? motorData.model : "null")
+            //                     }
+            //                 }
+            //             }
+            //         }
+                    
+            //         // 空状态
+            //         Column {
+            //             anchors.centerIn: parent
+            //             spacing: 16
+            //             visible: !loading && getFilteredMotors().length === 0
+                        
+            //             Text {
+            //                 anchors.horizontalCenter: parent.horizontalCenter
+            //                 text: "⚡"
+            //                 font.pixelSize: 48
+            //                 color: Material.hintTextColor
+            //             }
+                        
+            //             Text {
+            //                 anchors.horizontalCenter: parent.horizontalCenter
+            //                 text: isChineseMode ? "没有找到符合条件的电机" : "No motors found matching criteria"
+            //                 color: Material.hintTextColor
+            //                 font.pixelSize: 14
+            //             }
+            //         }
+            //         // // 修改对比按钮
+            //         // Button {
+            //         //     text: isChineseMode ? "性能对比" : "Compare"
+            //         //     enabled: root.filteredMotors.length > 1  // 使用计算属性
+            //         //     onClicked: showComparisonDialog()
+            //         // }
+
+            //     }
+                
+            //     // 加载指示器
+            //     BusyIndicator {
+            //         anchors.centerIn: parent
+            //         running: loading
+            //         visible: running
+            //     }
+            // }
+            
             // 电机列表
             Rectangle {
                 SplitView.fillWidth: true
                 SplitView.minimumWidth: 400
                 color: "transparent"
-                
-                ScrollView {
+
+                // 使用 GridView 实现可滚动网格列表
+                GridView {
+                    id: motorView
                     anchors.fill: parent
+                    anchors.margins: 0
                     clip: true
-                    
-                    GridLayout {
-                        width: parent.width
-                        columns: width > 800 ? 2 : 1
-                        columnSpacing: 16
-                        rowSpacing: 16
-                        
-                        Repeater {
-                            id: motorRepeater
-                            // model: getFilteredMotors()
-                            model: root.filteredMotors  // 使用计算属性而不是函数调用
 
-                            // 移除调试信息，保留基本的onModelChanged
-                            onModelChanged: {
-                                console.log("Repeater model发生变化，新长度:", model ? model.length : "undefined")
+                    model: root.filteredMotors
+                    interactive: true
+                    flow: GridView.FlowLeftToRight
+                    // 自适应列数：宽度>800时2列，否则1列
+                    property int columns: width > 800 ? 2 : 1
+                    cellWidth: Math.floor(width / columns)
+                    cellHeight: 276   // 卡片高度(260) + 适度间距
+
+                    delegate: Item {
+                        width: motorView.cellWidth
+                        height: motorView.cellHeight
+
+                        // 卡片本体
+                        LocalComponents.MotorCard {
+                            anchors {
+                                fill: parent
+                                leftMargin: 8
+                                rightMargin: 8
+                                topMargin: 8
+                                bottomMargin: 8
                             }
+                            // 注意：GridView中不使用Layout.*属性
+                            motorData: modelData
+                            isSelected: selectedMotor && selectedMotor.id === modelData.id
+                            matchScore: calculateMotorMatchScore(modelData)
+                            requiredPower: root.requiredPower
+                            selectedVoltage: root.selectedVoltage
+                            selectedFrequency: root.selectedFrequency
+                            isChineseMode: root.isChineseMode
+                            isMetric: root.isMetric
+                            // 🔥 传递当前频率下的电机功率
+                            currentFrequencyPower: getCurrentFrequencyPower(modelData)
 
-                            onCountChanged: {
-                                console.log("Repeater count发生变化:", count)
+                            onClicked: {
+                                console.log("电机被选中:", modelData.model)
+                                selectedMotor = modelData
+                                updateStepData()
                             }
-
-                            LocalComponents.MotorCard {
-                                Layout.fillWidth: true
-                                Layout.preferredHeight: 260
-                                
-                                motorData: modelData
-                                isSelected: selectedMotor && selectedMotor.id === modelData.id
-                                matchScore: calculateMotorMatchScore(modelData)
-                                requiredPower: root.requiredPower
-                                selectedVoltage: root.selectedVoltage
-                                selectedFrequency: root.selectedFrequency
-                                isChineseMode: root.isChineseMode
-                                isMetric: root.isMetric  // 🔥 传递单位制属性
-                                
-                                onClicked: {
-                                    console.log("电机被选中:", modelData.model)
-                                    selectedMotor = modelData
-                                    updateStepData()
-                                }
-                                Component.onCompleted: {
-                                    console.log("MotorCard创建完成:", motorData ? motorData.model : "null")
-                                }
+                            Component.onCompleted: {
+                                console.log("MotorCard创建完成:", motorData ? motorData.model : "null")
                             }
                         }
                     }
-                    
-                    // 空状态
-                    Column {
-                        anchors.centerIn: parent
-                        spacing: 16
-                        visible: !loading && getFilteredMotors().length === 0
-                        
-                        Text {
-                            anchors.horizontalCenter: parent.horizontalCenter
-                            text: "⚡"
-                            font.pixelSize: 48
-                            color: Material.hintTextColor
-                        }
-                        
-                        Text {
-                            anchors.horizontalCenter: parent.horizontalCenter
-                            text: isChineseMode ? "没有找到符合条件的电机" : "No motors found matching criteria"
-                            color: Material.hintTextColor
-                            font.pixelSize: 14
-                        }
-                    }
-                    // // 修改对比按钮
-                    // Button {
-                    //     text: isChineseMode ? "性能对比" : "Compare"
-                    //     enabled: root.filteredMotors.length > 1  // 使用计算属性
-                    //     onClicked: showComparisonDialog()
-                    // }
 
+                    // 滚动条
+                    ScrollBar.vertical: ScrollBar {
+                        policy: ScrollBar.AsNeeded
+                    }
                 }
-                
+
+                // 空状态
+                Column {
+                    anchors.centerIn: parent
+                    spacing: 16
+                    visible: !loading && motorView.count === 0
+
+                    Text {
+                        anchors.horizontalCenter: parent.horizontalCenter
+                        text: "⚡"
+                        font.pixelSize: 48
+                        color: Material.hintTextColor
+                    }
+
+                    Text {
+                        anchors.horizontalCenter: parent.horizontalCenter
+                        text: isChineseMode ? "没有找到符合条件的电机" : "No motors found matching criteria"
+                        color: Material.hintTextColor
+                        font.pixelSize: 14
+                    }
+                }
+
                 // 加载指示器
                 BusyIndicator {
                     anchors.centerIn: parent
@@ -560,7 +677,8 @@ Rectangle {
                     visible: running
                 }
             }
-            
+
+
             // 修改右侧详情面板，参照Step4的布局结构
 
             // 右侧详情面板 - 修复布局
@@ -646,20 +764,20 @@ Rectangle {
                                                 }
                                             }
 
-                                            Rectangle {
-                                                width: 60
-                                                height: 20
-                                                radius: 10
-                                                color: Material.color(Material.Purple)
+                                            // Rectangle {
+                                            //     width: 60
+                                            //     height: 20
+                                            //     radius: 10
+                                            //     color: Material.color(Material.Purple)
 
-                                                Text {
-                                                    anchors.centerIn: parent
-                                                    text: selectedVoltage + "V"
-                                                    color: "white"
-                                                    font.pixelSize: 10
-                                                    font.bold: true
-                                                }
-                                            }
+                                            //     Text {
+                                            //         anchors.centerIn: parent
+                                            //         text: selectedVoltage + "V"
+                                            //         color: "white"
+                                            //         font.pixelSize: 10
+                                            //         font.bold: true
+                                            //     }
+                                            // }
                                         }
                                     }
 
@@ -727,7 +845,7 @@ Rectangle {
                                     rowSpacing: 8
                                     anchors.horizontalCenter: parent.horizontalCenter
 
-                                    // 🔥 额定功率 - 支持单位转换
+                                    // 🔥 额定功率 - 根据频率显示对应功率
                                     Column {
                                         spacing: 2
                                         Text {
@@ -736,28 +854,28 @@ Rectangle {
                                             color: Material.secondaryTextColor
                                         }
                                         Text {
-                                            text: formatPower(selectedMotor ? selectedMotor.power : 0)
+                                            text: formatPower(selectedMotor ? getMotorPowerAtFrequency() : 0)
                                             font.pixelSize: 13
                                             font.bold: true
                                             color: Material.primaryTextColor
                                         }
                                     }
 
-                                    // 额定电压
-                                    Column {
-                                        spacing: 2
-                                        Text {
-                                            text: isChineseMode ? "额定电压" : "Rated Voltage"
-                                            font.pixelSize: 11
-                                            color: Material.secondaryTextColor
-                                        }
-                                        Text {
-                                            text: selectedVoltage + " V"
-                                            font.pixelSize: 13
-                                            font.bold: true
-                                            color: Material.primaryTextColor
-                                        }
-                                    }
+                                    // // 额定电压
+                                    // Column {
+                                    //     spacing: 2
+                                    //     Text {
+                                    //         text: isChineseMode ? "额定电压" : "Rated Voltage"
+                                    //         font.pixelSize: 11
+                                    //         color: Material.secondaryTextColor
+                                    //     }
+                                    //     Text {
+                                    //         text: selectedVoltage + " V"
+                                    //         font.pixelSize: 13
+                                    //         font.bold: true
+                                    //         color: Material.primaryTextColor
+                                    //     }
+                                    // }
 
                                     // 额定电流
                                     Column {
@@ -825,45 +943,45 @@ Rectangle {
                                     columnSpacing: 20
                                     rowSpacing: 8
 
-                                    // 效率
-                                    Column {
-                                        spacing: 2
-                                        Text {
-                                            text: isChineseMode ? "效率" : "Efficiency"
-                                            font.pixelSize: 11
-                                            color: Material.secondaryTextColor
-                                        }
-                                        Row {
-                                            spacing: 6
-                                            Text {
-                                                text: (selectedMotor ? selectedMotor.efficiency : 0) + "%"
-                                                font.pixelSize: 13
-                                                font.bold: true
-                                                color: Material.primaryTextColor
-                                            }
-                                            Text {
-                                                text: getEfficiencyRating()
-                                                font.pixelSize: 10
-                                                color: Material.color(Material.Green)
-                                            }
-                                        }
-                                    }
+                                    // // 效率
+                                    // Column {
+                                    //     spacing: 2
+                                    //     Text {
+                                    //         text: isChineseMode ? "效率" : "Efficiency"
+                                    //         font.pixelSize: 11
+                                    //         color: Material.secondaryTextColor
+                                    //     }
+                                    //     Row {
+                                    //         spacing: 6
+                                    //         Text {
+                                    //             text: (selectedMotor ? selectedMotor.efficiency : 0) + "%"
+                                    //             font.pixelSize: 13
+                                    //             font.bold: true
+                                    //             color: Material.primaryTextColor
+                                    //         }
+                                    //         Text {
+                                    //             text: getEfficiencyRating()
+                                    //             font.pixelSize: 10
+                                    //             color: Material.color(Material.Green)
+                                    //         }
+                                    //     }
+                                    // }
 
-                                    // 功率因数
-                                    Column {
-                                        spacing: 2
-                                        Text {
-                                            text: isChineseMode ? "功率因数" : "Power Factor"
-                                            font.pixelSize: 11
-                                            color: Material.secondaryTextColor
-                                        }
-                                        Text {
-                                            text: selectedMotor ? selectedMotor.powerFactor : "0.85"
-                                            font.pixelSize: 13
-                                            font.bold: true
-                                            color: Material.primaryTextColor
-                                        }
-                                    }
+                                    // // 功率因数
+                                    // Column {
+                                    //     spacing: 2
+                                    //     Text {
+                                    //         text: isChineseMode ? "功率因数" : "Power Factor"
+                                    //         font.pixelSize: 11
+                                    //         color: Material.secondaryTextColor
+                                    //     }
+                                    //     Text {
+                                    //         text: selectedMotor ? selectedMotor.powerFactor : "0.85"
+                                    //         font.pixelSize: 13
+                                    //         font.bold: true
+                                    //         color: Material.primaryTextColor
+                                    //     }
+                                    // }
 
                                     // 绝缘等级
                                     Column {
@@ -940,7 +1058,9 @@ Rectangle {
                                             color: Material.secondaryTextColor
                                         }
                                         Text {
-                                            text: formatDiameter(selectedMotor ? selectedMotor.outerDiameter : 0)
+                                            // text: formatDiameter(selectedMotor ? selectedMotor.outerDiameter : 0)
+                                            text: selectedMotor.outerDiameter + " mm"
+
                                             font.pixelSize: 13
                                             font.bold: true
                                             color: Material.primaryTextColor
@@ -956,7 +1076,8 @@ Rectangle {
                                             color: Material.secondaryTextColor
                                         }
                                         Text {
-                                            text: formatLength(selectedMotor ? selectedMotor.length : 0)
+                                            // text: formatLength(selectedMotor ? selectedMotor.length : 0)
+                                            text: selectedMotor.length + " mm"
                                             font.pixelSize: 13
                                             font.bold: true
                                             color: Material.primaryTextColor
@@ -1211,32 +1332,32 @@ Rectangle {
         console.log("📊 初始电机数量:", motorList.length)
 
         // 1. 电压筛选
-        var voltageFiltered = []
-        for (var i = 0; i < motorList.length; i++) {
-            var motor = motorList[i]
-            if (!motor) continue
+        // var voltageFiltered = []
+        // for (var i = 0; i < motorList.length; i++) {
+        //     var motor = motorList[i]
+        //     if (!motor) continue
 
-            var voltageSupported = false
-            if (motor.voltage && motor.voltage.length > 0) {
-                for (var j = 0; j < motor.voltage.length; j++) {
-                    if (motor.voltage[j] === selectedVoltage) {
-                        voltageSupported = true
-                        break
-                    }
-                }
-            }
+        //     var voltageSupported = false
+        //     if (motor.voltage && motor.voltage.length > 0) {
+        //         for (var j = 0; j < motor.voltage.length; j++) {
+        //             if (motor.voltage[j] === selectedVoltage) {
+        //                 voltageSupported = true
+        //                 break
+        //             }
+        //         }
+        //     }
 
-            if (voltageSupported) {
-                voltageFiltered.push(motor)
-            }
-        }
+        //     if (voltageSupported) {
+        //         voltageFiltered.push(motor)
+        //     }
+        // }
 
-        console.log("⚡ 电压筛选后:", voltageFiltered.length, "个")
+        // console.log("⚡ 电压筛选后:", voltageFiltered.length, "个")
 
         // 2. 频率筛选
         var frequencyFiltered = []
-        for (var i = 0; i < voltageFiltered.length; i++) {
-            var motor = voltageFiltered[i]
+        for (var i = 0; i < motorList.length; i++) {
+            var motor = motorList[i]
             if (!motor) continue
 
             var frequencySupported = false
@@ -1298,7 +1419,7 @@ Rectangle {
 
         // 4. 外径筛选（保持原有逻辑）
         var sizeFiltered = []
-        var casingInnerDiameter = productionCasingInnerDiameter || 6.184
+        var casingInnerDiameter = productionCasingInnerDiameter
         var originalMm = inchesToMm(casingInnerDiameter)
 
         console.log("📏 生产套管内径限制:", casingInnerDiameter.toFixed(2), "英寸 (", originalMm.toFixed(1), "mm)")
@@ -1310,6 +1431,8 @@ Rectangle {
             var sizeOk = true
             if (motor.outerDiameter !== undefined && motor.outerDiameter !== null) {
                 var motorDiameter = parseFloat(motor.outerDiameter)
+                // 换成英寸来比较
+                motorDiameter = motorDiameter / 25.4
                 var maxDiameter = casingInnerDiameter - 0.25  // 预留0.25英寸间隙
                 sizeOk = motorDiameter <= maxDiameter
 
@@ -1376,19 +1499,17 @@ Rectangle {
     function getPowerPriority(powerRatio) {
         // powerRatio = 电机功率 / 需求功率
         if (powerRatio >= 1.05 && powerRatio <= 1.20) {
-            return 1  // 最高优先级：功率略大于需求（5%-20%）
-        } else if (powerRatio >= 0.95 && powerRatio < 1.05) {
-            return 2  // 第二优先级：功率接近需求（95%-105%）
+            return 2  // 最高优先级：功率略大于需求（5%-20%）
+        } else if (powerRatio >= 1 && powerRatio < 1.05) {
+            return 1  // 第二优先级：功率接近需求（95%-105%）
         } else if (powerRatio >= 0.85 && powerRatio < 0.95) {
-            return 3  // 第三优先级：功率略小于需求（85%-95%）
+            return 5  // 第三优先级：功率略小于需求（85%-95%）
         } else if (powerRatio > 1.20 && powerRatio <= 1.50) {
-            return 4  // 第四优先级：功率明显大于需求（20%-50%）
+            return 3  // 第四优先级：功率明显大于需求（20%-50%）
         } else {
-            return 5  // 最低优先级：功率过大或其他情况
+            return 4  // 最低优先级：功率过大或其他情况
         }
     }
-
-    // 🔥 修改 calculateMotorMatchScore() 函数
 
     // 🔥 修复 calculateMotorMatchScore 函数，确保功率比较使用相同单位
     function calculateMotorMatchScore(motor) {
@@ -1454,22 +1575,110 @@ Rectangle {
         return Math.max(0, Math.min(100, Math.round(score)))
     }
     
+    // 🔥 修复 getMotorCurrent() 函数，根据选择的电压和频率获取对应的电流
     function getMotorCurrent() {
         if (!selectedMotor) return 0
-        
-        // 简化计算：基于功率、电压和功率因数
-        var current = (selectedMotor.power * 746) / (Math.sqrt(3) * selectedVoltage * selectedMotor.powerFactor * selectedMotor.efficiency / 100)
+
+        // 🔥 首先尝试从数据库的频率参数中获取精确电流值
+        if (selectedMotor.frequency_params) {
+            for (var i = 0; i < selectedMotor.frequency_params.length; i++) {
+                var param = selectedMotor.frequency_params[i]
+                if (param.frequency === selectedFrequency) {
+                    console.log(`✅ 找到精确电流参数: ${param.current}A ${param.frequency}Hz`)
+                    return param.current.toFixed(1)
+                }
+            }
+        }
+
+
         return current.toFixed(1)
     }
+
     
+    // 🔥 修复 getMotorSpeed() 函数，根据选择的频率获取对应的转速
     function getMotorSpeed() {
         if (!selectedMotor) return 0
-        
-        if (selectedFrequency === 60) {
-            return selectedMotor.speed_60hz || 3600
-        } else {
-            return selectedMotor.speed_50hz || 3000
+
+        // 🔥 首先尝试从数据库的频率参数中获取精确转速值
+        if (selectedMotor.frequency_params) {
+            for (var i = 0; i < selectedMotor.frequency_params.length; i++) {
+                var param = selectedMotor.frequency_params[i]
+                if (param.frequency === selectedFrequency) {
+                    console.log(`✅ 找到精确转速参数: ${param.speed}RPM @ ${param.frequency}Hz`)
+                    return param.speed
+                }
+            }
         }
+
+        // 🔥 后备方案：根据频率计算标准同步转速
+        if (selectedFrequency === 60) {
+            return selectedMotor.speed_60hz
+        } else if (selectedFrequency === 50) {
+            return selectedMotor.speed_50hz
+        }
+
+        // 🔥 通用计算：假设为2极电机
+        var syncSpeed = (selectedFrequency * 60 * 2) / 2  // 2极电机
+        console.log(`🔧 计算转速: ${selectedFrequency}Hz -> ${syncSpeed}RPM (2极电机)`)
+        return syncSpeed
+    }
+
+    // 🔥 修正：获取当前频率下的功率
+    function getMotorPowerAtFrequency() {
+        if (!selectedMotor) return 0
+
+        // 🔥 首先尝试从frequency_params中获取对应频率和电压的功率
+        if (selectedMotor.frequency_params && selectedMotor.frequency_params.length > 0) {
+            for (var i = 0; i < selectedMotor.frequency_params.length; i++) {
+                var param = selectedMotor.frequency_params[i]
+                if (param.frequency === selectedFrequency && param.voltage === selectedVoltage) {
+                    console.log(`✅ 找到精确功率参数: ${param.power}kW @ ${param.voltage}V/${param.frequency}Hz`)
+                    return param.power
+                }
+            }
+
+            // 如果没有找到精确匹配，尝试只匹配频率
+            for (var j = 0; j < selectedMotor.frequency_params.length; j++) {
+                var param = selectedMotor.frequency_params[j]
+                if (param.frequency === selectedFrequency) {
+                    console.log(`⚠️ 找到频率匹配功率参数: ${param.power}kW @ ${param.frequency}Hz`)
+                    return param.power
+                }
+            }
+        }
+
+        // 🔥 后备方案：使用基础功率并根据频率调整
+        var basePower = selectedMotor.power || 0
+
+        if (selectedFrequency === 50) {
+            // 50Hz功率约为60Hz的83%
+            return basePower * 0.83
+        } else {
+            // 60Hz使用基础功率
+            return basePower
+        }
+    }
+    // 🔥 修正获取当前频率功率的辅助函数
+    function getCurrentFrequencyPower(motorData) {
+        if (!motorData) return 0
+
+        // 🔥 检查是否有frequency_params数组
+        if (motorData.frequency_params && motorData.frequency_params.length > 0) {
+            // 查找匹配当前频率的功率
+            for (var i = 0; i < motorData.frequency_params.length; i++) {
+                var param = motorData.frequency_params[i]
+                if (param.frequency === selectedFrequency) {
+                    return param.power
+                }
+            }
+        }
+
+        // 🔥 如果没有找到frequency_params，使用基础功率调整
+        var basePower = motorData.power || 0
+        if (selectedFrequency === 50) {
+            return basePower * 0.83  // 50Hz约为60Hz的83%
+        }
+        return basePower
     }
     
     function getEfficiencyRating() {
@@ -1533,9 +1742,9 @@ Rectangle {
     }
     
     function filterMotors() {
-        // 触发重新过滤
-        console.log("触发电机重新过滤")
-        //getFilteredMotors()
+        // 🔥 强制触发重新筛选
+        console.log("🔄 强制触发电机重新筛选")
+        filterTrigger++
     }
     // 在文件末尾添加电机效率曲线组件
     LocalComponents.MotorEfficiencyCurve {
@@ -1557,13 +1766,25 @@ Rectangle {
     function formatPower(valueInKW) {
         if (!valueInKW || valueInKW <= 0) return "N/A"
 
-        if (isMetric) {
+        if (!isMetric) {
             // 显示千瓦
-            return valueInKW.toFixed(1) + " kW"
+            return valueInKW.toFixed(2) + " KW"
         } else {
             // 转换为马力
             var hpValue = valueInKW / 0.746
-            return hpValue.toFixed(0) + " HP"
+            return hpValue.toFixed(2) + " HP"
+        }
+    }
+    function formatPower2(valueInKW) {
+        if (!valueInKW || valueInKW <= 0) return "N/A"
+
+        if (!isMetric) {
+            // 转换为马力
+            return valueInKW.toFixed(2) + " HP"
+        } else {
+            // 转换为马力
+            var hpValue = valueInKW * 0.746
+            return hpValue.toFixed(2) + " KW"
         }
     }
 

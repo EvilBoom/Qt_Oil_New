@@ -11,6 +11,16 @@ ApplicationWindow {
     property real currentProduction: 0
     property bool isChineseMode: true
 
+    // ========== 新增IPR方程参数属性 ==========
+    property real reservoirPressure: 2500      // 地层压力 (psi)
+    property real testBHP: 1500                // 单点测试井底流压 (psi)
+    property real testRate: 800                // 单点测试产量 (bbl/d)
+    property real productivityIndex: 1.2       // 产能指数 (bbl/d/psi)
+    property real fetkovichN: 1.0              // Fetkovich指数 n
+    property real fetkovichC: 0.5              // Fetkovich系数 C
+    property int samplePoints: 50              // 计算点数
+    property bool autoGenerateFromParams: true // 使用方程自动生成
+
     // 优化尺寸 - 减小默认大小
     width: 900
     height: 650
@@ -56,8 +66,10 @@ ApplicationWindow {
                 // Layout.preferredWidth: 140
                 model: [
                     isChineseMode ? "Vogel方程" : "Vogel Equation",
-                    // isChineseMode ? "线性IPR" : "Linear IPR",
-                    // isChineseMode ? "组合IPR" : "Composite IPR"
+                    isChineseMode ? "线性IPR" : "Linear IPR",
+                    isChineseMode ? "Fetkovich方程" : "Fetkovich Equation",
+                    // isChineseMode ? "组合IPR" : "Composite IPR",
+                    isChineseMode ? "Forchheimer方程" : "Forchheimer Equation"
                 ]
                 currentIndex: 0
                 Material.theme: Material.Dark
@@ -65,6 +77,9 @@ ApplicationWindow {
 
                 onCurrentIndexChanged: {
                     updateCurveType()
+                    if (autoGenerateFromParams) {
+                        recalculateIPR()
+                    }
                 }
             }
         }
@@ -323,7 +338,7 @@ ApplicationWindow {
                             ctx.rotate(-Math.PI / 2)
                             ctx.textAlign = "center"
                             ctx.textBaseline = "middle"
-                            ctx.fillText(isChineseMode ? "井底压力 (psi)" : "BHP (psi)", 0, 0)
+                            ctx.fillText(isChineseMode ? "举升压力 (psi)" : "Pressure (psi)", 0, 0)
                             ctx.restore()
 
                             // 绘制刻度 - 简化
@@ -446,8 +461,8 @@ ApplicationWindow {
 
         // 右侧信息面板 - 优化布局，增加间距和可读性
         Rectangle {
-            SplitView.preferredWidth: parent.width * 0.32  // 稍微减少宽度给图表更多空间
-            SplitView.minimumWidth: 200
+            SplitView.preferredWidth: parent.width * 0.35  // 稍微减少宽度给图表更多空间
+            SplitView.minimumWidth: 250
             color: "#f8f9fa"
             radius: 6
 
@@ -534,6 +549,188 @@ ApplicationWindow {
                         }
                     }
 
+                    // ========== 新增IPR方程参数面板 ==========
+                    Rectangle {
+                        Layout.fillWidth: true
+                        Layout.preferredHeight: getParameterPanelHeight()+30
+                        color: "white"
+                        radius: 6
+                        border.color: "#e1e5e9"
+
+                        ColumnLayout {
+                            anchors.fill: parent
+                            anchors.margins: 12
+                            spacing: 8
+
+                            Text {
+                                text: isChineseMode ? "⚙️ IPR方程参数" : "⚙️ IPR Parameters"
+                                font.pixelSize: 13
+                                font.bold: true
+                                color: Material.primaryTextColor
+                            }
+
+                            Rectangle {
+                                Layout.fillWidth: true
+                                height: 1
+                                color: "#e1e5e9"
+                            }
+
+                            // 基础参数（所有方程都需要）
+                            GridLayout {
+                                Layout.fillWidth: true
+                                columns: 4
+                                rowSpacing: 6
+                                columnSpacing: 8
+
+                                Text {
+                                    text: isChineseMode ? "地层压力:" : "Reservoir P:"
+                                    font.pixelSize: 10
+                                    color: Material.hintTextColor
+                                }
+                                TextField {
+                                    id: reservoirPressureField
+                                    text: reservoirPressure.toFixed(2).toString()
+                                    font.pixelSize: 10
+                                    placeholderText: "psi"
+                                    validator: DoubleValidator { bottom: 0; top: 10000 }
+                                    onEditingFinished: {
+                                        reservoirPressure = parseFloat(text) || reservoirPressure
+                                        // 🔥 新增：回传参数更新
+                                        sendParameterUpdate('geoPressure', reservoirPressure)
+
+                                        if (autoGenerateFromParams) recalculateIPR()
+                                    }
+                                }
+
+                                Text {
+                                    text: isChineseMode ? "测试产量:" : "Test Rate:"
+                                    font.pixelSize: 10
+                                    color: Material.hintTextColor
+                                }
+                                TextField {
+                                    id: testRateField
+                                    text: testRate.toFixed(2).toString()
+                                    font.pixelSize: 10
+                                    placeholderText: "bbl/d"
+                                    validator: DoubleValidator { bottom: 0; top: 50000 }
+                                    onEditingFinished: {
+                                        testRate = parseFloat(text) || testRate
+                                        if (autoGenerateFromParams) recalculateIPR()
+                                    }
+                                }
+
+                                Text {
+                                    text: isChineseMode ? "井底压力:" : "Test Perssure:"
+                                    font.pixelSize: 10
+                                    color: Material.hintTextColor
+                                }
+                                TextField {
+                                    id: testBHPField
+                                    text: testBHP.toFixed(2).toString()
+                                    font.pixelSize: 10
+                                    placeholderText: "psi"
+                                    validator: DoubleValidator { bottom: 0; top: 10000 }
+                                    onEditingFinished: {
+                                        testBHP = parseFloat(text) || testBHP
+                                        if (autoGenerateFromParams) recalculateIPR()
+                                    }
+                                }
+
+                                // 线性IPR参数
+                                Text {
+                                    text: isChineseMode ? "产能指数J:" : "PI J:"
+                                    font.pixelSize: 10
+                                    color: Material.hintTextColor
+                                    visible: curveTypeCombo.currentIndex === 1
+                                }
+                                TextField {
+                                    id: productivityIndexField
+                                    text: productivityIndex.toFixed(2).toString()
+                                    font.pixelSize: 10
+                                    placeholderText: "bbl/d/psi"
+                                    visible: curveTypeCombo.currentIndex === 1
+                                    validator: DoubleValidator { bottom: 0 }
+                                    onEditingFinished: {
+                                        productivityIndex = parseFloat(text) || productivityIndex
+                                        if (autoGenerateFromParams) recalculateIPR()
+                                    }
+                                }
+
+                                // Fetkovich参数
+                                Text {
+                                    text: "n (Fetkovich):"
+                                    font.pixelSize: 10
+                                    color: Material.hintTextColor
+                                    visible: curveTypeCombo.currentIndex === 2
+                                }
+                                TextField {
+                                    id: fetkovichNField
+                                    text: fetkovichN.toFixed(2).toString()
+                                    font.pixelSize: 10
+                                    placeholderText: "0.5-2.0"
+                                    visible: curveTypeCombo.currentIndex === 2
+                                    validator: DoubleValidator { bottom: 0.1; top: 5 }
+                                    onEditingFinished: {
+                                        fetkovichN = parseFloat(text) || fetkovichN
+                                        if (autoGenerateFromParams) recalculateIPR()
+                                    }
+                                }
+
+                                Text {
+                                    text: "C (Fetkovich):"
+                                    font.pixelSize: 10
+                                    color: Material.hintTextColor
+                                    visible: curveTypeCombo.currentIndex === 2
+                                }
+                                TextField {
+                                    id: fetkovichCField
+                                    text: fetkovichC.toFixed(2).toString()
+                                    font.pixelSize: 10
+                                    placeholderText: "系数"
+                                    visible: curveTypeCombo.currentIndex === 2
+                                    validator: DoubleValidator { bottom: 0 }
+                                    onEditingFinished: {
+                                        fetkovichC = parseFloat(text) || fetkovichC
+                                        if (autoGenerateFromParams) recalculateIPR()
+                                    }
+                                }
+
+                                // 采样点数
+                                Text {
+                                    text: isChineseMode ? "采样点数:" : "Samples:"
+                                    font.pixelSize: 10
+                                    color: Material.hintTextColor
+                                }
+                                TextField {
+                                    id: samplePointsField
+                                    text: samplePoints.toFixed(2).toString()
+                                    font.pixelSize: 10
+                                    placeholderText: "10-200"
+                                    validator: IntValidator { bottom: 10; top: 500 }
+                                    onEditingFinished: {
+                                        var v = parseInt(text)
+                                        if (v >= 10 && v <= 500) {
+                                            samplePoints = v
+                                            if (autoGenerateFromParams) recalculateIPR()
+                                        }
+                                    }
+                                }
+                            }
+
+                            CheckBox {
+                                text: isChineseMode ? "使用方程生成" : "Generate from equations"
+                                checked: autoGenerateFromParams
+                                font.pixelSize: 10
+                                onToggled: {
+                                    autoGenerateFromParams = checked
+                                    if (autoGenerateFromParams) {
+                                        recalculateIPR()
+                                    }
+                                }
+                            }
+                        }
+                    }
+
                     // 工作点信息 - 优化高度
                     Rectangle {
                         Layout.fillWidth: true
@@ -580,7 +777,7 @@ ApplicationWindow {
                                 }
 
                                 Text {
-                                    text: isChineseMode ? "井底压力:" : "BHP:"
+                                    text: isChineseMode ? "压力:" : "Pressure:"
                                     font.pixelSize: 10
                                     color: Material.hintTextColor
                                 }
@@ -703,15 +900,15 @@ ApplicationWindow {
                                 Layout.fillWidth: true
                                 spacing: 8  // 增加按钮间距
 
-                                Button {
-                                    Layout.fillWidth: true
-                                    text: isChineseMode ? "📤 导出图表" : "📤 Export Chart"
-                                    font.pixelSize: 11
-                                    implicitHeight: 32  // 增加按钮高度
-                                    highlighted: true
-                                    Material.elevation: 2
-                                    onClicked: exportChart()
-                                }
+                                // Button {
+                                //     Layout.fillWidth: true
+                                //     text: isChineseMode ? "📤 导出图表" : "📤 Export Chart"
+                                //     font.pixelSize: 11
+                                //     implicitHeight: 32  // 增加按钮高度
+                                //     highlighted: true
+                                //     Material.elevation: 2
+                                //     onClicked: exportChart()
+                                // }
 
                                 Button {
                                     Layout.fillWidth: true
@@ -795,7 +992,10 @@ ApplicationWindow {
     onVisibilityChanged: {
         if (visibility !== ApplicationWindow.Hidden) {
             console.log("IPR Dialog opened")
-            if (curveData && curveData.length > 0) {
+            syncParametersFromController()
+            if ((curveData && curveData.length > 0) || autoGenerateFromParams) {
+                recalculateIPR()
+            } else {
                 canvas.requestPaint()
             }
         }
@@ -819,9 +1019,15 @@ ApplicationWindow {
 
         curveData = data || []
         currentProduction = production || 0
+        // 🔥 新增：同步参数数据
+        syncParametersFromController()
 
         statusText.text = isChineseMode ? "数据已更新" : "Data updated"
-        canvas.requestPaint()
+        if (autoGenerateFromParams && (!data || data.length === 0)) {
+            recalculateIPR()
+        } else {
+            canvas.requestPaint()
+        }
     }
 
     function exportChart() {
@@ -838,10 +1044,6 @@ ApplicationWindow {
 
     function copyDataToClipboard() {
         statusText.text = isChineseMode ? "数据已复制" : "Data copied"
-    }
-
-    function recalculateIPR() {
-        statusText.text = isChineseMode ? "正在重新计算..." : "Recalculating..."
     }
 
     function updateCurveType() {
@@ -890,5 +1092,262 @@ ApplicationWindow {
         }
 
         return 0
+    }
+    function getParameterPanelHeight() {
+        // 根据选择的方程类型动态调整参数面板高度
+        switch(curveTypeCombo.currentIndex) {
+            case 0: return 180  // Vogel
+            case 1: return 220  // Linear (需要PI参数)
+            case 2: return 260  // Fetkovich (需要n和C参数)
+            case 3: return 240  // Composite
+            case 4: return 220  // Forchheimer
+            default: return 180
+        }
+    }
+    function recalculateIPR() {
+        if (autoGenerateFromParams) {
+            curveData = generateIPRData()
+            statusText.text = isChineseMode ? "已按方程重新计算" : "Recalculated (equation)"
+        } else {
+            statusText.text = isChineseMode ? "使用外部数据" : "Using external data"
+        }
+        canvas.requestPaint()
+    }
+
+    function generateIPRData() {
+        var data = []
+        var p_res = reservoirPressure
+        if (p_res <= 0) return data
+
+        var points = Math.max(10, samplePoints)
+        var i, pwf, rate
+
+        switch (curveTypeCombo.currentIndex) {
+            // Vogel方程
+            case 0: {
+                data = generateVogelIPR(p_res, testBHP, testRate, points)
+                break
+            }
+
+            // 线性IPR
+            case 1: {
+                data = generateLinearIPR(p_res, productivityIndex, points)
+                break
+            }
+
+            // Fetkovich方程
+            case 2: {
+                data = generateFetkovichIPR(p_res, testBHP, testRate, fetkovichN, points)
+                break
+            }
+
+            // 组合IPR
+            case 3: {
+                data = generateCompositeIPR(p_res, testBHP, testRate, points)
+                break
+            }
+
+            // Forchheimer方程
+            case 4: {
+                data = generateForchheimerIPR(p_res, testBHP, testRate, points)
+                break
+            }
+        }
+
+        // 按产量升序排序
+        data.sort(function(a, b) { return a.production - b.production })
+        return data
+    }
+
+    // ========== IPR方程实现函数 ==========
+    function generateVogelIPR(p_res, p_wf, q_test, points) {
+        var data = []
+
+        // 计算AOF (绝对无阻流量)
+        var ratio = p_wf / p_res
+        var denom = (1 - 0.2 * ratio - 0.8 * ratio * ratio)
+        var q_max = denom > 0.00001 ? q_test / denom : q_test
+
+        for (var i = 0; i < points; i++) {
+            var pwf = p_res * i / (points - 1)
+            var x = pwf / p_res
+            var rate = q_max * (1 - 0.2 * x - 0.8 * x * x)
+            if (rate < 0) rate = 0
+            data.push({ pressure: pwf, production: rate })
+        }
+
+        return data
+    }
+
+    function generateLinearIPR(p_res, pi, points) {
+        var data = []
+
+        for (var i = 0; i < points; i++) {
+            var pwf = p_res * i / (points - 1)
+            var rate = pi * (p_res - pwf)
+            if (rate < 0) rate = 0
+            data.push({ pressure: pwf, production: rate })
+        }
+
+        return data
+    }
+
+    function generateFetkovichIPR(p_res, p_wf, q_test, n, points) {
+        var data = []
+
+        // 计算Fetkovich系数C
+        var p_diff = Math.pow(p_res, n) - Math.pow(p_wf, n)
+        var C = p_diff > 1e-9 ? q_test / p_diff : q_test / Math.pow(p_res, n)
+
+        for (var i = 0; i < points; i++) {
+            var pwf = p_res * i / (points - 1)
+            var rate = C * (Math.pow(p_res, n) - Math.pow(pwf, n))
+            if (rate < 0) rate = 0
+            data.push({ pressure: pwf, production: rate })
+        }
+
+        return data
+    }
+
+    function generateCompositeIPR(p_res, p_wf, q_test, points) {
+        var data = []
+
+        // 假设泡点压力为地层压力的70%
+        var p_bubble = p_res * 0.7
+
+        // 单相流区产能指数
+        var pi = q_test / (p_res - p_wf)
+
+        for (var i = 0; i < points; i++) {
+            var pwf = p_res * i / (points - 1)
+            var rate = 0
+
+            if (pwf >= p_bubble) {
+                // 单相流区：线性关系
+                rate = pi * (p_res - pwf)
+            } else {
+                // 两相流区：组合Vogel方程
+                var q_bubble = pi * (p_res - p_bubble)
+                var ratio = pwf / p_bubble
+                rate = q_bubble + (q_bubble * 0.2) * (1 - 0.2 * ratio - 0.8 * ratio * ratio)
+            }
+
+            if (rate < 0) rate = 0
+            data.push({ pressure: pwf, production: rate })
+        }
+
+        return data
+    }
+
+    function generateForchheimerIPR(p_res, p_wf, q_test, points) {
+        var data = []
+
+        // Forchheimer方程：适用于高速非达西流
+        // (p_res^2 - p_wf^2) = A*q + B*q^2
+        // 简化实现
+        var pressure_sq_diff = p_res * p_res - p_wf * p_wf
+        var A = pressure_sq_diff / (q_test + 0.1 * q_test * q_test)
+        var B = 0.1 * A
+
+        for (var i = 0; i < points; i++) {
+            var pwf = p_res * i / (points - 1)
+            var delta_p_sq = p_res * p_res - pwf * pwf
+
+            // 解二次方程 A*q + B*q^2 = delta_p_sq
+            var discriminant = A * A + 4 * B * delta_p_sq
+            var rate = 0
+
+            if (discriminant >= 0 && B > 0) {
+                rate = (-A + Math.sqrt(discriminant)) / (2 * B)
+            } else if (A > 0) {
+                rate = delta_p_sq / A
+            }
+
+            if (rate < 0) rate = 0
+            data.push({ pressure: pwf, production: rate })
+        }
+
+        return data
+    }
+
+    // ========== 新增参数同步函数 ==========
+    function syncParametersFromController() {
+        console.log("=== 开始同步IPR参数 ===")
+
+        // 从DeviceRecommendationController获取当前生产参数
+        if (typeof deviceRecommendationController !== 'undefined') {
+            // 请求最新的生产参数
+            deviceRecommendationController.requestCurrentParameters()
+        }
+    }
+
+    function updateParametersFromData(params) {
+        console.log("=== 更新IPR参数面板数据 ===")
+        console.log("接收到的参数:", JSON.stringify(params))
+
+        try {
+            // 更新基础参数
+            if (params.geoPressure !== undefined && params.geoPressure > 0) {
+                reservoirPressure = params.geoPressure
+                reservoirPressureField.text = reservoirPressure.toFixed(2).toString()
+            }
+
+            if (params.expectedProduction !== undefined && params.expectedProduction > 0) {
+                testRate = params.expectedProduction
+                testRateField.text = testRate.toFixed(2).toString()
+            }
+
+            if (params.wellHeadPressure !== undefined && params.wellHeadPressure > 0) {
+                // 估算井底流压（简化处理）
+                testBHP = Math.max(params.wellHeadPressure * 1.2, reservoirPressure * 0.6)
+                testBHPField.text = testBHP.toFixed(2).toString()
+            }
+
+            if (params.produceIndex !== undefined && params.produceIndex > 0) {
+                productivityIndex = params.produceIndex
+                if (productivityIndexField.visible) {
+                    productivityIndexField.text = productivityIndex.toFixed(2).toString()
+                }
+            }
+
+            // 更新状态显示
+            statusText.text = isChineseMode ? "参数已同步" : "Parameters synchronized"
+
+            // 如果启用自动生成，重新计算
+            if (autoGenerateFromParams) {
+                recalculateIPR()
+            }
+
+        } catch (error) {
+            console.error("参数同步失败:", error)
+            statusText.text = isChineseMode ? "参数同步失败" : "Sync failed"
+        }
+    }
+    // 添加参数回传函数
+    function sendParameterUpdate(paramName, paramValue) {
+        if (typeof deviceRecommendationController !== 'undefined') {
+            var updateData = {}
+            updateData[paramName] = paramValue
+
+            console.log("回传参数更新:", paramName, "=", paramValue)
+            deviceRecommendationController.updateIPRParameters(updateData)
+        }
+    }
+
+    // 批量参数更新函数
+    function sendAllParameterUpdates() {
+        if (typeof deviceRecommendationController !== 'undefined') {
+            var allParams = {
+                'geoPressure': reservoirPressure,
+                'expectedProduction': testRate,
+                'estimatedBHP': testBHP,
+                'produceIndex': productivityIndex,
+                'fetkovichN': fetkovichN,
+                'fetkovichC': fetkovichC
+            }
+
+            console.log("批量回传参数:", JSON.stringify(allParams))
+            deviceRecommendationController.updateIPRParameters(allParams)
+        }
     }
 }

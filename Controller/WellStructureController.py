@@ -134,7 +134,6 @@ class WellStructureController(QObject):
 
     # ========== 套管数据管理 ==========
 
-    # 在 onCasingDataLoaded 方法中添加单位信息的日志输出
     @Slot(int)
     def loadCasingData(self, well_id: int):
         """加载套管数据"""
@@ -350,38 +349,50 @@ class WellStructureController(QObject):
             )
 
             if calc_result:
-                # 保存计算结果
-                calc_result['well_id'] = self._current_well_id
-                calc_result['calculation_method'] = parameters.get('method', 'default')
-                calc_result['parameters'] = json.dumps(parameters)
+                # 🔥 修复：分离数据库保存和QML显示的数据
+                # 1. 准备数据库保存的数据（不包含trajectory_analysis）
+                calc_result_for_db = {
+                    'well_id': self._current_well_id,
+                    'pump_hanging_depth': calc_result.get('pump_hanging_depth'),
+                    'perforation_depth': calc_result.get('perforation_depth'),
+                    'total_depth_tvd': calc_result.get('total_depth_tvd'),
+                    'total_depth_md': calc_result.get('total_depth_md'),
+                    'max_inclination': calc_result.get('max_inclination'),
+                    'max_dls': calc_result.get('max_dls'),
+                    'calculation_method': parameters.get('method', 'default'),
+                    'parameters': json.dumps(parameters)
+                }
 
-                result_id = self._db_service.save_calculation_result(calc_result)
-                # 🔥 新增：同时更新井表中的关键深度字段
+                # 2. 保存到数据库（不包含轨迹分析）
+                result_id = self._db_service.save_calculation_result(calc_result_for_db)
+            
+                # 3. 准备QML显示的完整数据（包含实时计算的轨迹分析）
+                calc_result_for_qml = calc_result.copy()
+                trajectory_analysis = self._analyze_trajectory_data(self._trajectory_data)
+                calc_result_for_qml['trajectory_analysis'] = trajectory_analysis
+            
+                # 🔥 更新井表中的关键深度字段
                 if result_id:
-                    # 导入WellDataController实例（如果可用）
                     try:
-                        from main import app  # 假设在main.py中有全局app变量
-                        well_controller = getattr(app, 'wellController', None)
-                        if well_controller:
-                            well_controller.saveCalculationResult(calc_result)
-                    except:
-                        # 如果无法获取WellController，直接更新数据库
+                        # 备用方案：直接更新数据库
                         well_update_data = {
-                            'pump_hanging_vertical_depth': calc_result.get('pump_hanging_depth'),
-                            'perforation_vertical_depth': calc_result.get('perforation_depth'),
-                            'pump_depth': calc_result.get('pump_measured_depth')  # 如果有测量深度
-                        }
-                        # 过滤None值
+                                'pump_hanging_vertical_depth': calc_result.get('pump_hanging_depth'),
+                                'perforation_vertical_depth': calc_result.get('perforation_depth'),
+                                'pump_depth': calc_result.get('pump_measured_depth')
+                            }
                         well_update_data = {k: v for k, v in well_update_data.items() if v is not None}
                     
                         if well_update_data:
                             self._db_service.update_well(self._current_well_id, well_update_data)
+                    except Exception as e:
+                        logger.warning(f"更新井数据失败: {e}")
 
-
-
-                self._calculation_result = calc_result
-                self.calculationCompleted.emit(calc_result)
+                # 4. 更新内存中的结果并发射信号
+                self._calculation_result = calc_result_for_qml
+                self.calculationCompleted.emit(calc_result_for_qml)
+            
                 logger.info(f"计算完成: 泵挂垂深={calc_result.get('pump_hanging_depth')}, 射孔垂深={calc_result.get('perforation_depth')}")
+                logger.info(f"轨迹分析: 高狗腿度点={trajectory_analysis.get('high_dogleg_count')}个")
             else:
                 self.error.emit("计算失败")
 
@@ -394,14 +405,213 @@ class WellStructureController(QObject):
 
     @Slot(int)
     def loadCalculationResult(self, well_id: int):
-        """加载最新计算结果"""
+        """加载最新计算结果并补充轨迹分析"""
         try:
+            # 加载基本计算结果
             result = self._db_service.get_latest_calculation_result(well_id)
             if result:
+                # 🔥 实时计算轨迹分析
+                if self._trajectory_data:
+                    trajectory_analysis = self._analyze_trajectory_data(self._trajectory_data)
+                    result['trajectory_analysis'] = trajectory_analysis
+                else:
+                    # 如果没有轨迹数据，尝试加载
+                    self.loadTrajectoryData(well_id)
+                    if self._trajectory_data:
+                        trajectory_analysis = self._analyze_trajectory_data(self._trajectory_data)
+                        result['trajectory_analysis'] = trajectory_analysis
+                    else:
+                        result['trajectory_analysis'] = {
+                            'high_dogleg_count': 0,
+                            'max_dls_value': 0,
+                            'max_dls_depth': 0,
+                            'max_inclination_value': 0,
+                            'max_inclination_depth': 0,
+                            'trajectory_quality': 'unknown'
+                        }
+            
                 self._calculation_result = result
                 self.calculationCompleted.emit(result)
         except Exception as e:
             logger.error(f"加载计算结果失败: {e}")
+
+    # 🔥 修复：保存计算结果函数 - 不保存 trajectory_analysis
+    @Slot('QVariant')
+    def saveCalculationResult(self, result: Dict[str, Any]):
+        """
+        保存计算结果到数据库（不包含轨迹分析）
+        
+        Args:
+            result: 计算结果字典
+        """
+        try:
+            if not result:
+                logger.warning("没有计算结果可保存")
+                return
+                
+
+            # result json to dict
+            if isinstance(result, str):
+                result = json.loads(result)
+            logger.info(f"保存计算结果: {result}")
+            # 🔥 准备数据库保存的数据（移除不属于数据库字段的数据）
+            result_for_db = {
+                'well_id': self._current_well_id,
+                'pump_hanging_depth': result.get('pump_hanging_depth'),
+                'perforation_depth': result.get('perforation_depth'),
+                'total_depth_tvd': result.get('total_depth_tvd'),
+                'total_depth_md': result.get('total_depth_md'),
+                'max_inclination': result.get('max_inclination'),
+                'max_dls': result.get('max_dls'),
+                'calculation_method': result.get('calculation_method'),
+                'parameters': result.get('parameters')
+                #'user_modified': result.get('user_modified', False),
+                #'modification_date': result.get('modification_date')
+            }
+            
+            # 🔥 重要：移除 trajectory_analysis（这个不应该保存到数据库）
+            if 'trajectory_analysis' in result_for_db:
+                del result_for_db['trajectory_analysis']
+            
+            # 移除None值
+            result_for_db = {k: v for k, v in result_for_db.items() if v is not None}
+                
+            # 保存到数据库
+            result_id = self._db_service.save_calculation_result(result_for_db)
+            
+            if result_id:
+                logger.info(f"计算结果保存成功: ID={result_id}")
+                # 重新加载结果（会自动补充轨迹分析）
+                self.loadCalculationResult(self._current_well_id)
+            else:
+                logger.error("计算结果保存失败")
+                self.error.emit("保存计算结果失败")
+                
+        except Exception as e:
+            error_msg = f"保存计算结果失败: {str(e)}"
+            logger.error(error_msg)
+            self.error.emit(error_msg)
+
+    # ========== 轨迹分析功能（实时计算，不保存） ==========
+
+    def _analyze_trajectory_data(self, trajectory_data: List[Dict]) -> Dict[str, Any]:
+        """
+        实时分析井轨迹数据，计算狗腿度统计和井斜角统计
+        
+        Args:
+            trajectory_data: 轨迹数据列表
+            
+        Returns:
+            Dict: 轨迹分析结果
+        """
+        try:
+            if not trajectory_data or len(trajectory_data) < 2:
+                return {
+                    'high_dogleg_count': 0,
+                    'max_dls_value': 0,
+                    'max_dls_depth': 0,
+                    'max_inclination_value': 0,
+                    'max_inclination_depth': 0,
+                    'trajectory_quality': 'unknown'
+                }
+
+            # 初始化分析结果
+            analysis = {
+                'high_dogleg_count': 0,
+                'max_dls_value': 0,
+                'max_dls_depth': 0,
+                'max_inclination_value': 0,
+                'max_inclination_depth': 0
+            }
+
+            # 🔥 分析轨迹数据
+            for point in trajectory_data:
+                try:
+                    # 获取当前点的数据
+                    md = float(point.get('md', 0))
+                    dls = float(point.get('dls', 0))
+                    inclination = float(point.get('inclination', 0))
+                    
+                    # 🔥 统计高狗腿度点 (>3.5°/100ft)
+                    if dls > 3.5:
+                        analysis['high_dogleg_count'] += 1
+                    
+                    # 🔥 更新最大狗腿度
+                    if dls > analysis['max_dls_value']:
+                        analysis['max_dls_value'] = dls
+                        analysis['max_dls_depth'] = md
+                    
+                    # 🔥 更新最大井斜角
+                    if inclination > analysis['max_inclination_value']:
+                        analysis['max_inclination_value'] = inclination
+                        analysis['max_inclination_depth'] = md
+                        
+                except (ValueError, TypeError, KeyError) as e:
+                    logger.warning(f"轨迹点数据解析失败: {e}")
+                    continue
+
+            # 🔥 计算轨迹质量评级
+            analysis['trajectory_quality'] = self._assess_trajectory_quality(analysis)
+
+            logger.info(f"轨迹分析完成: 高狗腿度点={analysis['high_dogleg_count']}个")
+            logger.info(f"最大狗腿度={analysis['max_dls_value']:.2f}°/100ft @{analysis['max_dls_depth']:.1f}ft")
+            logger.info(f"最大井斜角={analysis['max_inclination_value']:.1f}° @{analysis['max_inclination_depth']:.1f}ft")
+            
+            return analysis
+
+        except Exception as e:
+            logger.error(f"轨迹分析失败: {e}")
+            return {
+                'high_dogleg_count': 0,
+                'max_dls_value': 0,
+                'max_dls_depth': 0,
+                'max_inclination_value': 0,
+                'max_inclination_depth': 0,
+                'error': str(e)
+            }
+
+    def _assess_trajectory_quality(self, analysis: Dict) -> str:
+        """
+        评估轨迹质量
+        
+        Args:
+            analysis: 轨迹分析数据
+            
+        Returns:
+            str: 质量等级
+        """
+        high_count = analysis['high_dogleg_count']
+        max_dls = analysis['max_dls_value']
+        max_inc = analysis['max_inclination_value']
+        
+        if high_count == 0 and max_dls < 6 and max_inc < 30:
+            return "优秀"
+        elif high_count < 3 and max_dls < 10 and max_inc < 60:
+            return "良好"
+        elif high_count < 8 and max_dls < 15:
+            return "一般"
+        else:
+            return "需要改进"
+
+    # 🔥 新增：获取轨迹分析数据的槽函数
+    @Slot(result='QVariant')
+    def getTrajectoryAnalysis(self) -> Dict[str, Any]:
+        """
+        获取当前井的轨迹分析数据
+        
+        Returns:
+            Dict: 轨迹分析结果
+        """
+        try:
+            if not self._trajectory_data:
+                return {'error': '没有轨迹数据'}
+                
+            analysis = self._analyze_trajectory_data(self._trajectory_data)
+            return analysis
+            
+        except Exception as e:
+            logger.error(f"获取轨迹分析失败: {e}")
+            return {'error': str(e)}
 
     # ========== 可视化功能 ==========
     @Slot(result=dict)
@@ -534,7 +744,7 @@ class WellStructureController(QObject):
             )
 
             if chart_data:
-                print(chart_data)
+                # print(chart_data)
                 self.visualizationReady.emit({'type': 'trajectory', 'data': chart_data})
                 logger.info("井轨迹图数据生成完成")
             else:
@@ -624,7 +834,6 @@ class WellStructureController(QObject):
             return False, "; ".join(errors)
         return True, ""
 
-
     # ========== 辅助方法 ==========
 
     @Slot(result=dict)
@@ -656,7 +865,6 @@ class WellStructureController(QObject):
         self._casing_data = []
         self._calculation_result = {}
         self._current_well_id = -1
-
 
     @Property(str)
     def unitSystem(self):

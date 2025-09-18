@@ -1,4 +1,4 @@
-﻿# DataManage/models/device.py
+# DataManage/models/device.py
 
 from sqlalchemy import Column, Integer, String, Float, ForeignKey, DateTime, Boolean, Text, Enum
 from sqlalchemy.orm import relationship

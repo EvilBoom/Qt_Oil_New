@@ -1,4 +1,72 @@
-﻿# This Python file uses the following encoding: utf-8
+# nuitka-project: --follow-imports
+# nuitka-project: --enable-plugin=pyside6
+# nuitka-project: --output-dir=D:\projects\Oil\Qt_Oil_New\deployment
+# nuitka-project: --quiet
+# nuitka-project: --noinclude-qt-translations
+# nuitka-project: --output-dir=deployment
+# nuitka-project: --output-filename=Recommendation
+# nuitka-project: --standalone
+# nuitka-project: --include-data-dir=D:\projects\Oil\Qt_Oil_New\.vs=./.vs
+# nuitka-project: --include-data-dir=D:\projects\Oil\Qt_Oil_New\App=./App
+# nuitka-project: --include-data-dir=D:\projects\Oil\Qt_Oil_New\backups=./backups
+# nuitka-project: --include-data-dir=D:\projects\Oil\Qt_Oil_New\cmake=./cmake
+# nuitka-project: --include-data-dir=D:\projects\Oil\Qt_Oil_New\Controller=./Controller
+# nuitka-project: --include-data-dir=D:\projects\Oil\Qt_Oil_New\data=./data
+# nuitka-project: --include-data-dir=D:\projects\Oil\Qt_Oil_New\DataManage=./DataManage
+# nuitka-project: --include-data-dir=D:\projects\Oil\Qt_Oil_New\Dependencies=./Dependencies
+# nuitka-project: --include-data-dir=D:\projects\Oil\Qt_Oil_New\dev=./dev
+# nuitka-project: --include-data-dir=D:\projects\Oil\Qt_Oil_New\drafts=./drafts
+# nuitka-project: --include-data-dir=D:\projects\Oil\Qt_Oil_New\Generated=./Generated
+# nuitka-project: --include-data-dir=D:\projects\Oil\Qt_Oil_New\GLRsave=./GLRsave
+# nuitka-project: --include-data-dir=D:\projects\Oil\Qt_Oil_New\models=./models
+# nuitka-project: --include-data-dir=D:\projects\Oil\Qt_Oil_New\out=./out
+# nuitka-project: --include-data-dir=D:\projects\Oil\Qt_Oil_New\production=./production
+# nuitka-project: --include-data-dir=D:\projects\Oil\Qt_Oil_New\QFsave=./QFsave
+# nuitka-project: --include-data-dir=D:\projects\Oil\Qt_Oil_New\qml Qt_Oil_NewContent=./qml Qt_Oil_NewContent
+# nuitka-project: --include-data-dir=D:\projects\Oil\Qt_Oil_New\Qt_Oil_New=./Qt_Oil_New
+# nuitka-project: --include-data-dir=D:\projects\Oil\Qt_Oil_New\Qt_Oil_NewContent=./Qt_Oil_NewContent
+# nuitka-project: --include-data-dir=D:\projects\Oil\Qt_Oil_New\TDHsave=./TDHsave
+# nuitka-project: --noinclude-dlls=*.cpp.o
+# nuitka-project: --noinclude-dlls=*.qsb
+# nuitka-project: --include-data-files=D:\projects\Oil\Qt_Oil_New\Qt_Oil_NewContent\OilWellManagement\OilWellManagementPage.qml=./Qt_Oil_NewContent\OilWellManagement\OilWellManagementPage.qml
+# nuitka-project: --include-data-files=D:\projects\Oil\Qt_Oil_New\Qt_Oil_NewContent\OilWellManagement\WellDataDialog.qml=./Qt_Oil_NewContent\OilWellManagement\WellDataDialog.qml
+# nuitka-project: --include-data-files=D:\projects\Oil\Qt_Oil_New\Qt_Oil_NewContent\OilWellManagement\components\WellDataDialogForm.ui.qml=./Qt_Oil_NewContent\OilWellManagement\components\WellDataDialogForm.ui.qml
+# nuitka-project: --include-data-files=D:\projects\Oil\Qt_Oil_New\Qt_Oil_NewContent\WellStructure\WellSchematicView.qml=./Qt_Oil_NewContent\WellStructure\WellSchematicView.qml
+# nuitka-project: --include-data-files=D:\projects\Oil\Qt_Oil_New\Qt_Oil_NewContent\WellStructure\WellStructurePage.qml=./Qt_Oil_NewContent\WellStructure\WellStructurePage.qml
+# nuitka-project: --include-data-files=D:\projects\Oil\Qt_Oil_New\Qt_Oil_NewContent\WellStructure\components\CasingListItem.qml=./Qt_Oil_NewContent\WellStructure\components\CasingListItem.qml
+# nuitka-project: --include-data-files=D:\projects\Oil\Qt_Oil_New\Qt_Oil_NewContent\WellStructure\components\CasingEditDialog.qml=./Qt_Oil_NewContent\WellStructure\components\CasingEditDialog.qml
+# nuitka-project: --include-data-files=D:\projects\Oil\Qt_Oil_New\Qt_Oil_NewContent\WellStructure\components\ExcelImportDialog.qml=./Qt_Oil_NewContent\WellStructure\components\ExcelImportDialog.qml
+# nuitka-project: --include-data-files=D:\projects\Oil\Qt_Oil_New\Qt_Oil_NewContent\WellStructure\components\WellTrajectoryDataView.qml=./Qt_Oil_NewContent\WellStructure\components\WellTrajectoryDataView.qml
+# nuitka-project: --include-data-files=D:\projects\Oil\Qt_Oil_New\main.qml=./main.qml
+# nuitka-project: --include-data-files=D:\projects\Oil\Qt_Oil_New\Qt_Oil_NewContent\WellStructure\components\CalculationResultDialog.qml=./Qt_Oil_NewContent\WellStructure\components\CalculationResultDialog.qml
+# nuitka-project: --include-data-files=D:\projects\Oil\Qt_Oil_New\Qt_Oil_NewContent\WellStructure\components\CasingListView.qml=./Qt_Oil_NewContent\WellStructure\components\CasingListView.qml
+# nuitka-project: --include-data-files=D:\projects\Oil\Qt_Oil_New\Qt_Oil_NewContent\WellStructure\components\WellTrajectoryChart.qml=./Qt_Oil_NewContent\WellStructure\components\WellTrajectoryChart.qml
+# nuitka-project: --include-data-files=D:\projects\Oil\Qt_Oil_New\Qt_Oil_NewContent\DeviceManagement\DeviceManagementPage.qml=./Qt_Oil_NewContent\DeviceManagement\DeviceManagementPage.qml
+# nuitka-project: --include-data-files=D:\projects\Oil\Qt_Oil_New\Qt_Oil_NewContent\DeviceManagement\components\DeviceListView.qml=./Qt_Oil_NewContent\DeviceManagement\components\DeviceListView.qml
+# nuitka-project: --include-data-files=D:\projects\Oil\Qt_Oil_New\Qt_Oil_NewContent\DeviceManagement\components\DeviceDetailPanel.qml=./Qt_Oil_NewContent\DeviceManagement\components\DeviceDetailPanel.qml
+# nuitka-project: --include-data-files=D:\projects\Oil\Qt_Oil_New\Qt_Oil_NewContent\DeviceManagement\components\DeviceFilterBar.qml=./Qt_Oil_NewContent\DeviceManagement\components\DeviceFilterBar.qml
+# nuitka-project: --include-data-files=D:\projects\Oil\Qt_Oil_New\Qt_Oil_NewContent\DeviceManagement\components\DeviceCard.qml=./Qt_Oil_NewContent\DeviceManagement\components\DeviceCard.qml
+# nuitka-project: --include-data-files=D:\projects\Oil\Qt_Oil_New\Qt_Oil_NewContent\DeviceManagement\components\AddEditDeviceDialog.qml=./Qt_Oil_NewContent\DeviceManagement\components\AddEditDeviceDialog.qml
+# nuitka-project: --include-data-files=D:\projects\Oil\Qt_Oil_New\Qt_Oil_NewContent\DeviceManagement\components\DeviceImportDialog.qml=./Qt_Oil_NewContent\DeviceManagement\components\DeviceImportDialog.qml
+# nuitka-project: --include-data-files=D:\projects\Oil\Qt_Oil_New\Qt_Oil_NewContent\DeviceManagement\components\DeviceExportDialog.qml=./Qt_Oil_NewContent\DeviceManagement\components\DeviceExportDialog.qml
+# nuitka-project: --include-data-files=D:\projects\Oil\Qt_Oil_New\Qt_Oil_NewContent\DeviceManagement\components\Toast.qml=./Qt_Oil_NewContent\DeviceManagement\components\Toast.qml
+# nuitka-project: --include-data-files=D:\projects\Oil\Qt_Oil_New\Qt_Oil_NewContent\DeviceRecommendation\DeviceRecommendationPage.qml=./Qt_Oil_NewContent\DeviceRecommendation\DeviceRecommendationPage.qml
+# nuitka-project: --include-data-files=D:\projects\Oil\Qt_Oil_New\Qt_Oil_NewContent\DeviceRecommendation\Steps\Step1_ProductionParameters.qml=./Qt_Oil_NewContent\DeviceRecommendation\Steps\Step1_ProductionParameters.qml
+# nuitka-project: --include-data-files=D:\projects\Oil\Qt_Oil_New\Qt_Oil_NewContent\DeviceRecommendation\Steps\Step2_PredictionResults.qml=./Qt_Oil_NewContent\DeviceRecommendation\Steps\Step2_PredictionResults.qml
+# nuitka-project: --include-data-files=D:\projects\Oil\Qt_Oil_New\Qt_Oil_NewContent\DeviceRecommendation\Steps\Step3_LiftMethodSelection.qml=./Qt_Oil_NewContent\DeviceRecommendation\Steps\Step3_LiftMethodSelection.qml
+# nuitka-project: --include-data-files=D:\projects\Oil\Qt_Oil_New\Qt_Oil_NewContent\DeviceRecommendation\Steps\Step4_PumpSelection.qml=./Qt_Oil_NewContent\DeviceRecommendation\Steps\Step4_PumpSelection.qml
+# nuitka-project: --include-data-files=D:\projects\Oil\Qt_Oil_New\Qt_Oil_NewContent\DeviceRecommendation\Steps\Step8_ReportGeneration.qml=./Qt_Oil_NewContent\DeviceRecommendation\Steps\Step8_ReportGeneration.qml
+# nuitka-project: --include-data-files=D:\projects\Oil\Qt_Oil_New\Qt_Oil_NewContent\DeviceRecommendation\Components\EnhancedPumpCurvesChart.qml=./Qt_Oil_NewContent\DeviceRecommendation\Components\EnhancedPumpCurvesChart.qml
+# nuitka-project: --include-data-files=D:\projects\Oil\Qt_Oil_New\Qt_Oil_NewContent\DeviceRecommendation\Components\KnowledgeGraphWindow.qml=./Qt_Oil_NewContent\DeviceRecommendation\Components\KnowledgeGraphWindow.qml
+# nuitka-project: --include-data-files=D:\projects\Oil\Qt_Oil_New\Qt_Oil_NewContent\DeviceRecommendation\Components\KnowledgeRecommendationPanel.qml=./Qt_Oil_NewContent\DeviceRecommendation\Components\KnowledgeRecommendationPanel.qml
+# nuitka-project: --include-data-files=D:\projects\Oil\Qt_Oil_New\Qt_Oil_NewContent\DeviceRecommendation\Components\KnowledgeGraphCanvas.qml=./Qt_Oil_NewContent\DeviceRecommendation\Components\KnowledgeGraphCanvas.qml
+# nuitka-project: --noinclude-dlls=Qt6Quick3D*
+# nuitka-project: --noinclude-dlls=Qt6Sensors*
+# nuitka-project: --noinclude-dlls=Qt6Test*
+# nuitka-project: --noinclude-dlls=*/qml/QtQuickEffectMaker/*
+# nuitka-project: --windows-icon-from-ico=D:\projects\Oil\Qt_Oil\Ot_Oil_env\Lib\site-packages\PySide6\scripts\deploy_lib\pyside_icon.ico
+# nuitka-project: --include-qt-plugins=networkinformation,platforminputcontexts,qml,qmllint,qmltooling
+# This Python file uses the following encoding: utf-8
 import sys
 from pathlib import Path
 from PySide6.QtGui import QGuiApplication
@@ -19,8 +87,6 @@ from Controller.ExcelImportController import ExcelImportController
 from Controller.PumpCurvesController import PumpCurvesController
 from Controller.ContinuousLearningController import ContinuousLearningController
 from Controller.KnowledgeGraphController import KnowledgeGraphController
-from Controller.DashboardController import DashboardController
-
 
 # 导入数据库服务
 from DataManage.services.database_service import DatabaseService
@@ -32,15 +98,6 @@ import os
 from PySide6.QtQuick import QQuickWindow, QSGRendererInterface
 from PySide6.QtGui import QSurfaceFormat, QFont
 from PySide6.QtWebEngineQuick import QtWebEngineQuick  # 新增
-# 🔥 新增：导入Qt Quick 3D模块
-try:
-    from PySide6.QtQuick3D import *
-    QUICK3D_AVAILABLE = True
-    print("Qt Quick 3D 可用")
-except ImportError:
-    QUICK3D_AVAILABLE = False
-    print("Qt Quick 3D 不可用，将使用2D替代方案")
-
 # os.environ["QT_QUICK_BACKEND"] = "software"  # 使用软件渲染避免GPU问题
 # 在创建QApplication之前设置
 QQuickWindow.setGraphicsApi(QSGRendererInterface.OpenGL)
@@ -57,42 +114,6 @@ QSurfaceFormat.setDefaultFormat(format)
 import os
 os.environ['QSG_RHI_BACKEND'] = 'opengl'
 
-# 顶部 import 之后添加
-def resource_path(relative_path: str) -> str:
-    try:
-        base_path = Path(sys._MEIPASS)  # PyInstaller 解包目录
-    except Exception:
-        base_path = Path(__file__).resolve().parent
-    return str((base_path / relative_path).resolve())
-
-def setup_pyinstaller_runtime(engine: QQmlApplicationEngine):
-    if getattr(sys, "frozen", False):
-        base = Path(sys._MEIPASS)
-
-        # QML 模块路径（让 import QtQuick/QtWebEngine 的 QML 插件可被发现）
-        for p in [base / "PySide6" / "qml", base / "qml"]:
-            if p.exists():
-                engine.addImportPath(str(p))
-
-        # Qt 插件路径（平台、图像等）
-        qt_plugins = [
-            base / "PySide6" / "Qt6" / "plugins",
-            base / "PySide6" / "Qt" / "plugins",
-            base / "PySide6" / "plugins",
-        ]
-        existing = [str(p) for p in qt_plugins if p.exists()]
-        if existing:
-            os.environ["QT_PLUGIN_PATH"] = os.pathsep.join(existing + [os.environ.get("QT_PLUGIN_PATH", "")])
-
-        # QtWebEngineProcess 路径
-        for c in [
-            base / "PySide6" / "Qt6" / "bin" / "QtWebEngineProcess.exe",
-            base / "PySide6" / "Qt" / "libexec" / "QtWebEngineProcess.exe",
-            base / "QtWebEngineProcess.exe",
-        ]:
-            if c.exists():
-                os.environ["QTWEBENGINEPROCESS_PATH"] = str(c)
-                break
 
 
 # 主应用类 - 管理应用程序生命周期
@@ -106,10 +127,6 @@ class Application(QObject):
         QtWebEngineQuick.initialize()  # 新增：在加载 QML 前初始化
         self.app = QApplication(sys.argv)
         self.engine = QQmlApplicationEngine()
-
-        # 仅在 PyInstaller 运行期设置搜索路径
-        setup_pyinstaller_runtime(self.engine)
-
         # 设置全局字体
         # self.setup_global_font()
         # 设置应用程序信息
@@ -136,8 +153,7 @@ class Application(QObject):
 
         self.unit_system_controller = UnitSystemController()
         self.knowledge_graph_controller = KnowledgeGraphController()
-        self.dashboard_controller = DashboardController()
-        
+
 
         # 存储用户信息
         self.current_user = ""
@@ -147,8 +163,7 @@ class Application(QObject):
         # 连接登录信号
         self.login_controller.loginSuccess.connect(self.on_login_success)
         self.login_controller.loginFailed.connect(self.on_login_failed)
-        self.login_controller.projectIdChanged.connect(lambda project_id: setattr(self.dashboard_controller, 'currentProjectId', project_id))
-        
+
         # 连接项目控制器信号
         self.project_controller.projectsLoaded.connect(self.on_projects_loaded)
         self.project_controller.projectCreated.connect(self.on_project_created)
@@ -160,7 +175,6 @@ class Application(QObject):
         self.well_controller.wellUpdated.connect(self.on_well_updated)
         self.well_controller.wellDeleted.connect(self.on_well_deleted)
 
-        
         # 连接错误信号处理
         self.project_controller.error.connect(self.on_controller_error)
         self.well_controller.error.connect(self.on_controller_error)
@@ -184,12 +198,7 @@ class Application(QObject):
 
         self.engine.rootContext().setContextProperty("unitSystemController", self.unit_system_controller)
         self.engine.rootContext().setContextProperty("knowledgeGraphController", self.knowledge_graph_controller)
-        
-        # 🔥 修复：注册 dashboard_controller
-        self.engine.rootContext().setContextProperty("dashboardController", self.dashboard_controller)
-        # 🔥 新增：设置Qt Quick 3D支持标志
-        self.engine.rootContext().setContextProperty("quick3DAvailable", QUICK3D_AVAILABLE)
-        
+
         # 连接Excel导入控制器信号
         self.excel_import_controller.templateGenerated.connect(self.on_template_generated)
         self.excel_import_controller.templateGenerationFailed.connect(self.on_template_generation_failed)
@@ -198,14 +207,8 @@ class Application(QObject):
         self.device_controller.exportProgress.connect(self.on_device_export_progress)
         self.device_controller.exportFailed.connect(self.on_device_export_failed)
 
-        # 🔥 新增：连接IPR参数同步信号
-        self.device_recommendation_controller.currentParametersReady.connect(self.on_ipr_parameters_ready)
-        
-        self.dashboard_controller.currentProjectId = self.current_project_id
-
         # 加载登录QML文件
-        # qml_file = Path(__file__).resolve().parent / "QT_Oil_NewContent/StartWindow.qml"
-        qml_file = resource_path("Qt_Oil_NewContent/StartWindow.qml")
+        qml_file = Path(__file__).resolve().parent / "QT_Oil_NewContent/StartWindow.qml"
         self.engine.load(QUrl.fromLocalFile(str(qml_file)))
 
         if not self.engine.rootObjects():
@@ -251,12 +254,6 @@ class Application(QObject):
         self.current_user = user_name
         self.current_project = project_name
 
-        # 🔥 修复：从 login_controller 获取当前项目ID
-        self.current_project_id = self.login_controller.currentProjectId
-
-        # 🔥 同步设置 dashboard_controller 的项目ID
-        self.dashboard_controller.currentProjectId = self.current_project_id
-
         # 获取项目详情
         project = self.project_controller.getProjectByName(project_name)
         if project and 'id' in project:
@@ -297,7 +294,7 @@ class Application(QObject):
         """控制器错误处理函数"""
         print(f"控制器错误: {error_message}")
         # 这里可以添加全局错误处理逻辑
-    
+
     def open_main_window(self, project_name, user_name):
         
         """打开主窗口"""
@@ -317,23 +314,21 @@ class Application(QObject):
 
             # 清理引擎
             self.engine.clearComponentCache()
-            self.register_all_controllers()
-            # 重新注册所有控制器，确保主窗口能访问
-            # self.engine.rootContext().setContextProperty("loginController", self.login_controller)
-            # self.engine.rootContext().setContextProperty("projectController", self.project_controller)
-            # self.engine.rootContext().setContextProperty("wellController", self.well_controller)
-            # self.engine.rootContext().setContextProperty("reservoirController", self.reservoir_controller)
-            # # 在open_main_window方法中，重新注册控制器部分也要添加：
-            # self.engine.rootContext().setContextProperty("wellStructureController", self.well_structure_controller)
-            # self.engine.rootContext().setContextProperty("excelImportController", self.excel_import_controller)
-            # self.engine.rootContext().setContextProperty("deviceController", self.device_controller)
-            # self.engine.rootContext().setContextProperty("deviceRecommendationController", self.device_recommendation_controller)
-            # self.engine.rootContext().setContextProperty("continuousLearningController", self.continuous_learning_controller)
-            # self.engine.rootContext().setContextProperty("knowledgeGraphController", self.knowledge_graph_controller)
-            # self.engine.rootContext().setContextProperty("pumpCurvesController", self.pump_curves_controller)  # 🔥 修复：添加缺失的注册
-            # self.engine.rootContext().setContextProperty("unitSystemController", self.unit_system_controller)  # 🔥 修复：添加缺失的注册
 
-            
+            # 重新注册所有控制器，确保主窗口能访问
+            self.engine.rootContext().setContextProperty("loginController", self.login_controller)
+            self.engine.rootContext().setContextProperty("projectController", self.project_controller)
+            self.engine.rootContext().setContextProperty("wellController", self.well_controller)
+            self.engine.rootContext().setContextProperty("reservoirController", self.reservoir_controller)
+            # 在open_main_window方法中，重新注册控制器部分也要添加：
+            self.engine.rootContext().setContextProperty("wellStructureController", self.well_structure_controller)
+            self.engine.rootContext().setContextProperty("excelImportController", self.excel_import_controller)
+            self.engine.rootContext().setContextProperty("deviceController", self.device_controller)
+            self.engine.rootContext().setContextProperty("deviceRecommendationController", self.device_recommendation_controller)
+            self.engine.rootContext().setContextProperty("continuousLearningController", self.continuous_learning_controller)
+            self.engine.rootContext().setContextProperty("knowledgeGraphController", self.knowledge_graph_controller)
+            self.engine.rootContext().setContextProperty("pumpCurvesController", self.pump_curves_controller)  # 🔥 修复：添加缺失的注册
+            self.engine.rootContext().setContextProperty("unitSystemController", self.unit_system_controller)  # 🔥 修复：添加缺失的注册
             # 加载主窗口
             self.engine.load(QUrl.fromLocalFile(str(main_qml)))
 
@@ -416,77 +411,6 @@ class Application(QObject):
         """设备导出失败处理"""
         print(f"设备导出失败: {error_msg}")
 
-    # 添加IPR参数处理函数
-    @Slot('QVariant')
-    def on_ipr_parameters_ready(self, params):
-        """IPR参数准备完成处理"""
-        print(f"IPR参数已准备: {params}")
-        # 参数会自动传递给QML中的IPR对话框
-
-    # 🔥 新增：回到登录窗口的方法
-    @Slot()
-    def back_to_start_window(self):
-        """关闭主窗口，返回到登录窗口"""
-        try:
-            print("正在关闭主窗口，返回登录页面...")
-            
-            # 关闭当前主窗口
-            if self.engine.rootObjects():
-                for obj in self.engine.rootObjects():
-                    obj.close()
-            
-            # 清理引擎
-            self.engine.clearComponentCache()
-            
-            # 重置用户状态
-            self.current_user = ""
-            self.current_project = ""
-            self.current_project_id = -1
-            
-            # 重新注册所有控制器
-            self.register_all_controllers()
-            
-            # 重新加载登录窗口
-            qml_file = resource_path("Qt_Oil_NewContent/StartWindow.qml")
-            self.engine.load(QUrl.fromLocalFile(str(qml_file)))
-            
-            if not self.engine.rootObjects():
-                print("Failed to reload StartWindow.qml")
-                return False
-                
-            print("成功返回到登录页面")
-            return True
-            
-        except Exception as e:
-            print(f"返回登录页面时出错: {e}")
-            import traceback
-            traceback.print_exc()
-            return False
-
-    # 🔥 新增：统一的控制器注册方法
-    def register_all_controllers(self):
-        """统一注册所有控制器到QML引擎"""
-        self.engine.rootContext().setContextProperty("loginController", self.login_controller)
-        self.engine.rootContext().setContextProperty("projectController", self.project_controller)
-        self.engine.rootContext().setContextProperty("wellController", self.well_controller)
-        self.engine.rootContext().setContextProperty("reservoirController", self.reservoir_controller)
-        self.engine.rootContext().setContextProperty("wellStructureController", self.well_structure_controller)
-        self.engine.rootContext().setContextProperty("excelImportController", self.excel_import_controller)
-        self.engine.rootContext().setContextProperty("deviceController", self.device_controller)
-        self.engine.rootContext().setContextProperty("deviceRecommendationController", self.device_recommendation_controller)
-        self.engine.rootContext().setContextProperty("pumpCurvesController", self.pump_curves_controller)
-        self.engine.rootContext().setContextProperty("continuousLearningController", self.continuous_learning_controller)
-        self.engine.rootContext().setContextProperty("unitSystemController", self.unit_system_controller)
-        self.engine.rootContext().setContextProperty("knowledgeGraphController", self.knowledge_graph_controller)
-        self.engine.rootContext().setContextProperty("dashboardController", self.dashboard_controller)
-        self.engine.rootContext().setContextProperty("quick3DAvailable", QUICK3D_AVAILABLE)
-    
-        # 🔥 新增：注册应用程序实例，让QML可以调用Python方法
-        self.engine.rootContext().setContextProperty("application", self)
-
-
 if __name__ == "__main__":
     app = Application()
     sys.exit(app.run())
-    # 将控制器注册到QML引擎
-        

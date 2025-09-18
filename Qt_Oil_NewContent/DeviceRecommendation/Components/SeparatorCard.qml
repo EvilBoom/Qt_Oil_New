@@ -203,25 +203,25 @@ Rectangle {
             }
             
             // 液体处理能力
-            Column {
-                spacing: 2
+            // Column {
+            //     spacing: 2
                 
-                Text {
-                    text: {
-                        if (!separatorData) return "N/A"
-                        return formatFlowRate(separatorData.liquidHandlingCapacity)
-                    }
-                    font.pixelSize: 11
-                    color: Material.hintTextColor
-                }
+            //     Text {
+            //         text: {
+            //             if (!separatorData) return "N/A"
+            //             return formatFlowRate(separatorData.liquidHandlingCapacity)
+            //         }
+            //         font.pixelSize: 11
+            //         color: Material.hintTextColor
+            //     }
                 
-                Text {
-                    text: (separatorData ? separatorData.liquidHandlingCapacity : 0) + " bbl/d"
-                    font.pixelSize: 12
-                    font.bold: true
-                    color: Material.primaryTextColor
-                }
-            }
+            //     Text {
+            //         text: (separatorData ? separatorData.liquidHandlingCapacity : 0) + " bbl/d"
+            //         font.pixelSize: 12
+            //         font.bold: true
+            //         color: Material.primaryTextColor
+            //     }
+            // }
             
             // 外径
             Column {
@@ -274,26 +274,26 @@ Rectangle {
     function formatGasCapacity(valueInMcf) {
         if (!valueInMcf || valueInMcf <= 0) return "N/A"
 
-        if (isMetric) {
+        if (!isMetric) {
             // 转换为 m³/d (1 mcf = 28.317 m³)
-            var m3Value = valueInMcf * 28.317
-            return m3Value.toFixed(0) + " m³/d"
+            var m3Value = valueInMcf / 28.317
+            return m3Value.toFixed(0) + " mcf/d"
         } else {
             // 保持 mcf/d
-            return valueInMcf.toFixed(1) + " mcf/d"
+            return valueInMcf.toFixed(1) + " m³/d"
         }
     }
 
     function formatDiameter(valueInInches) {
         if (!valueInInches || valueInInches <= 0) return "N/A"
 
-        if (isMetric) {
+        if (!isMetric) {
             // 转换为毫米
-            var mmValue = valueInInches * 25.4
-            return mmValue.toFixed(0) + " mm"
+            var mmValue = valueInInches / 25.4
+            return mmValue.toFixed(0) + " in"
         } else {
             // 保持英寸
-            return valueInInches.toFixed(1) + " in"
+            return valueInInches.toFixed(1) + " mm"
         }
     }
 

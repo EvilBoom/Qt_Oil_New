@@ -222,7 +222,7 @@ Rectangle {
                                     Layout.minimumWidth: 200
 
                                     title: isChineseMode ? "吸入口气液比" : "Gas Rate at Intake"
-                                    unit: "%"
+                                    unit: " "
                                     icon: "💨"
 
                                     mlValue: mlResults ? mlResults.gas_rate : 0
@@ -1040,7 +1040,7 @@ Rectangle {
 
     function convertPressureValue(value) {
         if (!isMetric) return value  // 英制不需要转换
-        return UnitUtils.psiToKpa(value)  // psi → kPa
+        return UnitUtils.psiToMPa(value)  // psi → MPa
     }
 
     // 其余函数保持不变...
@@ -1202,6 +1202,12 @@ Rectangle {
     LocalComponents.IPRCurveDialog {
         id: iprDialog
         isChineseMode: root.isChineseMode
+        // 🔥 新增：连接参数同步信号
+        Component.onCompleted: {
+            if (typeof deviceRecommendationController !== 'undefined') {
+                deviceRecommendationController.currentParametersReady.connect(iprDialog.updateParametersFromData)
+            }
+        }
     }
 
     // 气液比分析对话框

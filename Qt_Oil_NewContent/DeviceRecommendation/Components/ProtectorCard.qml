@@ -214,22 +214,23 @@ Rectangle {
             }
 
             // 外径
-            Column {
-                spacing: 2
+            // Column {
+            //     spacing: 2
 
-                Text {
-                    text: isChineseMode ? "外径" : "OD"
-                    font.pixelSize: 11
-                    color: Material.hintTextColor
-                }
+            //     Text {
+            //         text: isChineseMode ? "外径" : "OD"
+            //         font.pixelSize: 11
+            //         color: Material.hintTextColor
+            //     }
 
-                Text {
-                    text: formatDiameter(protectorData ? protectorData.outerDiameter : 0)
-                    font.pixelSize: 12
-                    font.bold: true
-                    color: Material.primaryTextColor
-                }
-            }
+            //     Text {
+            //         // text: formatDiameter(protectorData ? protectorData.outerDiameter : 0)
+            //         text:protectorData.outerDiameter
+            //         font.pixelSize: 12
+            //         font.bold: true
+            //         color: Material.primaryTextColor
+            //     }
+            // }
         }
 
         // 特性描述
@@ -280,7 +281,7 @@ Rectangle {
     function formatForce(valueInLbs) {
         if (!valueInLbs || valueInLbs <= 0) return "N/A"
 
-        if (isMetric) {
+        if (!isMetric) {
             // 转换为牛顿 (1 lbs = 4.448 N)
             var nValue = valueInLbs * 4.448
             if (nValue >= 1000) {
@@ -311,13 +312,13 @@ Rectangle {
     function formatDiameter(valueInInches) {
         if (!valueInInches || valueInInches <= 0) return "N/A"
 
-        if (isMetric) {
+        if (!isMetric) {
             // 转换为毫米
-            var mmValue = valueInInches * 25.4
-            return mmValue.toFixed(0) + " mm"
+            var mmValue = valueInInches / 25.4
+            return mmValue.toFixed(0) + " in"
         } else {
             // 保持英寸
-            return valueInInches.toFixed(2) + " in"
+            return valueInInches.toFixed(2) + " mm"
         }
     }
 

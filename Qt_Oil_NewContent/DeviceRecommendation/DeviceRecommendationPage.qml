@@ -14,7 +14,8 @@ Page {
     property bool isChineseMode: true
     property bool isMetric: unitSystemController ? unitSystemController.isMetric : false  // 🔥 添加单位制属性
     property var controller: deviceRecommendationController
-
+    // 新增：抑制激活的标志，防止程序化选择引发死循环
+    property bool _suppressWellActivated: false
     // 🔥 新增：全局设备列表，持久保存选择的设备
     property var selectedDevices: []
 
@@ -201,17 +202,34 @@ Page {
                     displayText: currentIndex >= 0 ? model.get(currentIndex).name
                                                    : (isChineseMode ? "请选择井" : "Select Well")
 
+                    // onActivated: {
+                    //     root.wellId = currentValue
+                    //     controller.currentWellId = currentValue
+                    //     console.log("DeviceRecommendationPage initialized, projectId:", projectId)
+                    //     console.log("Loading wells for project:", projectId)
+                    //     controller.loadWellsWithParameters(projectId)
+
+                    //     console.log("currentValue",currentValue)
+                    //     if (stepLoader.item) {
+                    //         stepLoader.item.wellId = currentValue
+
+                    //         if (currentStep === 0 && typeof stepLoader.item.loadParameters === "function") {
+                    //             stepLoader.item.loadParameters()
+                    //         }
+                    //     }
+                    // }
                     onActivated: {
+                        // 若是程序化设置引发，不处理，避免死循环
+                        if (root._suppressWellActivated)
+                            return
+
                         root.wellId = currentValue
                         controller.currentWellId = currentValue
-                        console.log("DeviceRecommendationPage initialized, projectId:", projectId)
-                        console.log("Loading wells for project:", projectId)
-                        controller.loadWellsWithParameters(projectId)
 
-                        console.log("currentValue",currentValue)
+                        // 重要：不要在这里再次刷新井列表，否则会循环
+                        // controller.loadWellsWithParameters(projectId)  // 移除
                         if (stepLoader.item) {
                             stepLoader.item.wellId = currentValue
-
                             if (currentStep === 0 && typeof stepLoader.item.loadParameters === "function") {
                                 stepLoader.item.loadParameters()
                             }
@@ -220,7 +238,6 @@ Page {
 
                     Component.onCompleted: {
                         console.log("DeviceRecommendationPage initialized, projectId:", projectId)
-
                         if (projectId > 0) {
                             console.log("Loading wells for project:", projectId)
                             controller.loadWellsWithParameters(projectId)
@@ -228,14 +245,28 @@ Page {
                             console.warn("Invalid projectId:", projectId)
                         }
                     }
+
                 }
 
                 // 刷新井列表按钮
+                // Button {
+                //     text: isChineseMode ? "🔄 刷新井列表" : "🔄 Refresh Wells"
+                //     flat: true
+                //     onClicked: {
+                //         if (typeof wellController !== 'undefined' && typeof projectId !== 'undefined') {
+                //             controller.loadWellsWithParameters(projectId)
+                //             showMessage(isChineseMode ? "正在刷新井列表..." : "Refreshing well list...", false)
+                //         } else {
+                //             showMessage(isChineseMode ? "无法刷新井列表" : "Cannot refresh well list", true)
+                //         }
+                //     }
+                // }
+                // 刷新井列表按钮（可选：增加 busy 防抖）
                 Button {
                     text: isChineseMode ? "🔄 刷新井列表" : "🔄 Refresh Wells"
                     flat: true
                     onClicked: {
-                        if (typeof wellController !== 'undefined' && typeof projectId !== 'undefined') {
+                        if (controller && !controller.busy && projectId > 0) {
                             controller.loadWellsWithParameters(projectId)
                             showMessage(isChineseMode ? "正在刷新井列表..." : "Refreshing well list...", false)
                         } else {
@@ -585,25 +616,50 @@ Page {
     }
 
     // Connections - 井列表加载（保持不变）
+    // Connections {
+    //     target: controller
+    //     enabled: controller !== null
+    //     function onWellsListLoaded(wells) {
+    //         wellsModel.clear()
+    //         for (var i = 0; i < wells.length; i++) {
+    //             wellsModel.append(wells[i])
+    //         }
+
+    //         for (var j = 0; j < wells.length; j++) {
+    //             if (wells[j].hasParameters) {
+    //                 wellSelector.currentIndex = j
+    //                 root.wellId = wells[j].id
+    //                 controller.currentWellId = wells[j].id
+    //                 break
+    //             }
+    //         }
+    //     }
+    // }
+    // 井列表加载回调
     Connections {
         target: controller
         enabled: controller !== null
         function onWellsListLoaded(wells) {
+            root._suppressWellActivated = true
             wellsModel.clear()
             for (var i = 0; i < wells.length; i++) {
                 wellsModel.append(wells[i])
             }
 
+            // 仅在索引变化时更新，避免不必要触发
+            var pickedIndex = -1
             for (var j = 0; j < wells.length; j++) {
-                if (wells[j].hasParameters) {
-                    wellSelector.currentIndex = j
-                    root.wellId = wells[j].id
-                    controller.currentWellId = wells[j].id
-                    break
-                }
+                if (wells[j].hasParameters) { pickedIndex = j; break }
             }
+            if (pickedIndex >= 0 && pickedIndex !== wellSelector.currentIndex) {
+                wellSelector.currentIndex = pickedIndex
+                root.wellId = wells[pickedIndex].id
+                controller.currentWellId = wells[pickedIndex].id
+            }
+            root._suppressWellActivated = false
         }
     }
+
 
     // 🔥 添加单位转换函数
     function convertSpecsToCurrentUnit(specs) {

@@ -90,7 +90,7 @@ Rectangle {
                 },
                 {
                     key: "bsw",
-                    labelCN: "水和沉淀物",
+                    labelCN: "BSW",
                     labelEN: "Water Cut",
                     required: true,
                     min: 0,
@@ -110,7 +110,7 @@ Rectangle {
                 },
                 {
                     key: "api",
-                    labelCN: "原油API重度",
+                    labelCN: "API度",
                     labelEN: "Oil API Gravity",
                     required: true,
                     min: 0,
@@ -226,7 +226,7 @@ Rectangle {
                     width: parent.width
 
                     Text {
-                        text: isChineseMode ? "参数集名称：" : "Parameter Set Name:"
+                        text: isChineseMode ? "模型输入参数集合名称：" : "Parameter Set Name:"
                         color: Material.primaryTextColor
                         font.pixelSize: 12
                     }
@@ -234,7 +234,7 @@ Rectangle {
                     TextField {
                         id: parameterNameField
                         Layout.fillWidth: true
-                        placeholderText: isChineseMode ? "输入参数集名称（可选）" : "Enter parameter set name (optional)"
+                        placeholderText: isChineseMode ? "用于保存多个历史版本" : "Enter parameter set name (optional)"
                         text: parametersData.parameterName
                         onTextChanged: {
                             parametersData.parameterName = text
@@ -243,26 +243,26 @@ Rectangle {
                     }
                 }
 
-                RowLayout {
-                    width: parent.width
+                // RowLayout {
+                //     width: parent.width
 
-                    Text {
-                        text: isChineseMode ? "备注说明：" : "Description:"
-                        color: Material.primaryTextColor
-                        font.pixelSize: 12
-                    }
+                //     Text {
+                //         text: isChineseMode ? "备注说明：" : "Description:"
+                //         color: Material.primaryTextColor
+                //         font.pixelSize: 12
+                //     }
 
-                    TextField {
-                        id: descriptionField
-                        Layout.fillWidth: true
-                        placeholderText: isChineseMode ? "输入备注信息（可选）" : "Enter description (optional)"
-                        text: parametersData.description
-                        onTextChanged: {
-                            parametersData.description = text
-                            isModified = true
-                        }
-                    }
-                }
+                //     TextField {
+                //         id: descriptionField
+                //         Layout.fillWidth: true
+                //         placeholderText: isChineseMode ? "输入备注信息（可选）" : "Enter description (optional)"
+                //         text: parametersData.description
+                //         onTextChanged: {
+                //             parametersData.description = text
+                //             isModified = true
+                //         }
+                //     }
+                // }
             }
         }
 

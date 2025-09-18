@@ -147,6 +147,66 @@ Window {
                             // 添加顶部间距
                             Item { height: 10 }
 
+                            // 🔥 新增：返回主页按钮
+                            Rectangle {
+                                width: parent.width
+                                height: 48
+                                color: currentPageIndex === 0 ? Qt.rgba(255, 255, 255, 0.15) :
+                                       homeMouseArea.containsMouse ? Qt.rgba(255, 255, 255, 0.08) : "transparent"
+
+                                RowLayout {
+                                    anchors.fill: parent
+                                    anchors.leftMargin: sidebarCollapsed ? 12 : 20
+                                    anchors.rightMargin: 16
+                                    spacing: 12
+
+                                    Text {
+                                        text: "🏠"
+                                        font.pixelSize: 20
+                                        color: "white"
+                                        Layout.alignment: Qt.AlignVCenter
+                                    }
+
+                                    Text {
+                                        text: isChinese ? "仪表盘" : "Dashboard"
+                                        color: "white"
+                                        font.pixelSize: 16
+                                        font.bold: currentPageIndex === 0
+                                        visible: !sidebarCollapsed
+                                        Layout.alignment: Qt.AlignVCenter
+
+                                        opacity: sidebarCollapsed ? 0 : 1
+                                        Behavior on opacity {
+                                            NumberAnimation { duration: 200 }
+                                        }
+                                    }
+                                }
+
+                                MouseArea {
+                                    id: homeMouseArea
+                                    anchors.fill: parent
+                                    hoverEnabled: true
+                                    cursorShape: Qt.PointingHandCursor
+
+                                    onClicked: {
+                                        console.log("点击返回主页按钮")
+                                        currentPageIndex = 0  // 切换到Dashboard页面
+                                    }
+                                }
+                            }
+
+                            // 🔥 添加分隔线
+                            Rectangle {
+                                width: parent.width
+                                height: 1
+                                color: Qt.rgba(255, 255, 255, 0.1)
+                                visible: !sidebarCollapsed
+                            }
+
+                            // 添加间距
+                            Item { height: 10 }
+
+
                             // 油井信息管理
                             NavigationItem {
                                 id: wellInfoNav
@@ -297,27 +357,27 @@ Window {
                         Item { Layout.fillWidth: true }
 
                         // 操作按钮
-                        Button {
-                            text: isChinese ? "导出报告" : "Export Report"
-                            flat: true
+                        // Button {
+                        //     text: isChinese ? "导出报告" : "Export Report"
+                        //     flat: true
 
-                            contentItem: RowLayout {
-                                Text {
-                                    text: "📄"
-                                    font.pixelSize: 16
-                                }
-                                Text {
-                                    text: parent.parent.text
-                                    color: "#4a90e2"
-                                    font.pixelSize: 14
-                                }
-                            }
+                        //     contentItem: RowLayout {
+                        //         Text {
+                        //             text: "📄"
+                        //             font.pixelSize: 16
+                        //         }
+                        //         Text {
+                        //             text: parent.parent.text
+                        //             color: "#4a90e2"
+                        //             font.pixelSize: 14
+                        //         }
+                        //     }
 
-                            background: Rectangle {
-                                color: parent.hovered ? "#e8f0fe" : "transparent"
-                                radius: 6
-                            }
-                        }
+                        //     background: Rectangle {
+                        //         color: parent.hovered ? "#e8f0fe" : "transparent"
+                        //         radius: 6
+                        //     }
+                        // }
 
                         // 用户信息
                         RowLayout {
@@ -365,11 +425,25 @@ Window {
 
                     // 首页仪表盘
                     Loader {
+                        id: dashboardLoader
                         source: "DashboardPage.qml"
+
+                                // 🔥 修复：当 item 加载完成后再连接信号
+                        onLoaded: {
+                            console.log("Dashboard页面加载完成，设置信号连接")
+                            if (item) {
+                                // 直接连接信号
+                                item.quickAction.connect(function(action) {
+                                console.log('触发快速操作:', action)
+                                handleNavigation(action)
+                                })
+                            }
+                        }
 
                         Connections {
                             target: item
                             function onQuickAction(action) {
+                                console.log('触发快速操作')
                                 handleNavigation(action)
                             }
                         }
@@ -598,7 +672,6 @@ Window {
         console.log("=== handleNavigation called ===")
         console.log("Navigation to:", action)
         console.log("Current page index:", currentPageIndex)
-        console.log("Call stack:", new Error().stack)
 
         // 防抖检查
         var currentTime = Date.now()
@@ -606,38 +679,50 @@ Window {
             console.log("Navigation ignored due to debounce. InProgress:", navigationInProgress, "TimeDiff:", currentTime - lastNavigationTime)
             return
         }
-        
+
         navigationInProgress = true
         lastNavigationTime = currentTime
 
         switch(action) {
+            // 🔥 新增：新建项目页面
+            case "new-project":
+                console.log("Switching to new project page")
+                showNewProjectDialog()
+                break
+            case "production-params":  // 🔥 新增：录入生产参数
+                currentPageIndex = 1  // 跳转到油井信息页面
+                break
+            case "report-generate":    // 🔥 新增：生成选型报告
+                currentPageIndex = 3   // 跳转到设备选型页面的报告步骤
+                break
+            case "add-device":         // 🔥 新增：添加新设备
+                currentPageIndex = 4   // 跳转到设备管理页面
+                break
+            case "device-list":        // 🔥 新增：设备列表
+            case "equipment-manage":
+                currentPageIndex = 4
+                break
+            case "training-monitor":   // 🔥 新增：训练监控
             case "continuous-learning-main":
-                currentPageIndex = 6  // 持续学习页面
-                console.log("=== Switching to continuous learning main page ===")
-                console.log("Target page index:", currentPageIndex)
-                // 确保跳转到主页面（而不是子模块）
+                currentPageIndex = 6
                 Qt.callLater(function() {
                     setContinuousLearningModule("main")
                 })
                 break
             case "data-management":
-                currentPageIndex = 6  // 持续学习页面
-                console.log("Switching to continuous learning page - data management, index:", currentPageIndex)
-                // 延迟一小段时间确保页面切换完成
+                currentPageIndex = 6
                 Qt.callLater(function() {
                     setContinuousLearningModule("data_management")
                 })
                 break
             case "model-training":
-                currentPageIndex = 6  // 跳转到持续学习页面
-                console.log("Switching to continuous learning page - model training")
+                currentPageIndex = 6
                 Qt.callLater(function() {
                     setContinuousLearningModule("model_training")
                 })
                 break
             case "model-testing":
                 currentPageIndex = 6
-                console.log("Switching to continuous learning page - model testing")
                 Qt.callLater(function() {
                     setContinuousLearningModule("model_testing")
                 })
@@ -651,31 +736,30 @@ Window {
             case "device-recommend":
                 currentPageIndex = 3
                 console.log("Switching to device recommendation page, index:", currentPageIndex)
-                // 确保在页面加载后设置 projectId
-                var loader = contentStack.children[3]
-                if (loader && loader.item) {
-                    console.log("直接设置 DeviceRecommendationPage 的 projectId:", currentProjectId)
-                    loader.item.projectId = currentProjectId
-                }
-                break
-            case "equipment-manage":
-                currentPageIndex = 4  // 设备列表页面
-                console.log("Switching to device list page, index:", currentPageIndex)
                 break
             case "device-category":
-                currentPageIndex = 5  // 设备分类管理页面
+                currentPageIndex = 5
                 break
             default:
                 console.log("Unknown action:", action)
         }
-        console.log("=== handleNavigation end ===")
-        
+
         // 重置防抖状态
         Qt.callLater(function() {
             navigationInProgress = false
         })
     }
 
+    // 🔥 修改：显示新建项目对话框
+    function showNewProjectDialog() {
+        console.log("显示新建项目对话框 - 返回登录页面")
+        // 调用Python方法回到登录窗口
+        if (typeof application !== 'undefined') {
+            application.back_to_start_window()
+        } else {
+            console.error("application 对象未找到")
+        }
+    }
     // 显示对话框
     function showDialog(dialogFile) {
         dialogLoader.source = dialogFile
@@ -758,4 +842,10 @@ Window {
         
         console.log("警告: 无法找到 ContinuousLearning Loader")
     }
+    // 🔥 新增：显示新建项目对话框
+    // function showNewProjectDialog() {
+    //     console.log("显示新建项目对话框")
+    //     // 这里假设您有一个新建项目的对话框组件
+    //     showDialog("StartWindow.qml")
+    // }
 }

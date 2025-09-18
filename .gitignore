@@ -13,3 +13,6 @@ __pycache__/
 *.pyc
 *.db
 data/
+/build
+/dist
+pyside_app_demo.exe
